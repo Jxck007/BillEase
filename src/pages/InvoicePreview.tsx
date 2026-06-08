@@ -98,7 +98,7 @@ export default function InvoicePreview() {
       return;
     }
     try {
-      await exportInvoiceAsImage(target, `${invoice.invoiceNumber}_${invoice.type}`, false, isEstimate ? 'estimate' : 'invoice');
+      await exportInvoiceAsImage(target, `${invoice.invoiceNumber}_${invoice.type}`);
       alert(language === 'en' ? 'PNG generated successfully' : 'PNG generated successfully');
     } catch (err) {
       console.error('Invoice PNG export failed:', err);
@@ -122,14 +122,12 @@ export default function InvoicePreview() {
     try {
       const pdfResult = await shareInvoicePdf(`${state.profile.name} - ${shareDocumentLabel} #${invoice.invoiceNumber}\nAmount: ${formatCurrency(invoice.total)}\nPlease find attached ${shareDocumentLabel.toLowerCase()} PDF.`);
       if (pdfResult.shared) return;
-      const imageResult = await shareInvoiceImage(`${state.profile.name} - ${shareDocumentLabel} #${invoice.invoiceNumber}\nAmount: ${formatCurrency(invoice.total)}`);
-      if (imageResult.shared) return;
-      if (pdfResult.downloaded || imageResult.downloaded) {
+      if (pdfResult.downloaded) {
         shareInvoiceOnWhatsApp(invoice, customer.name, customer.phone, state.profile.name, shareDocumentLabel);
         return;
       }
     } catch (err) {
-      console.warn('PDF/image share failed, falling back to WhatsApp text link', err);
+      console.warn('PDF share failed, falling back to WhatsApp text link', err);
     }
 
     shareInvoiceOnWhatsApp(invoice, customer.name, customer.phone, state.profile.name, shareDocumentLabel);

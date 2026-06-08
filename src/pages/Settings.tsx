@@ -183,7 +183,7 @@ export default function Settings() {
       </div>
 
       <Section title={language === 'en' ? 'Firebase Status' : 'Firebase நிலை'} subtitle={language === 'en' ? 'Deployment and local-mode connectivity overview.' : 'டிப்ளாய்மென்ட் மற்றும் local-mode இணைப்பு நிலை.'}>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className={`rounded-2xl border px-4 py-3 ${firebaseStatus.appConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
             <div className="text-xs font-bold uppercase tracking-widest">App</div>
             <div className="mt-1 font-semibold">{firebaseStatus.appConnected ? 'Connected' : 'Not connected'}</div>
@@ -191,10 +191,6 @@ export default function Settings() {
           <div className={`rounded-2xl border px-4 py-3 ${firebaseStatus.firestoreConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
             <div className="text-xs font-bold uppercase tracking-widest">Firestore</div>
             <div className="mt-1 font-semibold">{firebaseStatus.firestoreConnected ? 'Connected' : 'Not connected'}</div>
-          </div>
-          <div className={`rounded-2xl border px-4 py-3 ${firebaseStatus.storageConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-            <div className="text-xs font-bold uppercase tracking-widest">Storage</div>
-            <div className="mt-1 font-semibold">{firebaseStatus.storageConnected ? 'Connected' : 'Not connected'}</div>
           </div>
         </div>
         <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-700">

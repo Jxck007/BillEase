@@ -2,7 +2,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { DeliveryNote, Invoice } from '../lib/types';
 import { formatCurrency } from '../lib/utils';
-import { uploadExport } from '../lib/firebase';
+
 
 const COLOR_PROPERTIES = [
   'color',
@@ -226,18 +226,9 @@ async function createPdfBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH
 export async function exportInvoiceAsImage(
   element: HTMLElement,
   fileName: string,
-  uploadToCloud = false,
-  docType: 'invoice' | 'estimate' = 'invoice',
 ) {
   try {
     const blob = await createPngBlobFromElement(element, 190);
-    if (uploadToCloud) {
-      try {
-        await uploadExport(`${fileName}.png`, blob, docType);
-      } catch (err) {
-        console.warn('Failed to upload to cloud:', (err as Error).message);
-      }
-    }
     downloadBlob(blob, `${fileName}.png`);
   } catch (err) {
     console.error('Export failed:', err);
@@ -245,16 +236,9 @@ export async function exportInvoiceAsImage(
   }
 }
 
-export async function exportDeliveryNoteAsImage(element: HTMLElement, fileName: string, uploadToCloud = false) {
+export async function exportDeliveryNoteAsImage(element: HTMLElement, fileName: string) {
   try {
     const blob = await createPngBlobFromElement(element, A4_WIDTH_MM);
-    if (uploadToCloud) {
-      try {
-        await uploadExport(`${fileName}.png`, blob, 'delivery-note');
-      } catch (err) {
-        console.warn('Failed to upload delivery note to cloud:', (err as Error).message);
-      }
-    }
     downloadBlob(blob, `${fileName}.png`);
   } catch (err) {
     console.error('Delivery note export failed:', err);
@@ -269,10 +253,6 @@ export async function shareElementAsImage(
   text: string,
   widthMm = A4_WIDTH_MM,
 ): Promise<ShareResult> {
-  if (!canUseNativeShare()) {
-    return { shared: false, reason: 'unsupported' };
-  }
-
   try {
     const blob = await createPngBlobFromElement(element, widthMm);
     if (!blob.size) {
@@ -302,10 +282,6 @@ export async function shareElementAsPdf(
   text: string,
   widthMm = A4_WIDTH_MM,
 ): Promise<ShareResult> {
-  if (!canUseNativeShare()) {
-    return { shared: false, reason: 'unsupported' };
-  }
-
   try {
     const blob = await createPdfBlobFromElement(element, widthMm);
     if (!blob.size) {

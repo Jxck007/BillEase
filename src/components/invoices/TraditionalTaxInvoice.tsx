@@ -88,7 +88,7 @@ export default function TraditionalTaxInvoice({ invoice, profile, customer, show
           {customerVisibility.gstNumber && <div className="buyer-contact">GSTIN: {customer?.gstNumber || '-'}</div>}
         </section>
 
-        <section className="tv-table-wrap">
+        <section className="tv-table-wrap overflow-x-auto">
           <table className="tv-table">
             <thead><tr><th>SL No</th><th>Description of Goods</th><th>HSN/SAC</th><th>Quantity</th><th>Rate</th><th>Total Amount</th></tr></thead>
             <tbody>

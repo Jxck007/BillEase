@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
 
 const enabled = import.meta.env.VITE_FIREBASE_ENABLED === 'true';
 const requiredEnvKeys = [
@@ -20,13 +20,12 @@ export type FirebaseStatus = {
   configured: boolean;
   appConnected: boolean;
   firestoreConnected: boolean;
-  storageConnected: boolean;
   localMode: boolean;
   missingVariables: string[];
 };
 
-let _db: ReturnType<typeof getFirestore> | null = null;
-let _storage: ReturnType<typeof getStorage> | null = null;
+export let db: ReturnType<typeof getFirestore> | null = null;
+export let auth: ReturnType<typeof getAuth> | null = null;
 
 function getMissingFirebaseVariables() {
   if (!enabled) return [];
@@ -36,15 +35,13 @@ function getMissingFirebaseVariables() {
 export function getFirebaseStatus(): FirebaseStatus {
   const missingVariables = getMissingFirebaseVariables();
   const configured = enabled && missingVariables.length === 0;
-  const appConnected = configured && !!_db;
-  const firestoreConnected = configured && !!_db;
-  const storageConnected = configured && !!_storage;
+  const appConnected = configured && !!db;
+  const firestoreConnected = configured && !!db;
   return {
     enabled,
     configured,
     appConnected,
     firestoreConnected,
-    storageConnected,
     localMode: !configured || !appConnected,
     missingVariables,
   };
@@ -82,18 +79,18 @@ if (enabled && startupStatus.missingVariables.length === 0) {
 
   try {
     const app = initializeApp(config as any);
-    _db = getFirestore(app);
-    _storage = getStorage(app);
+    db = getFirestore(app);
+    auth = getAuth(app);
     console.log('[Firebase Developer Info] Firebase Services initialized successfully.');
   } catch (err) {
     console.error('[Firebase Developer Error] Initialization failed: ', err);
-    _db = null;
-    _storage = null;
+    db = null;
+    auth = null;
   }
 }
 
 export function firebaseEnabled() {
-  return enabled && !!_db;
+  return enabled && !!db;
 }
 
 function sanitizeForFirestore(value: unknown, seen = new WeakSet<object>()): unknown {
@@ -133,14 +130,14 @@ function sanitizeForFirestore(value: unknown, seen = new WeakSet<object>()): unk
 
 export async function setAppDataBackup(data: unknown) {
   if (!firebaseEnabled()) throw new Error('Firebase not enabled');
-  const d = doc(_db as any, 'billease', 'appData');
+  const d = doc(db as any, 'billease', 'appData');
   const safeData = sanitizeForFirestore(data);
   await setDoc(d, { data: safeData, updatedAt: new Date().toISOString() });
 }
 
 export async function getAppDataBackup(): Promise<any | null> {
   if (!firebaseEnabled()) return null;
-  const d = doc(_db as any, 'billease', 'appData');
+  const d = doc(db as any, 'billease', 'appData');
   const snap = await getDoc(d);
   if (!snap.exists()) return null;
   const payload = snap.data();
@@ -149,43 +146,8 @@ export async function getAppDataBackup(): Promise<any | null> {
 
 export async function deleteAppDataBackup() {
   if (!firebaseEnabled()) throw new Error('Firebase not enabled');
-  const d = doc(_db as any, 'billease', 'appData');
+  const d = doc(db as any, 'billease', 'appData');
   await deleteDoc(d);
-}
-
-export async function uploadExportFile(path: string, blob: Blob) {
-  if (!firebaseEnabled() || !_storage) throw new Error('Firebase Storage not enabled');
-  const storageRef = ref(_storage as any, path);
-  await uploadBytes(storageRef, blob);
-  return await getDownloadURL(storageRef);
-}
-
-/**
- * Upload a PNG or PDF export file to Firebase Cloud Storage
- * @param filename - Name of the file (e.g., "INV_2024-001.png")
- * @param blob - Blob data (from html2canvas or PDF generator)
- * @param docType - Type of document ("invoice" | "estimate" | "delivery-note")
- * @returns Download URL for the uploaded file
- */
-export async function uploadExport(filename: string, blob: Blob, docType: 'invoice' | 'estimate' | 'delivery-note' = 'invoice') {
-  if (!firebaseEnabled() || !_storage) throw new Error('Firebase Storage not enabled');
-  const timestamp = new Date().toISOString().split('T')[0];
-  const path = `exports/${docType}/${timestamp}/${filename}`;
-  const storageRef = ref(_storage as any, path);
-  await uploadBytes(storageRef, blob);
-  return await getDownloadURL(storageRef);
-}
-
-export async function testStorageConnection(): Promise<boolean> {
-  if (!firebaseEnabled() || !_storage) return false;
-  try {
-    const storageRef = ref(_storage as any, 'exports/.connection_test');
-    const blob = new Blob(['check'], { type: 'text/plain' });
-    await uploadBytes(storageRef, blob);
-    return true;
-  } catch (err) {
-    return false;
-  }
 }
 
 /**

@@ -1,168 +1,95 @@
-I'll update the TODO statuses and read `package.json` to capture exact scripts and dependencies.
+# BillEase
 
-Starting: *Summarize project structure and key files* (2/4)
+**BillEase** is a modern, responsive, and secure billing and invoicing application designed for small to medium businesses. It leverages a serverless architecture to provide lightning-fast PDF generation, local storage fallback, and real-time data sync using Firebase.
 
-Read [](file:///c%3A/Users/21070/Downloads/BillEase/BillEase/package.json)
+## 🚀 Features
 
-Next, I'll read `src/lib/firebase.ts` to list required environment variables.
+- **Robust Authentication**: Secure access restricted to authorized administrators via Firebase Authentication and Firestore role validation.
+- **Client & Product Management**: Store and manage customers and products, calculating totals automatically.
+- **Invoice & Estimate Generation**: Create professional invoices and estimates, apply taxes (Inclusive/Exclusive), discounts, and automatically calculate line totals.
+- **Multiple Document Templates**: Choose between multiple modern invoice templates optimized for A4 print and digital sharing.
+- **Instant PDF & PNG Export**: Completely local, client-side generation of PDFs and PNGs using `html2canvas` and `jspdf`, ensuring your documents look crisp and accurate without server reliance.
+- **Multi-Language Support**: Seamlessly toggle between English and Tamil.
+- **Fully Responsive**: Designed with Tailwind CSS for perfect rendering on desktop, tablet, and mobile devices.
 
-Read [](file:///c%3A/Users/21070/Downloads/BillEase/BillEase/src/lib/firebase.ts)
+## 🛠 Tech Stack
 
-Marking summarization done and starting the setup/build/deploy documentation.
+- **Frontend Framework**: [React](https://reactjs.org/) (v19)
+- **Routing**: [React Router](https://reactrouter.com/) (v7)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) (v4)
+- **Backend & Database**: [Firebase](https://firebase.google.com/) (Auth, Firestore)
+- **Export Capabilities**: `jspdf` and `html2canvas`
+- **Build Tool**: [Vite](https://vitejs.dev/)
 
-Starting: *Document setup, build, and deploy steps* (3/4)
+## 💻 Local Setup
 
-**Progress:** Read package.json and `src/lib/firebase.ts`; now delivering the full MCP document.
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd BillEase
+   ```
 
-**Project Summary**
-- **Name:** BillEase — lightweight single-page invoicing app for invoices, estimates, delivery notes, exports and basic reporting.
-- **Purpose:** Create, preview, print/export invoices and related documents; optional cloud backup and export storage via Firebase.
-- **Tech stack:** **Vite** + **React** + **TypeScript**, Tailwind CSS, Firebase (optional), html2canvas + jsPDF for exports, Recharts for charts, React Router.
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-**Quick Links**
-- **Project root:** package.json
-- **Build config:** vite.config.ts, tsconfig.json
-- **App entry:** src/main.tsx, src/App.tsx
-- **HTML template:** index.html
-- **Firebase helper:** src/lib/firebase.ts
-- **Core context:** src/context/DataContext.tsx
-- **Main pages folder:** src/pages
-- **Key services:** src/services/invoiceService.ts, src/services/exportService.ts
-- **Templates:** src/templates/invoiceTemplates.ts
+3. **Configure Environment Variables:**
+   Create a `.env` file in the root directory (see *Environment Variables* section below).
 
-**Architecture & Responsibilities**
-- **Routing:** Client-side routing via `react-router-dom`. Pages live in `src/pages/`.
-- **State:** App-wide state is in `DataContext` (src/context/DataContext.tsx). Auxiliary contexts: `HelpContext` and `LanguageContext`.
-- **UI:** Reusable UI components in `src/components/` (layout under `layout/`, invoice UI under `invoice/`, shared `ui/Modal.tsx`).
-- **Persistence:** Local state + optional Firebase Firestore/Storage for cloud backup and export upload (`src/lib/firebase.ts`).
-- **Business logic:** Services encapsulate domain logic:
-  - `invoiceService.ts` — create/update/format invoices, compute totals/taxes.
-  - `exportService.ts` — generates PNG/PDF via html2canvas/jsPDF, local download and optionally upload via Firebase.
-- **Templates & rendering:** `invoiceTemplates.ts` defines invoice templates (TraditionalTaxInvoice, DeliveryNotePrint, etc.) used by preview and print components.
-- **GST calc:** `src/gst/gstService.ts` contains GST-specific computations and helpers.
+4. **Start the development server:**
+   ```bash
+   npm run dev
+   ```
 
-**File Map (high-level, key files only)**
-- **Root & config**
-  - package.json — scripts & deps
-  - vite.config.ts
-  - tsconfig.json
-  - index.html
-- **Entry & styling**
-  - src/main.tsx
-  - src/index.css
-- **Contexts**
-  - src/context/DataContext.tsx — central app state, autosave hooks integration
-  - src/context/HelpContext.tsx
-  - src/context/LanguageContext.tsx
-- **Pages**
-  - src/pages/Invoices.tsx — invoices list
-  - src/pages/InvoiceForm.tsx — editor
-  - src/pages/InvoicePreview.tsx
-  - src/pages/DeliveryNotes.tsx, src/pages/DeliveryNoteForm.tsx
-  - src/pages/Customers.tsx, src/pages/Products.tsx
-  - [other pages in src/pages/*]
-- **Components**
-  - src/components/layout/AppLayout.tsx
-  - src/components/layout/Navbar.tsx
-  - src/components/invoice/ItemRow.tsx
-  - src/components/invoices/TraditionalTaxInvoice.tsx
-  - src/components/ui/Modal.tsx
-- **Lib & utilities**
-  - src/lib/firebase.ts — Firestore + Storage helpers
-  - src/lib/utils.ts
-  - src/lib/invoiceCustomerFields.ts
-  - src/lib/translations.ts
-  - src/lib/types.ts
-- **Hooks**
-  - src/hooks/useAutosaveDraft.ts
-- **Services**
-  - src/services/invoiceService.ts
-  - src/services/exportService.ts
-- **Templates**
-  - src/templates/invoiceTemplates.ts
+5. **Build for production:**
+   ```bash
+   npm run build
+   ```
 
-**Data Flow & State**
-- **Primary flow:** UI → DataContext (in-memory) → autosave to local storage → optional cloud sync via `useFirestoreSync` (in `src/lib/firebase.ts`).
-- **Autosave:** `useAutosaveDraft.ts` (hook) periodically saves draft state to local storage; DataContext orchestrates load/save on startup.
-- **Cloud backup:** Controlled by `VITE_FIREBASE_ENABLED`. When enabled, `useFirestoreSync` debounces state writes and `uploadExport()` stores export files in Firebase Storage.
+## 🔐 Environment Variables
 
-**Environment Variables (found in code)**
-- **Firebase (optional)** — defined in `.env` and used in `src/lib/firebase.ts`:
-  - `VITE_FIREBASE_ENABLED` (set to "true" to enable)
-  - `VITE_FIREBASE_API_KEY`
-  - `VITE_FIREBASE_AUTH_DOMAIN`
-  - `VITE_FIREBASE_PROJECT_ID`
-  - `VITE_FIREBASE_STORAGE_BUCKET`
-  - `VITE_FIREBASE_MESSAGING_SENDER_ID`
-  - `VITE_FIREBASE_APP_ID`
-- **Build tools:** Vite accepts standard Vite env vars; secrets must be prefixed with `VITE_` to be available client-side.
+Create a `.env` file at the root of your project and populate it with your Firebase configuration.
 
-**Scripts / How to run (from package.json)**
-- Install:
-```bash
-npm install
-```
-- Development (host reachable on LAN):
-```bash
-npm run dev
-# -> runs `vite --port=3000 --host=0.0.0.0`
-```
-- Build for production:
-```bash
-npm run build
-```
-- Preview production build locally:
-```bash
-npm run preview
-```
-- Clean (removes `dist`):
-```bash
-npm run clean
-```
-- Type-check:
-```bash
-npm run lint
-# runs `tsc --noEmit` for TypeScript checks
+```env
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
 ```
 
-**Deployment**
-- **Vercel:** App is static SPA built by `npm run build`. See VERCEL_QUICK_DEPLOY.md and VERCEL_DEPLOYMENT.md for step-by-step. Typical steps:
-  - Add project to Vercel, point to repo root.
-  - Set build command: `npm run build`, output directory: `dist` (Vite default).
-  - Add required env vars in Vercel dashboard (the `VITE_` keys above) if enabling Firebase/other integrations.
-- **Firebase (optional):** Only used for cloud backup & storage; configure project and set environment variables. See FIREBASE_SETUP.md and FIRESTORE_GUIDE.md.
+> **Note:** BillEase has been streamlined to not require Firebase Storage for document generation. It relies solely on Firebase Auth and Firestore.
 
-**Developer Onboarding — Where to Start**
-- Open src/App.tsx to see routing and context providers.
-- Inspect state and persistence in src/context/DataContext.tsx.
-- To modify invoice rendering, edit templates/components in:
-  - src/templates/invoiceTemplates.ts
-  - src/components/invoices/TraditionalTaxInvoice.tsx
-- For export behavior, check src/services/exportService.ts and `uploadExport` in src/lib/firebase.ts.
-- For GST rules, open src/gst/gstService.ts.
+## 🔥 Firebase Setup
 
-**Testing & Linting**
-- No automated test suite detected. Use `npm run lint` (TS type-check) to validate types.
-- Manual QA: verify invoice creation flows, printing/exporting, cloud backup toggle.
+1. Create a project in the [Firebase Console](https://console.firebase.google.com/).
+2. Enable **Authentication** (Email/Password provider).
+3. Enable **Firestore Database**.
+4. Create an `admins` collection in Firestore. To authorize a user, add a document with the user's Auth UID as the Document ID containing the following fields:
+   - `role`: `"admin"` (string)
+   - `active`: `true` (boolean)
+5. Copy your web app config to the `.env` file.
 
-**Operational Notes & Known Caveats**
-- **Firebase initialization is optional** — controlled by `VITE_FIREBASE_ENABLED`. Missing/incorrect Firebase env vars will silently disable cloud features (errors are caught).
-- **Autosave debounce**: Firestore sync debounced to 2s; network errors are logged and suppressed for non-blocking UX.
-- **Large exports**: html2canvas/jsPDF may produce large blobs; Firebase Storage upload is used only when enabled.
-- **Date formats & locale:** Templates use ISO strings; translations exist in `src/lib/translations.ts`.
-- **Security:** Client-side `VITE_` env vars are public — do not store private server secrets here.
+## 🚀 Deployment Instructions
 
-**Handoff Checklist (for an SI)**
-- [ ] Clone repo and run `npm install` → `npm run dev`.
-- [ ] Provide `.env` file with `VITE_FIREBASE_*` keys if cloud backup is required.
-- [ ] Review `src/context/DataContext.tsx` to understand app shape (state schema).
-- [ ] Run through invoice create → preview → export flows.
-- [ ] Update Vercel environment variables when deploying production.
-- [ ] If adding server-side features, move sensitive keys off client and use server endpoints.
+BillEase is optimized for deployment on modern edge networks like **Vercel** or **Netlify**.
 
-**Next Steps I can do for you**
-- Generate a one-page README (or more structured Handoff.md) from this MCP and commit it.
-- Create a `.env.example` with required `VITE_` keys.
-- Add a short developer runbook (common troubleshooting steps).
+### Deploying to Vercel
+1. Install the Vercel CLI: `npm i -g vercel`
+2. Run `vercel` from the root directory.
+3. Ensure your Firebase environment variables are added to the Vercel dashboard.
+4. The included `vercel.json` ensures that Single Page Application (SPA) routing functions correctly by rewriting all paths to `index.html`.
 
-If you want, I can now create `HANDOFF.md` in the repo with this MCP and a `.env.example`. Which should I create?
+## 📸 Screenshots
+
+*(Add screenshots of your application here)*
+
+- **Dashboard:** `![Dashboard Screenshot](path/to/image.png)`
+- **Invoice Generation:** `![Invoice Builder](path/to/image.png)`
+- **Preview & Export:** `![Invoice Preview](path/to/image.png)`
+
+## 📄 License
+
+This project is licensed under the MIT License.

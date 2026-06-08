@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
 import { getEstimatesNavLabel } from '../../lib/estimateUtils';
-import { Users, Receipt, DollarSign, Wallet, BarChart2, Settings, X, Truck } from 'lucide-react';
+import { Users, Receipt, DollarSign, Wallet, BarChart2, Settings, X, Truck, LogOut } from 'lucide-react';
 
 export default function SidebarMobileMenu({ onClose }: { onClose: () => void }) {
   const { state } = useData();
   const { t, language } = useLanguage();
+  const { logout } = useAuth();
 
   const links = [
     { to: '/customers', icon: Users, label: t('customers') },
@@ -44,6 +46,19 @@ export default function SidebarMobileMenu({ onClose }: { onClose: () => void }) 
                 <span>{link.label}</span>
              </Link>
            ))}
+           <div className="my-2 border-t border-stone-100" />
+           <button
+             onClick={() => {
+               onClose();
+               logout();
+             }}
+             className="flex w-full items-center gap-4 p-4 text-rose-600 hover:bg-rose-50 rounded-2xl transition-colors font-medium"
+           >
+              <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500">
+                <LogOut size={20} />
+              </div>
+              <span>Logout</span>
+           </button>
         </div>
       </div>
     </div>

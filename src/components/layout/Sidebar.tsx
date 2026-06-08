@@ -1,14 +1,16 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
 import { getEstimatesNavLabel } from '../../lib/estimateUtils';
-import { LayoutDashboard, Users, FileText, Settings, Menu, X, PiggyBank, Receipt, DollarSign, Wallet, BarChart2, Truck } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, Settings, Menu, X, PiggyBank, Receipt, DollarSign, Wallet, BarChart2, Truck, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../../lib/utils';
 
 export default function Sidebar() {
   const { state } = useData();
   const { t, language } = useLanguage();
+  const { logout } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -70,6 +72,19 @@ export default function Sidebar() {
             );
           })}
         </nav>
+        
+        <div className="p-4 border-t border-stone-100">
+          <button
+            onClick={() => {
+              closeMenu();
+              logout();
+            }}
+            className="flex w-full items-center gap-3 px-4 py-3 rounded-xl transition-colors text-rose-600 hover:bg-rose-50 font-medium"
+          >
+            <LogOut size={20} />
+            <span className="text-sm">Logout</span>
+          </button>
+        </div>
       </div>
       
       {/* Overlay */}

@@ -86,7 +86,7 @@ export default function QuotationEstimateTemplate({
 
         <div className="grid grid-cols-2 border-b-2 border-black">
           <div className="min-h-32 border-r-2 border-black p-3">
-            <div className="mb-2 text-[11px] font-black uppercase">From</div>
+            <div className="mb-2 text-[11px] font-black uppercase">From:</div>
             <div className="space-y-0.5 text-[10px]">
               <div className="text-[12px] font-bold uppercase">{company.name}</div>
               {visibility.address && <div className="whitespace-pre-wrap">{company.address || '-'}</div>}
@@ -96,7 +96,7 @@ export default function QuotationEstimateTemplate({
             </div>
           </div>
           <div className="min-h-32 p-3">
-            <div className="mb-2 text-[11px] font-black uppercase">To</div>
+            <div className="mb-2 text-[11px] font-black uppercase">To:</div>
             <div className="space-y-0.5 text-[10px]">
               <div className="text-[12px] font-bold">{customer?.name || '-'}</div>
               {customerVisibility.address && customer?.address && <div className="whitespace-pre-wrap">{customer.address}</div>}
@@ -156,7 +156,7 @@ export default function QuotationEstimateTemplate({
 
         <div className="grid grid-cols-12 border-b-2 border-black">
           <div className="col-span-7 border-r-2 border-black p-3">
-            <div className="text-[11px] font-black uppercase">Amount in Words</div>
+            <div className="text-[11px] font-black uppercase">Amount in Words:</div>
             <div className="mt-2 min-h-14 whitespace-pre-wrap text-[10px] italic leading-relaxed">{amountInWords}</div>
           </div>
           <div className="col-span-5 p-3">
@@ -174,10 +174,24 @@ export default function QuotationEstimateTemplate({
           </div>
         </div>
 
-        {visibility.terms && (invoice.terms || '').trim() ? (
-          <div className="border-b-2 border-black p-3">
-            <div className="text-[11px] font-black uppercase">Declaration</div>
-            <div className="mt-2 whitespace-pre-wrap text-[10px] leading-relaxed">{invoice.terms.trim()}</div>
+        {((visibility.terms && (invoice.terms || '').trim()) || (invoice.notes || '').trim()) ? (
+          <div className="grid grid-cols-2 border-b-2 border-black">
+            <div className="border-r-2 border-black p-3">
+              {invoice.notes?.trim() && (
+                <>
+                  <div className="text-[11px] font-black uppercase">Notes:</div>
+                  <div className="mt-2 whitespace-pre-wrap text-[10px] leading-relaxed">{invoice.notes.trim()}</div>
+                </>
+              )}
+            </div>
+            <div className="p-3">
+              {visibility.terms && invoice.terms?.trim() && (
+                <>
+                  <div className="text-[11px] font-black uppercase">Declaration:</div>
+                  <div className="mt-2 whitespace-pre-wrap text-[10px] leading-relaxed">{invoice.terms.trim()}</div>
+                </>
+              )}
+            </div>
           </div>
         ) : null}
 
@@ -185,12 +199,11 @@ export default function QuotationEstimateTemplate({
           <div className="grid grid-cols-2">
             <div className="min-h-24 border-r-2 border-black p-3">
               <div className="text-[10px] font-semibold">Customer Signature</div>
-              <div className="mt-10 border-t border-black pt-2 text-[9px]">{customer?.name || ''}</div>
+              <div className="mt-10 border-t border-black pt-2 text-[9px]"></div>
             </div>
             <div className="min-h-24 p-3 text-right">
               <div className="text-[11px] font-black">Authorized Signature</div>
               <div className="mt-10 border-t border-black pt-2 text-[9px]">For {company.name}</div>
-              <div className="mt-1 text-[9px]">{invoice.signatureName || 'Authorized Signatory'}</div>
             </div>
           </div>
         ) : null}

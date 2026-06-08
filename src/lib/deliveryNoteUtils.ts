@@ -90,7 +90,7 @@ export function normalizeCustomerRecord(customer: Customer): Customer {
   }
 
 export function normalizeDeliveryNoteItem(item: Partial<DeliveryNoteItem> & Record<string, unknown> = {}): DeliveryNoteItem {
-  const description = String(item.description || item.name || '').trim();
+  const description = String(item.description || item.name || '');
   return {
     id: typeof item.id === 'string' && item.id ? item.id : undefined,
     description,
@@ -108,12 +108,12 @@ export function normalizeDeliveryNoteItem(item: Partial<DeliveryNoteItem> & Reco
 }
 
 export function normalizeDeliveryNote(note: Partial<DeliveryNote> & Record<string, unknown>): DeliveryNote {
-  const deliveryNoteNumber = String(note.deliveryNoteNumber || note.dnNumber || '').trim();
+  const deliveryNoteNumber = String(note.deliveryNoteNumber || note.dnNumber || '');
   const items = Array.isArray(note.items) ? note.items.map((item) => normalizeDeliveryNoteItem(item as Partial<DeliveryNoteItem>)) : [];
-    const transportPurpose = normalizeTransportPurpose(String(note.transportPurpose || '').trim());
-    const fromPlace = String(note.fromPlace || '').trim();
-    const toPlace = String(note.toPlace || '').trim();
-  const vehicleNumber = String(note.vehicleNumber || '').trim();
+    const transportPurpose = normalizeTransportPurpose(String(note.transportPurpose || ''));
+    const fromPlace = String(note.fromPlace || '');
+    const toPlace = String(note.toPlace || '');
+  const vehicleNumber = String(note.vehicleNumber || '');
   const approximateValue = Number(note.approximateValue || 0);
   return {
     id: String(note.id || ''),

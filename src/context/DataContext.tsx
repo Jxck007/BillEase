@@ -2,7 +2,7 @@ import { createContext, useContext, useState, ReactNode, useEffect } from 'react
 import { AppState, AuditLog, AppSettings, BusinessProfile, Customer, Expense, Invoice, Payment, Product, DeliveryNote } from '../lib/types';
 import { generateId, safeParseJson } from '../lib/utils';
 import { buildAuditLog, getDefaultSettings } from '../services/invoiceService';
-import { firebaseEnabled, setAppDataBackup, getAppDataBackup, deleteAppDataBackup, useFirestoreSync, getFirebaseStatus, testStorageConnection, FirebaseStatus } from '../lib/firebase';
+import { firebaseEnabled, setAppDataBackup, getAppDataBackup, deleteAppDataBackup, useFirestoreSync, getFirebaseStatus, FirebaseStatus } from '../lib/firebase';
 import { normalizeCustomerRecord, normalizeDeliveryNote } from '../lib/deliveryNoteUtils';
 
 interface DataContextType {
@@ -71,14 +71,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
           // Attempt Firestore read check
           await getAppDataBackup();
           
-          // Attempt Storage connection check (write check)
-          const storageOk = await testStorageConnection();
-          
           setFirebaseStatus(current => ({
             ...current,
             appConnected: true,
             firestoreConnected: true,
-            storageConnected: storageOk,
             localMode: false
           }));
         } catch (err) {
@@ -87,7 +83,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
             ...current,
             appConnected: false,
             firestoreConnected: false,
-            storageConnected: false,
             localMode: true
           }));
         }

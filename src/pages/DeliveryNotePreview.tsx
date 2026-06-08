@@ -92,17 +92,12 @@ export default function DeliveryNotePreview() {
       );
       if (pdfResult.shared) return;
 
-      const imageResult = await shareDeliveryNoteImage(
-        `${state.profile.name} - Delivery Note #${note.deliveryNoteNumber}\nTransport Purpose: ${note.transportPurpose || '-'}\nVehicle No: ${note.vehicleNumber || '-'}`,
-      );
-      if (imageResult.shared) return;
-
-      if (pdfResult.downloaded || imageResult.downloaded) {
+      if (pdfResult.downloaded) {
         shareDeliveryNoteOnWhatsApp(note, customer.name, customer.phone, state.profile.name);
         return;
       }
     } catch (err) {
-      console.warn('PDF/image share failed, falling back to WhatsApp text link', err);
+      console.warn('PDF share failed, falling back to WhatsApp text link', err);
     }
 
     shareDeliveryNoteOnWhatsApp(note, customer.name, customer.phone, state.profile.name);
