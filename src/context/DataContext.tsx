@@ -64,32 +64,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [firebaseStatus, setFirebaseStatus] = useState<FirebaseStatus>(() => getFirebaseStatus());
 
-  useEffect(() => {
-    if (firebaseStatus.enabled && firebaseStatus.configured) {
-      const verifyConnection = async () => {
-        try {
-          // Attempt Firestore read check
-          await getAppDataBackup();
-          
-          setFirebaseStatus(current => ({
-            ...current,
-            appConnected: true,
-            firestoreConnected: true,
-            localMode: false
-          }));
-        } catch (err) {
-          console.warn('[Firebase Connection Check Failed] Falling back to local mode:', err);
-          setFirebaseStatus(current => ({
-            ...current,
-            appConnected: false,
-            firestoreConnected: false,
-            localMode: true
-          }));
-        }
-      };
-      verifyConnection();
-    }
-  }, []);
+  // Startup connection check removed as it caused unnecessary reads and permission issues
 
   useEffect(() => {
     const saved = safeParseJson<Partial<AppState>>(localStorage.getItem('appData'), {});

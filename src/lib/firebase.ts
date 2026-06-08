@@ -130,18 +130,35 @@ function sanitizeForFirestore(value: unknown, seen = new WeakSet<object>()): unk
 
 export async function setAppDataBackup(data: unknown) {
   if (!firebaseEnabled()) throw new Error('Firebase not enabled');
-  const d = doc(db as any, 'billease', 'appData');
-  const safeData = sanitizeForFirestore(data);
-  await setDoc(d, { data: safeData, updatedAt: new Date().toISOString() });
+  console.log('[Firestore] Operation: WRITE | Collection: billease | Path: billease/appData');
+  try {
+    const d = doc(db as any, 'billease', 'appData');
+    const safeData = sanitizeForFirestore(data);
+    await setDoc(d, { data: safeData, updatedAt: new Date().toISOString() });
+    console.log('[Firestore] WRITE SUCCESS | Path: billease/appData');
+  } catch (err: any) {
+    console.error(`[Firestore] WRITE FAILED | Path: billease/appData | Error: ${err.message}`);
+    throw err;
+  }
 }
 
 export async function getAppDataBackup(): Promise<any | null> {
   if (!firebaseEnabled()) return null;
-  const d = doc(db as any, 'billease', 'appData');
-  const snap = await getDoc(d);
-  if (!snap.exists()) return null;
-  const payload = snap.data();
-  return payload?.data ?? null;
+  console.log('[Firestore] Operation: READ | Collection: billease | Path: billease/appData');
+  try {
+    const d = doc(db as any, 'billease', 'appData');
+    const snap = await getDoc(d);
+    if (!snap.exists()) {
+      console.log('[Firestore] READ SUCCESS | Path: billease/appData (Document does not exist)');
+      return null;
+    }
+    console.log('[Firestore] READ SUCCESS | Path: billease/appData');
+    const payload = snap.data();
+    return payload?.data ?? null;
+  } catch (err: any) {
+    console.error(`[Firestore] READ FAILED | Path: billease/appData | Error: ${err.message}`);
+    throw err;
+  }
 }
 
 export async function deleteAppDataBackup() {
