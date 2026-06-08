@@ -1,0 +1,549 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, Plus, Save, Sparkles } from 'lucide-react';
+import Modal from '../components/ui/Modal';
+import { useData } from '../context/DataContext';
+import { useLanguage } from '../context/LanguageContext';
+import { Customer, Invoice, InvoiceItem, Product } from '../lib/types';
+import { formatCurrency, generateId, roundMoney } from '../lib/utils';
+import { buildDefaultInvoiceNumber, calculateInvoiceFromDraft, clearDraft, getNextInvoiceNumber, loadDraft, selectTemplate } from '../services/invoiceService';
+import { INVOICE_TEMPLATES } from '../templates/invoiceTemplates';
+import { getStateCodeFromGSTIN, getStateNameFromCode, validateGSTIN } from '../gst/gstService';
+import { useAutosaveDraft } from '../hooks/useAutosaveDraft';
+import ItemRow from '../components/invoice/ItemRow';
+import { CUSTOMER_FIELD_OPTIONS, DEFAULT_CUSTOMER_FIELD_VISIBILITY, withDefaultCustomerFieldVisibility } from '../lib/invoiceCustomerFields';
+import { ESTIMATE_COPY_TYPES, getEstimateDocumentName, getEstimateNumberLabel, normalizeEstimateCopyType } from '../lib/estimateUtils';
+
+function Label({ english, tamil, helper }: { english: string; tamil: string; helper?: string }) {
+  return (
+    <div className="mb-1">
+      <div className="text-sm font-semibold text-stone-800">{english}</div>
+      <div className="text-xs text-stone-500">{tamil}</div>
+      {helper && <div className="mt-1 text-[11px] text-stone-400">{helper}</div>}
+    </div>
+  );
+}
+
+const blankItem = (): InvoiceItem => ({
+  id: generateId(),
+  productId: '',
+  name: '',
+  description: '',
+  hsnSac: '',
+  unit: 'Nos',
+  quantity: 1,
+  price: 0,
+  taxRate: 0,
+  discount: 0,
+  discountType: 'percent',
+});
+
+export default function InvoiceForm() {
+  const { id } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { state, addInvoice, updateInvoice, addCustomer, addAuditLog } = useData();
+  const { t, language } = useLanguage();
+
+  const isEditing = Boolean(id && id !== 'new');
+  const isEstimate = location.pathname.includes('/estimates');
+  const invoiceType: Invoice['type'] = isEstimate ? 'estimate' : 'invoice';
+
+  const createInitialDraft = (): Partial<Invoice> => ({
+    invoiceNumber: getNextInvoiceNumber(state.invoices, state.settings.invoicePrefix, invoiceType),
+    customerId: '',
+    date: new Date().toISOString().split('T')[0],
+    dueDate: undefined,
+    poDate: '',
+    poMode: '',
+    copyType: (invoiceType === 'estimate' ? 'ORIGINAL COPY' : 'DUPLICATE COPY') as Invoice['copyType'],
+    placeOfSupply: state.profile.stateCode ? getStateNameFromCode(state.profile.stateCode) : '',
+    reverseCharge: false,
+    gstMode: state.settings.taxMode,
+    templateId: state.settings.defaultTemplate,
+    draft: true,
+    items: [blankItem()],
+    subtotal: 0,
+    taxableAmount: 0,
+    taxTotal: 0,
+    cgstTotal: 0,
+    sgstTotal: 0,
+    igstTotal: 0,
+    discountTotal: 0,
+    shippingCharge: 0,
+    adjustment: 0,
+    roundOff: 0,
+    total: 0,
+    amountPaid: 0,
+    status: 'unpaid' as Invoice['status'],
+    notes: '',
+    terms: '',
+    signatureName: state.profile.name,
+    customerFieldVisibility: DEFAULT_CUSTOMER_FIELD_VISIBILITY,
+    qrCodeData: '',
+    type: invoiceType,
+  });
+
+  const [draft, setDraft] = useState<Partial<Invoice>>(createInitialDraft);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(true);
+  const [customerDraft, setCustomerDraft] = useState({ name: '', phone: '', email: '', address: '', gstNumber: '', stateCode: '' });
+
+  const selectedCustomer = useMemo(
+    () => state.customers.find((customer) => customer.id === draft.customerId),
+    [state.customers, draft.customerId]
+  );
+
+  const calculated = useMemo(() => calculateInvoiceFromDraft(draft, state.profile, selectedCustomer), [draft, state.profile, selectedCustomer]);
+  const viewDraft = { ...draft, ...calculated } as Partial<Invoice>;
+
+  useAutosaveDraft(viewDraft, state.settings.enableAutosave && state.settings.enableDrafts && !isEditing);
+
+  useEffect(() => {
+    if (isEditing) {
+      const invoice = state.invoices.find((entry) => entry.id === id);
+      if (invoice) {
+        setDraft(invoice);
+        setCustomerSearch(state.customers.find((customer) => customer.id === invoice.customerId)?.name || '');
+      }
+      return;
+    }
+
+    const saved = loadDraft();
+    if (saved && saved.type === invoiceType) {
+      setDraft({ ...createInitialDraft(), ...saved, type: invoiceType });
+      setCustomerSearch(state.customers.find((customer) => customer.id === saved.customerId)?.name || '');
+    } else {
+      setDraft(createInitialDraft());
+      setCustomerSearch('');
+    }
+  }, [id, isEditing, invoiceType]);
+
+  useEffect(() => {
+    if (selectedCustomer) {
+      setCustomerSearch(selectedCustomer.name);
+      if (!draft.placeOfSupply && selectedCustomer.stateCode) {
+        setDraft((current) => ({ ...current, placeOfSupply: getStateNameFromCode(selectedCustomer.stateCode) }));
+      }
+    }
+  }, [selectedCustomer]);
+
+  const updateDraft = (patch: Partial<Invoice>) => setDraft((current) => ({ ...current, ...patch }));
+  const updateItem = (itemId: string, patch: Partial<InvoiceItem>) => updateDraft({ items: (draft.items || []).map((item) => item.id === itemId ? { ...item, ...patch } : item) });
+
+  const productMatches = (query: string) => state.products.filter((product) => product.name.toLowerCase().includes(query.toLowerCase()) || (product.hsnSac || '').toLowerCase().includes(query.toLowerCase())).slice(0, 5);
+  const customerMatches = state.customers.filter((customer) => customer.name.toLowerCase().includes(customerSearch.toLowerCase()) || customer.phone.includes(customerSearch) || (customer.gstNumber || '').toLowerCase().includes(customerSearch.toLowerCase())).slice(0, 6);
+
+  const selectProduct = (itemId: string, product: Product) => {
+    updateDraft({
+      items: (draft.items || []).map((item) => item.id === itemId ? {
+        ...item,
+        productId: product.id,
+        name: product.name,
+        description: product.description || item.description,
+        hsnSac: product.hsnSac || item.hsnSac,
+        unit: product.unit || item.unit || 'Nos',
+        price: product.price,
+        taxRate: product.taxRate,
+      } : item),
+    });
+    setActiveItemId(null);
+  };
+
+  const addItem = () => updateDraft({ items: [...(draft.items || []), blankItem()] });
+  const removeItem = (itemId: string) => updateDraft({ items: (draft.items || []).filter((item) => item.id !== itemId) });
+
+  const handleSave = () => {
+    if (!draft.customerId) {
+      alert(language === 'en' ? 'Select a customer first.' : 'முதலில் வாடிக்கையாளரைத் தேர்வு செய்யவும்.');
+      return;
+    }
+
+    const validItems = (draft.items || []).filter((item) => item.name.trim().length > 0);
+    if (validItems.length === 0) {
+      alert(language === 'en' ? 'Add at least one item.' : 'குறைந்தது ஒரு பொருளை சேர்க்கவும்.');
+      return;
+    }
+
+    const payload: Omit<Invoice, 'id' | 'createdAt'> = {
+      ...(viewDraft as Omit<Invoice, 'id' | 'createdAt'>),
+      invoiceNumber: draft.invoiceNumber || buildDefaultInvoiceNumber(state.settings.invoicePrefix, state.settings.invoiceStartingNumber, invoiceType),
+      customerId: draft.customerId,
+      date: draft.date || new Date().toISOString().split('T')[0],
+      dueDate: undefined,
+      poDate: draft.poDate || '',
+      poMode: draft.poMode || '',
+      copyType: isEstimate
+        ? normalizeEstimateCopyType(draft.copyType)
+        : (draft.copyType || 'DUPLICATE COPY'),
+      items: validItems,
+      subtotal: roundMoney(viewDraft.subtotal || 0),
+      taxableAmount: roundMoney(viewDraft.taxableAmount || 0),
+      taxTotal: roundMoney(viewDraft.taxTotal || 0),
+      cgstTotal: roundMoney(viewDraft.cgstTotal || 0),
+      sgstTotal: roundMoney(viewDraft.sgstTotal || 0),
+      igstTotal: roundMoney(viewDraft.igstTotal || 0),
+      discountTotal: roundMoney(viewDraft.discountTotal || 0),
+      shippingCharge: isEstimate ? 0 : roundMoney(viewDraft.shippingCharge || 0),
+      adjustment: isEstimate ? 0 : roundMoney(viewDraft.adjustment || 0),
+      roundOff: roundMoney(viewDraft.roundOff || 0),
+      total: roundMoney(viewDraft.total || 0),
+      amountPaid: isEstimate ? 0 : roundMoney(draft.amountPaid || 0),
+      status: isEstimate ? 'unpaid' : ((draft.amountPaid || 0) >= (viewDraft.total || 0) ? 'paid' : (draft.amountPaid || 0) > 0 ? 'partial' : 'unpaid'),
+      notes: draft.notes || '',
+      terms: draft.terms || state.settings.template.footerText,
+      type: invoiceType,
+      draft: false,
+      placeOfSupply: draft.placeOfSupply,
+      reverseCharge: Boolean(draft.reverseCharge),
+      gstMode: draft.gstMode || state.settings.taxMode,
+      templateId: draft.templateId || state.settings.defaultTemplate,
+      signatureName: draft.signatureName || state.profile.name,
+      customerFieldVisibility: withDefaultCustomerFieldVisibility(draft.customerFieldVisibility),
+      qrCodeData: draft.qrCodeData || '',
+    };
+
+    if (isEditing && draft.id) {
+      updateInvoice(draft.id, payload);
+      addAuditLog({ entityType: 'invoice', entityId: draft.id, action: 'updated', message: `Updated invoice ${payload.invoiceNumber}` });
+    } else {
+      addInvoice(payload);
+    }
+
+    clearDraft();
+    navigate(isEstimate ? '/estimates' : '/invoices');
+  };
+
+  const invoiceItems = draft.items || [];
+  const activeProductQuery = activeItemId ? (draft.items || []).find((item) => item.id === activeItemId)?.name || '' : '';
+  const activeProductMatches = activeItemId ? productMatches(activeProductQuery) : [];
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6 pb-40 md:pb-12">
+      <div className="flex items-start gap-3 border-b border-stone-200 pb-4">
+        <button type="button" title="Back" aria-label="Back" onClick={() => navigate(-1)} className="shrink-0 rounded-full border border-stone-200 bg-white p-2 shadow-sm">
+          <ArrowLeft size={24} className="text-stone-600" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-black text-stone-800">{isEditing ? t('edit') : isEstimate ? (language === 'en' ? `Create ${getEstimateDocumentName(state.settings, language)}` : `புதிய ${getEstimateDocumentName(state.settings, language)}`) : t('createInvoice')}</h1>
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">{invoiceType}</span>
+          </div>
+          <p className="mt-1 text-sm text-stone-500">{language === 'en' ? 'Mobile-first GST invoice wizard with draft autosave' : 'Draft autosave உடன் mobile-first GST wizard'}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 items-start">
+        <section className="space-y-6">
+          <div className="rounded-3xl border bg-white p-4 md:p-6 shadow-sm space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <Label english={t('customerName')} tamil="வாடிக்கையாளர் பெயர்" helper={language === 'en' ? 'Search or create a customer quickly.' : 'வாடிக்கையாளரை தேடவும் அல்லது புதிதாக சேர்க்கவும்.'} />
+                <div className="relative">
+                  <input value={customerSearch} onChange={(event) => { setCustomerSearch(event.target.value); const match = state.customers.find((customer) => customer.name.toLowerCase() === event.target.value.trim().toLowerCase()); updateDraft({ customerId: match?.id || '' }); }} placeholder={language === 'en' ? 'Type name or phone' : 'பெயர் அல்லது போன்'} className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+                  <button type="button" onClick={() => setIsCustomerModalOpen(true)} className="absolute right-2 top-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">{language === 'en' ? 'New' : 'புதிய'}</button>
+                  {customerSearch && customerMatches.length > 0 && !selectedCustomer && (
+                    <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border bg-white shadow-xl">
+                      {customerMatches.map((customer) => (
+                        <button key={customer.id} type="button" onClick={() => { updateDraft({ customerId: customer.id }); setCustomerSearch(customer.name); }} className="block w-full border-b px-4 py-3 text-left last:border-0 hover:bg-emerald-50">
+                          <div className="font-semibold text-stone-800">{customer.name}</div>
+                          <div className="text-xs text-stone-500">{customer.phone}{customer.gstNumber ? ` • ${customer.gstNumber}` : ''}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {selectedCustomer && <div className="mt-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-stone-700">{selectedCustomer.name}{selectedCustomer.gstNumber ? ` • ${selectedCustomer.gstNumber}` : ''}{selectedCustomer.stateCode ? ` • ${selectedCustomer.stateCode}` : ''}</div>}
+              </div>
+
+              <div className={`grid grid-cols-1 gap-4 ${isEstimate ? 'md:grid-cols-2 xl:grid-cols-4' : 'md:grid-cols-2'}`}>
+                <div>
+                  <Label english={isEstimate ? getEstimateNumberLabel(state.settings) : t('invoiceNumber')} tamil="பில் எண்" />
+                  <input value={draft.invoiceNumber || ''} onChange={(event) => updateDraft({ invoiceNumber: event.target.value.toUpperCase() })} placeholder={isEstimate ? getEstimateNumberLabel(state.settings) : (language === 'en' ? 'Invoice number' : 'பில் எண்')} title={isEstimate ? getEstimateNumberLabel(state.settings) : (language === 'en' ? 'Invoice number' : 'பில் எண்')} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold uppercase outline-none focus:ring-2 focus:ring-emerald-500" />
+                </div>
+                <div>
+                  <Label english={t('date')} tamil="தேதி" />
+                  <input type="date" value={draft.date || ''} onChange={(event) => updateDraft({ date: event.target.value })} title={t('date')} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+                </div>
+                {isEstimate ? (
+                  <div>
+                    <Label english={language === 'en' ? 'Copy Type' : 'நகல் வகை'} tamil="நகல் வகை" helper={language === 'en' ? 'Shown on the generated quotation/estimate' : 'உருவாக்கப்படும் ஆவணத்தில் காட்டப்படும்'} />
+                    <select
+                      value={normalizeEstimateCopyType(draft.copyType)}
+                      onChange={(event) => updateDraft({ copyType: event.target.value as Invoice['copyType'] })}
+                      title={language === 'en' ? 'Copy Type' : 'நகல் வகை'}
+                      className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      {ESTIMATE_COPY_TYPES.map((copyType) => (
+                        <option key={copyType.value} value={copyType.value}>{copyType.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+                {!isEstimate ? (
+                  <>
+                    <div>
+                      <Label english="P.O Date" tamil="P.O தேதி" />
+                      <input type="date" value={draft.poDate || ''} onChange={(event) => updateDraft({ poDate: event.target.value })} title="P.O Date" className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+                    </div>
+                    <div>
+                      <Label english="P.O Mode" tamil="P.O Mode" helper="Email / WhatsApp / Phone" />
+                      <input value={draft.poMode || ''} onChange={(event) => updateDraft({ poMode: event.target.value })} title="P.O Mode" placeholder="Email" className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            </div>
+
+            {!isEstimate ? (
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-stone-800">{language === 'en' ? 'Invoice Template' : 'டெம்ப்ளேட்'}</h2>
+                  <span className="text-xs text-stone-500">{language === 'en' ? 'Choose a layout and preview in the invoice screen.' : 'Layout தேர்வு செய்து preview screen-ல் பார்க்கலாம்.'}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                  {INVOICE_TEMPLATES.map((template) => {
+                    const isActive = (draft.templateId || state.settings.defaultTemplate) === template.id;
+                    return (
+                      <button key={template.id} type="button" onClick={() => updateDraft({ templateId: template.id, ...selectTemplate(template.id) })} className={`rounded-2xl border p-4 text-left transition-all ${isActive ? 'border-emerald-500 bg-emerald-50 shadow-sm' : 'border-stone-200 bg-white hover:border-emerald-200'}`}>
+                        <div className="font-semibold text-stone-800">{template.title}</div>
+                        <div className="text-xs text-stone-500 mt-1">{template.tamil}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                {language === 'en'
+                  ? `${getEstimateDocumentName(state.settings, language)} documents use the quotation layout for preview, print, PDF, PNG, and sharing.`
+                  : `${getEstimateDocumentName(state.settings, language)} ஆவணங்கள் quotation layout-ஐ பயன்படுத்தும்.`}
+              </div>
+            )}
+
+            <div className="relative">
+              <div className="mb-3 flex items-center gap-3">
+                <h2 className="text-lg font-bold text-stone-800">{language === 'en' ? 'Items' : 'பொருட்கள்'}</h2>
+                <span className="ml-3 text-xs text-stone-500">{language === 'en' ? 'Add and edit invoice line items' : 'பொருள்களைச் சேர்க்கவும் மற்றும் தொகுக்கவும்'}</span>
+                <button type="button" onClick={addItem} className="ml-auto inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-white font-semibold shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"><Plus size={16} />{t('addItem')}</button>
+              </div>
+              <div className="space-y-4 pt-2">
+                {invoiceItems.map((item) => (
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    productMatches={productMatches}
+                    activeMatches={activeProductMatches}
+                    isActive={activeItemId === item.id}
+                    gstMode={draft.gstMode || state.settings.taxMode}
+                    isEstimate={isEstimate}
+                    onFocus={() => setActiveItemId(item.id)}
+                    onChange={(patch) => updateItem(item.id, patch)}
+                    onSelectProduct={(p) => selectProduct(item.id, p)}
+                    onRemove={() => removeItem(item.id)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <button type="button" onClick={() => setIsAdvancedOpen((current) => !current)} className="flex w-full items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 font-semibold text-stone-800">
+              <span>{language === 'en' ? 'Advanced options' : 'மேம்பட்ட விருப்பங்கள்'}</span>
+              {isAdvancedOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+
+            {isAdvancedOpen && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label english={t('placeOfSupply')} tamil="விநியோக இடம்" helper={language === 'en' ? 'Used for CGST/SGST vs IGST logic.' : 'CGST/SGST அல்லது IGST கணக்கிற்குப் பயன்படும்.'} />
+                  <input value={draft.placeOfSupply || ''} onChange={(event) => updateDraft({ placeOfSupply: event.target.value })} title={t('placeOfSupply')} placeholder={language === 'en' ? 'Place of supply' : 'விநியோக இடம்'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+                </div>
+                <div>
+                  <Label english={language === 'en' ? 'GST Mode' : 'GST வகை'} tamil="வரி முறை" />
+                  <select value={draft.gstMode || state.settings.taxMode} onChange={(event) => updateDraft({ gstMode: event.target.value as 'inclusive' | 'exclusive' })} title={language === 'en' ? 'GST mode' : 'GST வகை'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500">
+                    <option value="exclusive">GST Exclusive</option>
+                    <option value="inclusive">GST Inclusive</option>
+                  </select>
+                </div>
+                {!isEstimate ? (
+                  <div>
+                    <Label english={t('reverseCharge')} tamil="ரிவர்ஸ் சார்ஜ்" />
+                    <label className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3">
+                      <input type="checkbox" checked={Boolean(draft.reverseCharge)} onChange={(event) => updateDraft({ reverseCharge: event.target.checked })} />
+                      <span className="text-sm text-stone-700">{language === 'en' ? 'Show reverse charge on invoice' : 'பில்லில் reverse charge காட்டவும்'}</span>
+                    </label>
+                  </div>
+                ) : null}
+                {!isEstimate ? (
+                  <div>
+                    <Label english={language === 'en' ? 'Amount Paid' : 'பணம் வந்த தொகை'} tamil="வந்த தொகை" />
+                    <input type="text" inputMode="decimal" value={draft.amountPaid || 0} onChange={(event) => updateDraft({ amountPaid: Number(event.target.value) || 0 })} title={language === 'en' ? 'Amount paid' : 'பணம் வந்த தொகை'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-right outline-none focus:ring-2 focus:ring-emerald-500" />
+                  </div>
+                ) : null}
+                {!isEstimate ? (
+                  <div>
+                    <Label english={language === 'en' ? 'Shipping / Extra Charges' : 'கூடுதல் கட்டணம்'} tamil="கூடுதல் கட்டணம்" />
+                    <input type="text" inputMode="decimal" value={draft.shippingCharge || 0} onChange={(event) => updateDraft({ shippingCharge: Number(event.target.value) || 0 })} title={language === 'en' ? 'Shipping charges' : 'கூடுதல் கட்டணம்'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-right outline-none focus:ring-2 focus:ring-emerald-500" />
+                  </div>
+                ) : null}
+                {!isEstimate ? (
+                  <div>
+                    <Label english={t('adjustment')} tamil="சரி செய்த தொகை" />
+                    <input type="text" inputMode="decimal" value={draft.adjustment || 0} onChange={(event) => updateDraft({ adjustment: Number(event.target.value) || 0 })} title={t('adjustment')} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-right outline-none focus:ring-2 focus:ring-emerald-500" />
+                  </div>
+                ) : null}
+                <div>
+                  <Label english={language === 'en' ? 'Signature name' : 'கையொப்ப பெயர்'} tamil="கையொப்பம்" />
+                  <input value={draft.signatureName || ''} onChange={(event) => updateDraft({ signatureName: event.target.value })} title={language === 'en' ? 'Signature name' : 'கையொப்ப பெயர்'} placeholder={language === 'en' ? 'Signature name' : 'கையொப்ப பெயர்'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+                </div>
+                {!isEstimate ? (
+                <div>
+                  <Label english={language === 'en' ? 'Copy Type' : 'நகल் வகை'} tamil="நகल் வகை" helper={language === 'en' ? 'Select the type of invoice copy' : 'பில் நகलின் வகையைத் தேர்வு செய்யவும்'} />
+                  <select value={draft.copyType || 'DUPLICATE COPY'} onChange={(event) => updateDraft({ copyType: event.target.value as Invoice['copyType'] })} title={language === 'en' ? 'Copy type' : 'நகல் வகை'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500">
+                    <option value="ORIGINAL COPY">{language === 'en' ? 'Original Copy' : 'அசல் நகல்'}</option>
+                    <option value="DUPLICATE COPY">{language === 'en' ? 'Duplicate Copy' : 'நகल்'}</option>
+                    <option value="TRANSPORT COPY">{language === 'en' ? 'Transport Copy' : 'போக்குவரத்து நகல்'}</option>
+                    <option value="EXTRA COPY">{language === 'en' ? 'Extra Copy' : 'கூடுதல் நகல்'}</option>
+                  </select>
+                </div>
+                                ) : null}
+                <div className="md:col-span-2">
+                  <Label english={language === 'en' ? 'Customer details in invoice' : 'Customer details in invoice'} tamil="Customer Fields" />
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 rounded-2xl border border-stone-200 bg-white p-3 text-sm">
+                    {CUSTOMER_FIELD_OPTIONS.map((option) => (
+                      <label key={option.key} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={withDefaultCustomerFieldVisibility(draft.customerFieldVisibility)[option.key]}
+                          onChange={(event) => updateDraft({
+                            customerFieldVisibility: {
+                              ...withDefaultCustomerFieldVisibility(draft.customerFieldVisibility),
+                              [option.key]: event.target.checked,
+                            },
+                          })}
+                        />
+                        {option.label}
+                      </label>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateDraft({ customerFieldVisibility: DEFAULT_CUSTOMER_FIELD_VISIBILITY })}
+                    className="mt-2 rounded-xl border border-stone-200 px-3 py-1 text-xs font-semibold text-stone-700 hover:bg-stone-50"
+                  >
+                    {language === 'en' ? 'Reset fields' : 'Reset fields'}
+                  </button>
+                </div>
+                <div className="md:col-span-2">
+                  <Label english={t('notes')} tamil="குறிப்புகள்" />
+                  <textarea value={draft.notes || ''} onChange={(event) => updateDraft({ notes: event.target.value })} rows={3} title={t('notes')} placeholder={language === 'en' ? 'Notes' : 'குறிப்புகள்'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+                </div>
+                <div className="md:col-span-2">
+                  <Label english={language === 'en' ? 'Terms & Conditions' : 'விதிமுறைகள் & நிபந்தனைகள்'} tamil="விதிமுறைகள்" />
+                  <textarea value={draft.terms || ''} onChange={(event) => updateDraft({ terms: event.target.value })} rows={3} title={language === 'en' ? 'Terms & conditions' : 'விதிமுறைகள்'} placeholder={language === 'en' ? 'Terms & conditions' : 'விதிமுறைகள்'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <aside className="space-y-4 xl:sticky xl:top-24">
+          <div className="rounded-3xl border bg-white p-5 shadow-sm space-y-3">
+            <div className="flex items-center gap-2 text-stone-800 font-bold"><Sparkles size={18} className="text-emerald-600" />{language === 'en' ? 'Live Summary' : 'Live சுருக்கம்'}</div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span>{t('subtotal')}</span><span>{formatCurrency(viewDraft.subtotal || 0)}</span></div>
+              <div className="flex justify-between"><span>{t('taxableAmount')}</span><span>{formatCurrency(viewDraft.taxableAmount || 0)}</span></div>
+              <div className="flex justify-between"><span>{t('cgst')}</span><span>{formatCurrency(viewDraft.cgstTotal || 0)}</span></div>
+              <div className="flex justify-between"><span>{t('sgst')}</span><span>{formatCurrency(viewDraft.sgstTotal || 0)}</span></div>
+              <div className="flex justify-between"><span>{t('igst')}</span><span>{formatCurrency(viewDraft.igstTotal || 0)}</span></div>
+              {(viewDraft.discountTotal || 0) > 0 && <div className="flex justify-between text-amber-700"><span>{t('discount')}</span><span>-{formatCurrency(viewDraft.discountTotal || 0)}</span></div>}
+              {!isEstimate && <div className="flex justify-between"><span>{language === 'en' ? 'Shipping' : 'கூடுதல்'}</span><span>{formatCurrency(viewDraft.shippingCharge || 0)}</span></div>}
+              {!isEstimate && <div className="flex justify-between"><span>{language === 'en' ? 'Adjustment' : 'சரி செய்தல்'}</span><span>{formatCurrency(viewDraft.adjustment || 0)}</span></div>}
+              <div className="pt-2 border-t flex items-center justify-between">
+                <span className="font-bold text-stone-800">{t('grandTotal')}</span>
+                <span className="text-2xl font-black text-emerald-600">{formatCurrency(viewDraft.total || 0)}</span>
+              </div>
+              {!isEstimate && <div className="flex justify-between text-stone-500"><span>{t('balanceDue')}</span><span>{formatCurrency(Math.max(0, (viewDraft.total || 0) - (draft.amountPaid || 0)))}</span></div>}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border bg-white p-5 shadow-sm space-y-3">
+            <div className="font-bold text-stone-800">{language === 'en' ? 'GST check' : 'GST சரிபார்ப்பு'}</div>
+            <div className="space-y-2 text-sm text-stone-600">
+              <div>{language === 'en' ? 'Business state' : 'வணிக state'}: {state.settings.businessStateCode || state.profile.stateCode || '-'}</div>
+              <div>{language === 'en' ? 'Customer state' : 'வாடிக்கையாளர் state'}: {selectedCustomer?.stateCode || getStateCodeFromGSTIN(selectedCustomer?.gstNumber) || '-'}</div>
+              <div>{language === 'en' ? 'GSTIN valid' : 'GSTIN valid'}: {selectedCustomer?.gstNumber ? (validateGSTIN(selectedCustomer.gstNumber) ? (language === 'en' ? 'Yes' : 'ஆம்') : (language === 'en' ? 'No' : 'இல்லை')) : '-'}</div>
+              <div>{language === 'en' ? 'Template' : 'டெம்ப்ளேட்'}: {(draft.templateId || state.settings.defaultTemplate).toUpperCase()}</div>
+            </div>
+          </div>
+
+          <Link to={isEstimate ? '/estimates' : '/invoices'} className="block rounded-3xl border border-stone-200 bg-stone-50 p-5 text-sm text-stone-700 shadow-sm">
+            <div className="font-semibold text-stone-800 mb-1">{language === 'en' ? 'Need to review an existing bill?' : 'ஏற்கனவே உள்ள பில்லை பார்க்க?'}</div>
+            <div>{language === 'en' ? 'Open invoice list and duplicate or edit any bill.' : 'Invoice list-ஐ திறந்து duplicate அல்லது edit செய்யலாம்.'}</div>
+          </Link>
+        </aside>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-white/95 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur md:static md:border-0 md:bg-transparent md:p-0">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+          <button type="button" onClick={() => navigate(-1)} className="rounded-2xl border border-stone-200 bg-white px-5 py-3 font-semibold text-stone-700 shadow-sm">{t('cancel')}</button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => { clearDraft(); alert(language === 'en' ? 'Draft cleared.' : 'Draft நீக்கப்பட்டது.'); }} className="hidden sm:inline-flex rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold text-stone-700 shadow-sm" title={t('draft')}>{t('draft')}</button>
+            <button type="button" onClick={handleSave} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-lg shadow-emerald-200"><Save size={18} />{t('save')}</button>
+          </div>
+        </div>
+      </div>
+
+      <Modal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)} title={t('addCustomer')}>
+        <div className="space-y-4">
+          <div>
+            <Label english={t('customerName')} tamil="வாடிக்கையாளர் பெயர்" />
+            <input value={customerDraft.name} onChange={(event) => setCustomerDraft((current) => ({ ...current, name: event.target.value }))} placeholder={t('customerName')} title={t('customerName')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <div>
+            <Label english={t('phone')} tamil="போன் எண்" />
+            <input value={customerDraft.phone} onChange={(event) => setCustomerDraft((current) => ({ ...current, phone: event.target.value }))} placeholder={t('phone')} title={t('phone')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <div>
+            <Label english={t('email')} tamil="Email" />
+            <input value={customerDraft.email} onChange={(event) => setCustomerDraft((current) => ({ ...current, email: event.target.value }))} placeholder={t('email')} title={t('email')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <div>
+            <Label english={t('address')} tamil="Address" />
+            <textarea value={customerDraft.address} onChange={(event) => setCustomerDraft((current) => ({ ...current, address: event.target.value }))} rows={2} placeholder={t('address')} title={t('address')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <div>
+            <Label english={t('gstNumber')} tamil="GST எண்" />
+            <input value={customerDraft.gstNumber} onChange={(event) => setCustomerDraft((current) => ({ ...current, gstNumber: event.target.value.toUpperCase() }))} placeholder={t('gstNumber')} title={t('gstNumber')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 uppercase outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <div>
+            <Label english={language === 'en' ? 'State code' : 'மாநில code'} tamil="State code" />
+            <input value={customerDraft.stateCode} onChange={(event) => setCustomerDraft((current) => ({ ...current, stateCode: event.target.value }))} placeholder={language === 'en' ? 'State code' : 'மாநில code'} title={language === 'en' ? 'State code' : 'மாநில code'} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+          </div>
+          <div className="flex justify-end gap-3 border-t pt-4">
+            <button type="button" onClick={() => setIsCustomerModalOpen(false)} className="rounded-xl border border-stone-200 px-4 py-2 text-stone-700">{t('cancel')}</button>
+            <button type="button" onClick={handleCreateCustomer} className="rounded-xl bg-emerald-600 px-4 py-2 font-semibold text-white">{t('saveCustomer')}</button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+
+  function handleCreateCustomer() {
+    if (!customerDraft.name.trim()) return;
+    const stateCode = customerDraft.stateCode || state.profile.stateCode || getStateCodeFromGSTIN(state.profile.gst);
+    addCustomer({
+      name: customerDraft.name.trim(),
+      phone: customerDraft.phone.trim(),
+      email: customerDraft.email.trim(),
+      address: customerDraft.address.trim(),
+      gstNumber: customerDraft.gstNumber.trim().toUpperCase(),
+      stateCode,
+      whatsapp: customerDraft.phone.trim(),
+      notes: '',
+    });
+    setCustomerDraft({ name: '', phone: '', email: '', address: '', gstNumber: '', stateCode: '' });
+    setIsCustomerModalOpen(false);
+  }
+}

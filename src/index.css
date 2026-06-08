@@ -1,0 +1,116 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* Screen mode - show regular content */
+  .screen-only { display: block; }
+
+  /* Print mode - show print templates */
+  @media print {
+    @page { 
+      size: A4; 
+      margin: 0; 
+      padding: 0;
+    }
+    * { margin: 0; padding: 0; }
+    html, body { height: 100%; width: 100%; }
+    body { background: white !important; margin: 0; padding: 10mm; }
+    nav, aside, .print\:hidden, .no-print, .screen-only > *:not(.hidden.print\:block) { display: none !important; }
+    main { padding: 0 !important; margin: 0 !important; max-width: none !important; width: 100% !important; overflow: visible !important; background: white; }
+    .screen-only { display: block !important; width: 100%; padding: 0; margin: 0; }
+    .hidden.print\:block { display: block !important; }
+    .invoice-print-page { display: block !important; width: 100%; min-height: auto; margin: 0; padding: 0; box-shadow: none; background: white; box-sizing: border-box; }
+    .dn-print-page { display: block !important; }
+    .delivery-note-preview { padding: 0 !important; margin: 0 !important; }
+    .delivery-note-preview .dn-export-root { width: 210mm !important; max-width: 210mm !important; margin: 0 auto !important; padding: 0 !important; overflow: visible !important; }
+    body:has(.delivery-note-preview) { padding: 0 !important; }
+    .estimate-preview-root { width: 190mm !important; max-width: 190mm !important; margin: 0 auto !important; padding: 0 !important; overflow: visible !important; }
+    body:has(.estimate-preview-root) { padding: 0 !important; }
+  }
+
+  /* print preview styling for the traditional invoice */
+  .invoice-print-page .tv-container { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; width: 100%; max-width: 190mm; margin: 0 auto; padding: 0 1mm; box-sizing: border-box; }
+  .invoice-print-page .tv-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .invoice-print-page .tv-title { font-weight:700; text-align:center; flex:1; font-size:18px; }
+  .invoice-print-page .tv-copy { font-size:11px; text-align:right; }
+  .invoice-print-page .tv-seller { display:flex; justify-content:space-between; margin-top:6px; margin-bottom:6px; }
+  .invoice-print-page .tv-invoice-details table { border-collapse: separate; border-spacing: 0 2px; }
+  .invoice-print-page .tv-details-gap td { height: 8px; border: 0 !important; padding: 0 !important; }
+  .invoice-print-page .seller-brand { display:flex; align-items:center; gap:8px; }
+  .invoice-print-page .seller-logo { width:34px; height:34px; object-fit:contain; border:1px solid #d1d5db; border-radius:4px; background:#fff; }
+  .invoice-print-page .seller-name { font-weight:700; font-size:14px; }
+  .invoice-print-page table.tv-table { width:100%; border-collapse:collapse; margin-top:8px; table-layout: fixed; }
+  .invoice-print-page table.tv-table th, .invoice-print-page table.tv-table td { border:1px solid #111; padding:6px 8px; word-break: break-word; }
+  .invoice-print-page table.tv-table thead th { font-weight:700; text-align:left; }
+  .invoice-print-page .tv-td-right { text-align:right; }
+  .invoice-print-page .tv-td-center { text-align:center; }
+  .invoice-print-page .tv-total { font-weight:800; }
+  .invoice-print-page .tv-bottom { display:flex; justify-content:space-between; gap:16px; margin-top:14px; min-height: 120px; }
+  .invoice-print-page .tv-right { margin-left: auto; width: 38%; text-align: right; }
+  .invoice-print-page .tv-bank { width: 50%; }
+  .invoice-print-page .bank-pre { white-space:pre-wrap; font-size:12px; }
+  .invoice-print-page .tv-qr-wrap { margin-top: 12px; }
+  .invoice-print-page .tv-qr { width: 88px; height: 88px; object-fit: contain; border: 1px solid #d1d5db; padding: 4px; border-radius: 6px; background: #fff; }
+  .invoice-print-page .amount-words-label { margin-top: 12px; font-weight: 600; }
+  .invoice-print-page .amount-words { margin-top: 8px; line-height: 1.5; }
+  .invoice-print-page .signature { margin-top:34px; text-align:right; }
+  .invoice-print-page .sig-space { margin-top:44px; }
+  .invoice-print-page .tv-footer-note { margin-top: 28px; font-size: 11px; text-align: left; }
+
+  /* Delivery Note print styles */
+  .dn-print-page { display:block; }  /* Show on screen for preview */
+  @media print { .dn-print-page { display:block; width: 100%; min-height: auto; margin: 0; padding: 0; box-shadow: none; background: white; box-sizing: border-box; } }
+  .dn-container { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; width: 100%; max-width: 190mm; margin: 0 auto; padding: 0 1mm; box-sizing: border-box; }
+  .dn-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:2px solid #111; padding-bottom:6px; }
+  .dn-title { font-weight:700; text-align:center; flex:1; font-size:16px; }
+  .dn-copy { font-size:10px; text-align:right; font-weight:600; }
+  .dn-seller-section { display:flex; justify-content:space-between; margin-bottom:10px; }
+  .dn-seller-left { flex:1; font-size:11px; line-height:1.4; }
+  .seller-name { font-weight:700; font-size:13px; margin-bottom:4px; }
+  .seller-contact { margin:2px 0; }
+  .dn-details-box { flex:0 0 40%; }
+  .dn-details-box table { font-size:10px; }
+  .dn-details-box td { padding:2px 4px; }
+  .dn-party-section { margin-bottom:10px; border:1px solid #111; padding:6px; }
+  .dn-sub-title { font-weight:700; font-size:11px; margin-bottom:3px; }
+  .dn-party-details { font-size:10px; line-height:1.3; }
+  .dn-table-wrap { margin:10px 0; }
+  table.dn-table { width:100%; border-collapse:collapse; font-size:11px; table-layout: fixed; }
+  table.dn-table th, table.dn-table td { border:1px solid #111; padding:4px 6px; text-align:left; word-break: break-word; }
+  table.dn-table tr > *:last-child { border-right: 1px solid #111 !important; }
+  table.tv-table tr > *:last-child { border-right: 1px solid #111 !important; }
+  table.dn-table thead th { font-weight:700; background:#f5f5f5; }
+  table.dn-table tfoot tr { font-weight:600; }
+  .dn-td-right { text-align:right; }
+  .dn-td-center { text-align:center; }
+  .dn-bold { font-weight:700; }
+  .dn-total { border-top:2px solid #111; background:#f9f9f9; }
+  .dn-footer-section { display:flex; justify-content:space-between; margin-top:14px; font-size:10px; }
+  .dn-left { flex:1; }
+  .dn-right { flex:0 0 35%; }
+  .dn-words { margin-top:4px; line-height:1.4; font-style:italic; }
+  .dn-signature { text-align:right; margin-top:20px; }
+  .dn-sig-line { margin:12px 0; line-height:1.4; font-size:10px; }
+  .dn-page-footer { text-align:center; margin-top:16px; font-size:9px; color:#666; }
+
+}
+
