@@ -60,7 +60,7 @@ function Toggle({ checked, onChange, label, tamil }: { checked: boolean; onChang
 }
 
 export default function Settings() {
-  const { state, updateProfile, updateSettings, firebaseStatus } = useData();
+  const { state, updateProfile, updateSettings, firebaseStatus, uploadBackup, downloadBackup } = useData();
   const { t, language, setLanguage } = useLanguage();
   const [logoPreview, setLogoPreview] = useState(state.profile.logo);
   const [logoError, setLogoError] = useState('');
@@ -198,6 +198,81 @@ export default function Settings() {
           <div className="mt-1 break-words">
             {firebaseStatus.missingVariables.length > 0 ? firebaseStatus.missingVariables.join(', ') : (language === 'en' ? 'None' : 'None')}
           </div>
+        </div>
+      </Section>
+
+      <Section title="Data Management" subtitle="Backup, restore, and sync your business data.">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <button 
+            type="button" 
+            onClick={async () => {
+              const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
+              const downloadAnchorNode = document.createElement('a');
+              downloadAnchorNode.setAttribute("href", dataStr);
+              downloadAnchorNode.setAttribute("download", "billease_backup.json");
+              document.body.appendChild(downloadAnchorNode);
+              downloadAnchorNode.click();
+              downloadAnchorNode.remove();
+            }}
+            className="rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold text-stone-700 hover:bg-stone-50 text-left"
+          >
+            Export Backup (Download File)
+          </button>
+          
+          <label className="rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold text-stone-700 hover:bg-stone-50 cursor-pointer text-left">
+            Import Backup (Upload File)
+            <input 
+              type="file" 
+              accept=".json" 
+              className="hidden" 
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  try {
+                    const importedState = JSON.parse(event.target?.result as string);
+                    localStorage.setItem('appData', JSON.stringify(importedState));
+                    window.location.reload();
+                  } catch (err) {
+                    alert('Invalid backup file');
+                  }
+                };
+                reader.readAsText(file);
+              }} 
+            />
+          </label>
+
+          <button 
+            type="button" 
+            onClick={async () => {
+              try {
+                await uploadBackup();
+                alert('Force Upload To Cloud Successful');
+              } catch (err) {
+                alert('Upload Failed');
+              }
+            }}
+            className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800 hover:bg-emerald-100 text-left"
+          >
+            Force Upload To Cloud
+          </button>
+
+          <button 
+            type="button" 
+            onClick={async () => {
+              try {
+                await downloadBackup();
+                alert('Force Download From Cloud Successful');
+                window.location.reload();
+              } catch (err) {
+                alert('Download Failed');
+              }
+            }}
+            className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 font-semibold text-amber-800 hover:bg-amber-100 text-left"
+          >
+            Force Download From Cloud
+          </button>
         </div>
       </Section>
 

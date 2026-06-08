@@ -9,7 +9,7 @@ export default function Dashboard() {
   const { t, language } = useLanguage();
 
   const todayStr = new Date().toISOString().split('T')[0];
-  
+
   // Calculate stats
   const totalInvoices = state.invoices.length;
   const unpaidInvoices = state.invoices.filter(i => i.status !== 'paid');

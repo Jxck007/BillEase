@@ -1,9 +1,11 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { AppState, AuditLog, AppSettings, BusinessProfile, Customer, Expense, Invoice, Payment, Product, DeliveryNote } from '../lib/types';
-import { generateId, safeParseJson } from '../lib/utils';
+import { generateId } from '../lib/utils';
 import { buildAuditLog, getDefaultSettings } from '../services/invoiceService';
-import { firebaseEnabled, setAppDataBackup, getAppDataBackup, deleteAppDataBackup, useFirestoreSync, getFirebaseStatus, FirebaseStatus } from '../lib/firebase';
+import { firebaseEnabled, setAppDataBackup, getAppDataBackup, deleteAppDataBackup, useFirestoreSync, getFirebaseStatus, FirebaseStatus, db } from '../lib/firebase';
 import { normalizeCustomerRecord, normalizeDeliveryNote } from '../lib/deliveryNoteUtils';
+import { useAuth } from './AuthContext';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 interface DataContextType {
   state: AppState;
@@ -66,22 +68,92 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Startup connection check removed as it caused unnecessary reads and permission issues
 
+  const { user } = useAuth();
+  const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
+
   useEffect(() => {
-    const saved = safeParseJson<Partial<AppState>>(localStorage.getItem('appData'), {});
-    if (saved && Object.keys(saved).length > 0) {
-      const profile = saved.profile || defaultProfile;
-      setState({
-        ...initialState,
-        ...saved,
-        customers: (saved.customers || []).map((customer) => normalizeCustomerRecord(customer)),
-        deliveryNotes: (saved.deliveryNotes || []).map((note) => normalizeDeliveryNote(note as Partial<DeliveryNote> & Record<string, unknown>)),
-        profile,
-        settings: { ...getDefaultSettings(profile), ...(saved.settings || {}) },
-        auditLogs: saved.auditLogs || [],
-      } as AppState);
-    }
-    setIsLoaded(true);
-  }, []);
+    const initData = async () => {
+      if (!user) {
+        setIsLoaded(true);
+        return;
+      }
+
+      try {
+        const remote = await getAppDataBackup();
+
+        if (remote) {
+          const profile = remote.profile || defaultProfile;
+          setState(prev => {
+            const newState = {
+              ...initialState,
+              ...remote,
+              customers: (remote.customers || []).map((customer: Customer) => normalizeCustomerRecord(customer)),
+              products: remote.products || [],
+              invoices: remote.invoices || [],
+              payments: remote.payments || [],
+              expenses: remote.expenses || [],
+              deliveryNotes: (remote.deliveryNotes || []).map((note: DeliveryNote) => normalizeDeliveryNote(note as Partial<DeliveryNote> & Record<string, unknown>)),
+              profile,
+              settings: { ...getDefaultSettings(profile), ...(remote.settings || {}) },
+              auditLogs: remote.auditLogs || [],
+            } as AppState;
+            return newState;
+          });
+          setCloudSyncEnabled(true);
+        } else {
+          // Cloud empty: Create fresh default structure
+          setState(initialState);
+          setCloudSyncEnabled(true);
+        }
+      } catch (err) {
+        console.error('Failed to read cloud data on startup:', err);
+        setCloudSyncEnabled(false);
+      }
+      setIsLoaded(true);
+    };
+
+    initData();
+  }, [user]);
+
+  // Real-time multi-user sync
+  useEffect(() => {
+    if (!cloudSyncEnabled || !user || !db) return;
+
+    const d = doc(db as any, 'billease', 'appData');
+    const unsubscribe = onSnapshot(d, (snapshot) => {
+      // Ignore local writes to prevent infinite loops
+      if (snapshot.metadata.hasPendingWrites) return;
+
+      if (snapshot.exists()) {
+        const payload = snapshot.data();
+        const remote = payload?.data;
+        if (remote) {
+          const profile = remote.profile || defaultProfile;
+          setState(prev => {
+            const newState = {
+              ...initialState,
+              ...remote,
+              customers: (remote.customers || []).map((customer: Customer) => normalizeCustomerRecord(customer)),
+              products: remote.products || [],
+              invoices: remote.invoices || [],
+              payments: remote.payments || [],
+              expenses: remote.expenses || [],
+              deliveryNotes: (remote.deliveryNotes || []).map((note: DeliveryNote) => normalizeDeliveryNote(note as Partial<DeliveryNote> & Record<string, unknown>)),
+              profile,
+              settings: { ...getDefaultSettings(profile), ...(remote.settings || {}) },
+              auditLogs: remote.auditLogs || [],
+            } as AppState;
+            return newState;
+          });
+          console.log('[FIRESTORE SYNC] Received remote update.');
+        }
+      }
+    }, (error) => {
+      console.error('[FIRESTORE SYNC] Real-time listener error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [cloudSyncEnabled, user]);
 
   useEffect(() => {
     if (isLoaded) {
@@ -90,7 +162,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [state, isLoaded]);
 
   // Auto-sync to Firestore if enabled
-  useFirestoreSync(state, isLoaded);
+  useFirestoreSync(state, cloudSyncEnabled);
 
   // Local / cloud helpers
   const clearLocalData = () => {
@@ -338,7 +410,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     addAuditLog(buildAuditLog('deliveryNote', id, 'deleted', `Deleted delivery note ${id}`));
   };
 
-  if (!isLoaded) return null; // or a loading spinner
+  if (!isLoaded) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-stone-50">
+        <div className="flex flex-col items-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600"></div>
+          <p className="mt-4 text-sm font-medium text-stone-500">Syncing data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <DataContext.Provider value={{
