@@ -16,7 +16,7 @@ interface Props {
   onRemove: () => void;
 }
 
-export default function ItemRow({ item, productMatches, activeMatches, isActive, gstMode, isEstimate = false, onFocus, onChange, onSelectProduct, onRemove }: Props) {
+const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatches, isActive, gstMode, isEstimate = false, onFocus, onChange, onSelectProduct, onRemove }: Props) {
   const [query, setQuery] = useState(item.name || '');
   const [expanded, setExpanded] = useState(false);
   const matches = isActive ? (query ? productMatches(query) : activeMatches) : [];
@@ -272,4 +272,8 @@ export default function ItemRow({ item, productMatches, activeMatches, isActive,
       </div>
     </div>
   );
-}
+});
+
+ItemRow.displayName = 'ItemRow';
+
+export default ItemRow;

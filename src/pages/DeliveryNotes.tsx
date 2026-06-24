@@ -63,7 +63,7 @@ export default function DeliveryNotes() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-stone-200">
-          <table className="w-full min-w-[750px] text-left text-sm">
+          <table className="w-full min-w-[600px] md:min-w-[750px] text-left text-sm">
             <thead className="bg-stone-50">
               <tr className="border-b border-stone-200">
                 <th className="px-4 py-3 font-bold text-stone-700">{language === 'en' ? 'DN Number' : 'DN எண்'}</th>

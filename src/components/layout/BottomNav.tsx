@@ -20,7 +20,7 @@ export default function BottomNav() {
 
   return (
     <>
-      <nav className="print:hidden md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 z-40 pb-[calc(env(safe-area-inset-bottom)+0.25rem)]">
+      <nav className="print:hidden lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 z-40 pb-[calc(env(safe-area-inset-bottom)+0.25rem)]">
         <div className="flex justify-around items-center px-1 py-1">
           {links.map((link) => {
             const Icon = link.icon;

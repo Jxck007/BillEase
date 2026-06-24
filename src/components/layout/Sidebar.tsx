@@ -31,7 +31,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <div className="print:hidden md:hidden flex items-center justify-between bg-white border-b px-4 py-3">
+      <div className="print:hidden lg:hidden flex items-center justify-between bg-white border-b px-4 py-3">
         <span className="font-bold text-lg text-primary-600">BillEase (பில்-ஈஸ்)</span>
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 -mr-2">
           {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -39,7 +39,7 @@ export default function Sidebar() {
       </div>
       
       <div className={cn(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-white border-r shadow-sm transform transition-transform duration-200 ease-in-out md:relative md:translate-x-0 flex flex-col",
+        "fixed inset-y-0 left-0 z-40 w-64 bg-white border-r shadow-sm transform transition-transform duration-200 ease-in-out lg:relative lg:translate-x-0 flex flex-col",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       ) + " print:hidden"}>
         <div className="p-6 hidden md:flex items-center gap-3 border-b border-stone-100">
@@ -90,7 +90,7 @@ export default function Sidebar() {
       {/* Overlay */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-black/20 z-30 md:hidden" 
+          className="fixed inset-0 bg-black/20 z-30 lg:hidden" 
           onClick={closeMenu}
         />
       )}

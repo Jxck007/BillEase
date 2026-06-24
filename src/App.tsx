@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { DataProvider } from './context/DataContext';
 import { LanguageProvider } from './context/LanguageContext';
@@ -13,12 +14,13 @@ import InvoicePreview from './pages/InvoicePreview';
 import Estimates from './pages/Estimates';
 import Payments from './pages/Payments';
 import Expenses from './pages/Expenses';
-import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import DeliveryNotes from './pages/DeliveryNotes';
 import DeliveryNoteForm from './pages/DeliveryNoteForm';
 import DeliveryNotePreview from './pages/DeliveryNotePreview';
 import Login from './pages/Login';
+
+const Reports = lazy(() => import('./pages/Reports'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, loading } = useAuth();
@@ -45,6 +47,11 @@ export default function App() {
         <DataProvider>
           <HelpProvider>
             <BrowserRouter>
+              <Suspense fallback={
+                <div className="flex min-h-screen items-center justify-center bg-stone-50">
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600"></div>
+                </div>
+              }>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
@@ -73,6 +80,7 @@ export default function App() {
                   <Route path="settings" element={<Settings />} />
                 </Route>
               </Routes>
+            </Suspense>
             </BrowserRouter>
           </HelpProvider>
         </DataProvider>

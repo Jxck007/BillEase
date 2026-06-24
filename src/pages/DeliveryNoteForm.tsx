@@ -211,7 +211,7 @@ export default function DeliveryNoteForm() {
       </div>
 
       <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className="block text-sm font-semibold text-stone-700">{language === 'en' ? 'Delivery Note Number' : 'டெலிவரி நோட் எண்'}</label>
             <input
@@ -265,7 +265,7 @@ export default function DeliveryNoteForm() {
         <div className="mt-5 rounded-2xl border border-stone-200 bg-stone-50 p-4">
           <div className="mb-3 text-sm font-bold uppercase tracking-wide text-stone-700">{language === 'en' ? 'Consignee Auto-fill' : 'கன்சைனி தானியங்கி விவரங்கள்'}</div>
           {selectedCustomer ? (
-            <div className="grid gap-3 text-sm text-stone-700 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 text-sm text-stone-700 md:grid-cols-2 lg:grid-cols-4">
               <div><span className="font-semibold text-stone-900">{language === 'en' ? 'Name' : 'பெயர்'}:</span> {selectedCustomer.name}</div>
               <div className="md:col-span-2"><span className="font-semibold text-stone-900">{language === 'en' ? 'Address' : 'முகவரி'}:</span> {selectedCustomer.address || '-'}</div>
               <div><span className="font-semibold text-stone-900">GSTIN:</span> {getCustomerGstin(selectedCustomer) || '-'}</div>
@@ -297,7 +297,7 @@ export default function DeliveryNoteForm() {
             const normalizedItem = normalizeDeliveryNoteItem(item as Partial<DeliveryNoteItem>);
             return (
               <div key={normalizedItem.id || index} className="rounded-2xl border border-stone-200 p-4">
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[2fr_160px_140px_120px_2fr_auto]">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[2fr_160px_140px_120px_2fr_auto]">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-stone-600">{language === 'en' ? 'Description of Goods' : 'பொருள் விளக்கம்'}</label>
                     <input

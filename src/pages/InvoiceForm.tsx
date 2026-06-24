@@ -233,9 +233,7 @@ export default function InvoiceForm() {
           </div>
           <p className="mt-1 text-sm text-stone-500">{language === 'en' ? 'Mobile-first GST invoice wizard with draft autosave' : 'Draft autosave உடன் mobile-first GST wizard'}</p>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6 items-start">
+      </div>          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
         <section className="space-y-6">
           <div className="rounded-3xl border bg-white p-4 md:p-6 shadow-sm space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -258,7 +256,7 @@ export default function InvoiceForm() {
                 {selectedCustomer && <div className="mt-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-stone-700">{selectedCustomer.name}{selectedCustomer.gstNumber ? ` • ${selectedCustomer.gstNumber}` : ''}{selectedCustomer.stateCode ? ` • ${selectedCustomer.stateCode}` : ''}</div>}
               </div>
 
-              <div className={`grid grid-cols-1 gap-4 ${isEstimate ? 'md:grid-cols-2 xl:grid-cols-4' : 'md:grid-cols-2'}`}>
+              <div className={`grid grid-cols-1 gap-4 ${isEstimate ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2'}`}>
                 <div>
                   <Label english={isEstimate ? getEstimateNumberLabel(state.settings) : t('invoiceNumber')} tamil="பில் எண்" />
                   <input value={draft.invoiceNumber || ''} onChange={(event) => updateDraft({ invoiceNumber: event.target.value.toUpperCase() })} placeholder={isEstimate ? getEstimateNumberLabel(state.settings) : (language === 'en' ? 'Invoice number' : 'பில் எண்')} title={isEstimate ? getEstimateNumberLabel(state.settings) : (language === 'en' ? 'Invoice number' : 'பில் எண்')} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold uppercase outline-none focus:ring-2 focus:ring-emerald-500" />
@@ -303,7 +301,7 @@ export default function InvoiceForm() {
                   <h2 className="text-lg font-bold text-stone-800">{language === 'en' ? 'Invoice Template' : 'டெம்ப்ளேட்'}</h2>
                   <span className="text-xs text-stone-500">{language === 'en' ? 'Choose a layout and preview in the invoice screen.' : 'Layout தேர்வு செய்து preview screen-ல் பார்க்கலாம்.'}</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                   {INVOICE_TEMPLATES.map((template) => {
                     const isActive = (draft.templateId || state.settings.defaultTemplate) === template.id;
                     return (

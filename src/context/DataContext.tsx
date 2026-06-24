@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 import { AppState, AuditLog, AppSettings, BusinessProfile, Customer, Expense, Invoice, Payment, Product, DeliveryNote } from '../lib/types';
 import { generateId } from '../lib/utils';
 import { buildAuditLog, getDefaultSettings } from '../services/invoiceService';
@@ -7,9 +7,12 @@ import { normalizeCustomerRecord, normalizeDeliveryNote } from '../lib/deliveryN
 import { useAuth } from './AuthContext';
 import { doc, onSnapshot } from 'firebase/firestore';
 
+export type SyncStatus = 'loading' | 'online' | 'syncing' | 'offline';
+
 interface DataContextType {
   state: AppState;
   firebaseStatus: FirebaseStatus;
+  syncStatus: SyncStatus;
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt'>) => void;
   updateCustomer: (id: string, customer: Partial<Customer>) => void;
   deleteCustomer: (id: string) => void;
@@ -64,20 +67,31 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export function DataProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(initialState);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [firebaseStatus, setFirebaseStatus] = useState<FirebaseStatus>(() => getFirebaseStatus());
-
-  // Startup connection check removed as it caused unnecessary reads and permission issues
-
+  const [firebaseStatus] = useState<FirebaseStatus>(() => getFirebaseStatus());
   const { user } = useAuth();
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('loading');
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     const initData = async () => {
       if (!user) {
+        setSyncStatus('offline');
         setIsLoaded(true);
+        // Try loading from local cache
+        try {
+          const cached = localStorage.getItem('appData');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.customers) {
+              setState(prev => ({ ...prev, ...parsed }));
+            }
+          }
+        } catch {}
         return;
       }
 
+      setSyncStatus('loading');
       try {
         const remote = await getAppDataBackup();
 
@@ -100,14 +114,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
             return newState;
           });
           setCloudSyncEnabled(true);
+          setSyncStatus('online');
         } else {
           // Cloud empty: Create fresh default structure
           setState(initialState);
           setCloudSyncEnabled(true);
+          setSyncStatus('online');
         }
       } catch (err) {
         console.error('Failed to read cloud data on startup:', err);
         setCloudSyncEnabled(false);
+        setSyncStatus('offline');
+        // Try loading from local cache
+        try {
+          const cached = localStorage.getItem('appData');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.customers) {
+              setState(prev => ({ ...prev, ...parsed }));
+            }
+          }
+        } catch {}
       }
       setIsLoaded(true);
     };
@@ -124,6 +151,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // Ignore local writes to prevent infinite loops
       if (snapshot.metadata.hasPendingWrites) return;
 
+      setSyncStatus('syncing');
       if (snapshot.exists()) {
         const payload = snapshot.data();
         const remote = payload?.data;
@@ -145,20 +173,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
             } as AppState;
             return newState;
           });
-          console.log('[FIRESTORE SYNC] Received remote update.');
+          setSyncStatus('online');
         }
+      } else {
+        setSyncStatus('online');
       }
     }, (error) => {
       console.error('[FIRESTORE SYNC] Real-time listener error:', error);
+      setSyncStatus('offline');
     });
 
     return () => unsubscribe();
   }, [cloudSyncEnabled, user]);
 
+  // Debounced localStorage write to avoid excessive serialization
   useEffect(() => {
-    if (isLoaded) {
+    if (!isLoaded) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
       localStorage.setItem('appData', JSON.stringify(state));
-    }
+    }, 1500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [state, isLoaded]);
 
   // Auto-sync to Firestore if enabled
@@ -425,6 +460,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider value={{
       state,
       firebaseStatus,
+      syncStatus,
       addCustomer, updateCustomer, deleteCustomer,
       addProduct, updateProduct, deleteProduct,
       addInvoice, updateInvoice, deleteInvoice,

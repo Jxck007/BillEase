@@ -55,7 +55,7 @@ export default function Estimates() {
 
         {filteredEstimates.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px] text-left text-sm">
+            <table className="w-full min-w-[550px] md:min-w-[700px] text-left text-sm">
               <thead className="bg-stone-50 text-stone-600 border-b border-stone-200">
                 <tr>
                   <th className="px-6 py-3 font-bold uppercase tracking-wider text-xs">{numberLabel} #</th>

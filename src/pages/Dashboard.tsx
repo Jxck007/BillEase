@@ -44,7 +44,7 @@ export default function Dashboard() {
   return (
     <div className="h-full flex flex-col space-y-6">
       {/* Stats Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
           <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest">{language === 'en' ? 'Today / இன்று' : 'இன்றைய விற்பனை'}</p>
           <h3 className="text-2xl font-black mt-1">{formatCurrency(todaySales)}</h3>
@@ -79,7 +79,7 @@ export default function Dashboard() {
           </div>
           <div className="flex-1 overflow-x-auto">
             {state.invoices.length > 0 ? (
-              <table className="w-full min-w-[500px] text-left">
+              <table className="w-full min-w-[400px] md:min-w-[500px] text-left">
                 <thead>
                   <tr className="bg-stone-50 text-[10px] uppercase font-bold text-stone-400 tracking-widest">
                     <th className="px-6 py-3">Inv # / எண்</th>

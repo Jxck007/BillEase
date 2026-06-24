@@ -1,11 +1,11 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Copy, Edit, Image as ImageIcon, Printer, Share2, Smartphone } from 'lucide-react';
+import { ArrowLeft, Copy, Edit, Printer, Share2 } from 'lucide-react';
+import ExportPanel from '../components/export/ExportPanel';
 import { format } from 'date-fns';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { formatCurrency, roundMoney } from '../lib/utils';
-import { exportInvoiceAsImage, getShareResultMessage, shareElementAsImage, shareElementAsPdf, shareInvoice, shareInvoiceOnWhatsApp } from '../services/exportService';
 import { duplicateInvoice, saveDraft } from '../services/invoiceService';
 import { TEMPLATE_PRESETS } from '../templates/invoiceTemplates';
 import TraditionalTaxInvoice from '../components/invoices/TraditionalTaxInvoice';
@@ -28,11 +28,36 @@ export default function InvoicePreview() {
   const { state } = useData();
   const { t, language } = useLanguage();
   const [isThermal, setIsThermal] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const exportTemplateRef = useRef<HTMLDivElement>(null);
+  const scalerRef = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale] = useState(1);
 
   const invoice = state.invoices.find((entry) => entry.id === id);
   const customer = state.customers.find((entry) => entry.id === invoice?.customerId);
+
+  // Fit document preview to screen width
+  const updateScale = useCallback(() => {
+    if (!scalerRef.current) return;
+    const container = scalerRef.current.parentElement;
+    if (!container) return;
+    const containerWidth = container.clientWidth;
+    const docWidth = scalerRef.current.scrollWidth || 794;
+    if (containerWidth < docWidth) {
+      setPreviewScale(Math.max(0.3, containerWidth / docWidth));
+    } else {
+      setPreviewScale(1);
+    }
+  }, []);
+
+  useEffect(() => {
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    const el = scalerRef.current?.parentElement;
+    if (el) observer.observe(el);
+    return () => observer.disconnect();
+  }, [updateScale]);
 
   if (!invoice) {
     return (
@@ -56,8 +81,6 @@ export default function InvoicePreview() {
   const numberLabel = getEstimateNumberLabel(state.settings);
   const shareDocumentLabel = isEstimate ? documentName : 'Invoice';
 
-  const getExportTarget = () => exportTemplateRef.current || printRef.current;
-
   const estimateTemplateProps = {
     invoice,
     profile: state.profile,
@@ -68,94 +91,13 @@ export default function InvoicePreview() {
     visibility,
   };
 
-  const shareInvoiceImage = async (message: string) => {
-    const target = getExportTarget();
-    if (!target) return { shared: false, reason: 'generation_failed' as const };
-    return shareElementAsImage(
-      target,
-      `${invoice.invoiceNumber}_${invoice.type}`,
-      `${shareDocumentLabel} ${invoice.invoiceNumber}`,
-      message,
-      190,
-    );
-  };
-  const shareInvoicePdf = async (message: string) => {
-    const target = getExportTarget();
-    if (!target) return { shared: false, reason: 'generation_failed' as const };
-    return shareElementAsPdf(
-      target,
-      `${invoice.invoiceNumber}_${invoice.type}`,
-      `${shareDocumentLabel} ${invoice.invoiceNumber}`,
-      message,
-      190,
-    );
-  };
-
-  const exportAsImage = async () => {
-    const target = getExportTarget();
-    if (!target) {
-      alert(language === 'en' ? 'Unable to generate file' : 'Unable to generate file');
-      return;
-    }
-    try {
-      await exportInvoiceAsImage(target, `${invoice.invoiceNumber}_${invoice.type}`);
-      alert(language === 'en' ? 'PNG generated successfully' : 'PNG generated successfully');
-    } catch (err) {
-      console.error('Invoice PNG export failed:', err);
-      alert(language === 'en' ? 'Unable to generate PNG file' : 'Unable to generate PNG file');
-    }
-  };
+  const getExportElement = useCallback(() => exportTemplateRef.current || printRef.current, []);
 
   const handleDuplicate = () => {
     const nextNumber = state.invoices.filter((entry) => entry.type === invoice.type).length + 1;
     const draft = duplicateInvoice(invoice, state.settings.invoicePrefix, nextNumber);
     saveDraft({ ...draft, type: invoice.type, templateId: invoice.templateId, placeOfSupply: invoice.placeOfSupply });
     navigate(invoice.type === 'estimate' ? '/estimates/new' : '/invoices/new');
-  };
-
-  const handleWhatsAppShare = async () => {
-    if (!customer?.phone) {
-      alert(language === 'en' ? 'Customer phone number is required' : 'Customer phone number is required');
-      return;
-    }
-
-    try {
-      const pdfResult = await shareInvoicePdf(`${state.profile.name} - ${shareDocumentLabel} #${invoice.invoiceNumber}\nAmount: ${formatCurrency(invoice.total)}\nPlease find attached ${shareDocumentLabel.toLowerCase()} PDF.`);
-      if (pdfResult.shared) return;
-      if (pdfResult.downloaded) {
-        shareInvoiceOnWhatsApp(invoice, customer.name, customer.phone, state.profile.name, shareDocumentLabel);
-        return;
-      }
-    } catch (err) {
-      console.warn('PDF share failed, falling back to WhatsApp text link', err);
-    }
-
-    shareInvoiceOnWhatsApp(invoice, customer.name, customer.phone, state.profile.name, shareDocumentLabel);
-  };
-
-  const handleNativeShare = async () => {
-    try {
-      const pdfResult = await shareInvoicePdf(
-        `${state.profile.name} - ${shareDocumentLabel} #${invoice.invoiceNumber}\nAmount: ${formatCurrency(invoice.total)}\nStatus: ${invoice.status}`,
-      );
-      if (pdfResult.shared) return;
-
-      const imageResult = await shareInvoiceImage(
-        `${state.profile.name} - ${shareDocumentLabel} #${invoice.invoiceNumber}\nAmount: ${formatCurrency(invoice.total)}\nStatus: ${invoice.status}`,
-      );
-      if (imageResult.shared) return;
-
-      const textResult = shareInvoice(invoice, state.profile.name, shareDocumentLabel);
-      if (!textResult.shared) {
-        const message = getShareResultMessage(pdfResult, language) || getShareResultMessage(textResult, language);
-        if (message) {
-          alert(message);
-        }
-      }
-    } catch (err) {
-      console.error('Share failed:', err);
-      alert(language === 'en' ? 'Unable to generate file' : 'Unable to generate file');
-    }
   };
 
   return (
@@ -172,23 +114,14 @@ export default function InvoicePreview() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={handleWhatsAppShare} className="inline-flex items-center gap-2 rounded-2xl bg-[#25D366] px-4 py-2.5 font-semibold text-white shadow-sm">
-            <Smartphone size={18} /> WhatsApp
-          </button>
-          <button type="button" onClick={handleNativeShare} className="inline-flex items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2.5 font-semibold text-stone-700 shadow-sm">
-            <Share2 size={18} /> {t('share')}
-          </button>
-          <button type="button" onClick={exportAsImage} className="inline-flex items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2.5 font-semibold text-stone-700 shadow-sm">
-            <ImageIcon size={18} /> PNG
+          <button type="button" onClick={() => setIsExportOpen(true)} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 font-semibold text-white shadow-sm">
+            <Share2 size={18} /> Export / Share
           </button>
           <button type="button" onClick={handleDuplicate} className="inline-flex items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2.5 font-semibold text-stone-700 shadow-sm">
             <Copy size={18} /> {t('duplicate')}
           </button>
           <button type="button" onClick={() => navigate(`/${invoice.type === 'estimate' ? 'estimates' : 'invoices'}/${invoice.id}/edit`)} className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 font-semibold text-emerald-700 shadow-sm">
             <Edit size={18} /> {t('edit')}
-          </button>
-          <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-2xl bg-stone-800 px-4 py-2.5 font-semibold text-white shadow-sm">
-            <Printer size={18} /> PDF / Print
           </button>
         </div>
       </div>
@@ -206,8 +139,10 @@ export default function InvoicePreview() {
       <div className="overflow-x-auto print:overflow-visible">
         {isEstimate ? (
           <>
-            <div ref={printRef} className="estimate-preview-root screen-only mx-auto bg-white p-0 shadow-none print:shadow-none print:border-0">
-              <QuotationEstimateTemplate {...estimateTemplateProps} />
+            <div className="preview-scaler" ref={scalerRef}>
+              <div ref={printRef} className="estimate-preview-root screen-only mx-auto bg-white p-0 shadow-none print:shadow-none print:border-0" style={{ transform: previewScale < 1 ? `scale(${previewScale})` : 'none', transformOrigin: 'top center' }}>
+                <QuotationEstimateTemplate {...estimateTemplateProps} />
+              </div>
             </div>
             <div className="hidden print:block">
               <QuotationEstimateTemplate {...estimateTemplateProps} />
@@ -343,6 +278,21 @@ export default function InvoicePreview() {
         </>
         )}
       </div>
+
+      {/* Export Panel */}
+      <ExportPanel
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        documentType={isEstimate ? 'quotation' : 'invoice'}
+        documentNumber={invoice.invoiceNumber}
+        documentLabel={isEstimate ? documentName : 'Invoice'}
+        customerName={customer?.name || 'Customer'}
+        customerPhone={customer?.phone}
+        businessName={state.profile.name}
+        getExportElement={getExportElement}
+        onPrint={() => window.print()}
+        widthMm={190}
+      />
     </div>
   );
 }

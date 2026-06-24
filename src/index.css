@@ -24,6 +24,29 @@
   /* Screen mode - show regular content */
   .screen-only { display: block; }
 
+  /* Screen document preview scaling - fits A4 documents inside viewport */
+  .screen-preview-wrapper {
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+  }
+  .screen-preview-wrapper > * {
+    transform-origin: top center;
+  }
+
+  /* Responsive document preview container */
+  .doc-preview-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    justify-content: center;
+  }
+  .doc-preview-container > .doc-preview-inner {
+    flex-shrink: 0;
+  }
+
   /* Print mode - show print templates */
   @media print {
     @page { 
@@ -79,6 +102,42 @@
   /* Delivery Note print styles */
   .dn-print-page { display:block; }  /* Show on screen for preview */
   @media print { .dn-print-page { display:block; width: 100%; min-height: auto; margin: 0; padding: 0; box-shadow: none; background: white; box-sizing: border-box; } }
+
+  /* Screen-preview scaling for delivery note & estimate templates */
+  /* ONLY applies on screen - print gets its own @media print rules */
+  @media screen {
+    .preview-scaler {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .preview-scaler > .dn-export-page,
+    .preview-scaler > .quotation-export-page,
+    .preview-scaler > .estimate-preview-root {
+      flex-shrink: 0;
+      transform-origin: top center;
+    }
+    .preview-scaler > .dn-export-page {
+      width: 210mm;
+      min-width: 210mm;
+      max-width: 210mm;
+      margin: 0;
+    }
+    .preview-scaler > .quotation-export-page,
+    .preview-scaler > .estimate-preview-root {
+      width: 190mm;
+      min-width: 190mm;
+      max-width: 190mm;
+      margin: 0;
+    }
+    @media (max-width: 1024px) {
+      .preview-scaler {
+        justify-content: flex-start;
+      }
+    }
+  }
   .dn-container { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; width: 100%; max-width: 190mm; margin: 0 auto; padding: 0 1mm; box-sizing: border-box; }
   .dn-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:2px solid #111; padding-bottom:6px; }
   .dn-title { font-weight:700; text-align:center; flex:1; font-size:16px; }
@@ -111,6 +170,36 @@
   .dn-signature { text-align:right; margin-top:20px; }
   .dn-sig-line { margin:12px 0; line-height:1.4; font-size:10px; }
   .dn-page-footer { text-align:center; margin-top:16px; font-size:9px; color:#666; }
+}
 
+/* Reduce motion for low-performance / accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  /* Disable heavy backdrop-blur on mobile/tablet for performance */
+  .backdrop-blur-sm,
+  .backdrop-blur,
+  .backdrop-blur-md,
+  .backdrop-blur-lg,
+  .backdrop-blur-xl,
+  .backdrop-blur-2xl {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  /* Reduce heavy shadows on mobile/tablet */
+  .shadow-lg,
+  .shadow-xl,
+  .shadow-2xl {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+  }
 }
 

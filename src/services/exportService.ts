@@ -57,7 +57,7 @@ export function canShareFiles(files: File[]) {
   }
 }
 
-function downloadBlob(blob: Blob, fileName: string) {
+export function downloadBlob(blob: Blob, fileName: string) {
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = fileName;
@@ -160,7 +160,7 @@ async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH
   }
 }
 
-async function createPdfBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM) {
+export async function createPdfBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   const pngBlob = await createPngBlobFromElement(element, widthMm);
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();

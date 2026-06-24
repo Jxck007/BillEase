@@ -274,9 +274,7 @@ export default function Settings() {
             Force Download From Cloud
           </button>
         </div>
-      </Section>
-
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start">
+      </Section>          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
         <div className="space-y-6">
           <Section title={language === 'en' ? 'App Preferences' : 'செயலி விருப்பங்கள்'} subtitle={language === 'en' ? 'Switch the app language instantly.' : 'மொழியை உடனே மாற்றலாம்.'}>
             <div className="grid grid-cols-2 gap-3">
@@ -418,7 +416,7 @@ export default function Settings() {
           </Section>
 
           <Section title={language === 'en' ? 'Template Engine' : 'டெம்ப்ளேட் அமைப்பு'} subtitle={language === 'en' ? 'Choose the default invoice layout and field visibility.' : 'Default layout மற்றும் எந்த field காட்டவேண்டும் என்பதை தேர்வு செய்யவும்.'}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
               {INVOICE_TEMPLATES.map((templateOption) => {
                 const isActive = state.settings.defaultTemplate === templateOption.id;
                 return (
