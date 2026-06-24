@@ -184,6 +184,20 @@
   }
 }
 
+/* Tablet-specific layout fixes (640px - 1024px) */
+@media (min-width: 640px) and (max-width: 1024px) {
+  /* Increase touch targets */
+  button, a, [role="button"] {
+    min-height: 44px;
+  }
+  /* Better form spacing on tablet */
+  .space-y-4 > * { margin-top: 0.5rem; }
+  .space-y-6 > * { margin-top: 0.75rem; }
+  /* Ensure tables scroll horizontally */
+  table { font-size: 0.8rem; }
+  table th, table td { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+}
+
 @media (max-width: 1024px) {
   /* Disable heavy backdrop-blur on mobile/tablet for performance */
   .backdrop-blur-sm,

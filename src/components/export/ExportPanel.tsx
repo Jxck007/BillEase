@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Printer, FileDown, Image, Share2, Smartphone, Mail, Loader2, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { exportInvoiceAsImage, shareElementAsPdf, shareElementAsImage, canUseNativeShare, canShareFiles, downloadBlob } from '../../services/exportService';
+import { exportInvoiceAsImage, downloadBlob } from '../../services/exportService';
 
 export type ExportState = 'idle' | 'generating' | 'success' | 'failed';
 export type DocumentType = 'invoice' | 'quotation' | 'delivery-note';
@@ -14,6 +14,8 @@ interface ExportPanelProps {
   documentLabel: string;
   customerName: string;
   customerPhone?: string;
+  customerWhatsapp?: string;
+  customerEmail?: string;
   businessName: string;
   getExportElement: () => HTMLElement | null;
   onPrint: () => void;
@@ -28,6 +30,8 @@ export default function ExportPanel({
   documentLabel,
   customerName,
   customerPhone,
+  customerWhatsapp,
+  customerEmail,
   businessName,
   getExportElement,
   onPrint,
@@ -89,7 +93,7 @@ export default function ExportPanel({
       }
     } catch (err) {
       console.error('PDF export failed:', err);
-      showMessage('failed', 'PDF failed. Try image export instead.', 'pdf');
+      showMessage('failed', 'PDF export failed. Try Image export or Print.', 'pdf');
     }
   };
 
@@ -105,115 +109,28 @@ export default function ExportPanel({
       showMessage('success', 'Image downloaded', 'image');
     } catch (err) {
       console.error('Image export failed:', err);
-      showMessage('failed', 'Image export failed. Try PDF instead.', 'image');
+      showMessage('failed', 'Image export failed. Try Print.', 'image');
     }
   };
 
-  const handleSharePdf = async () => {
-    const target = getExportElement();
-    if (!target) {
-      showMessage('failed', 'Unable to generate PDF', 'share-pdf');
-      return;
-    }
-    showMessage('generating', 'Generating PDF for sharing...', 'share-pdf');
-    try {
-      const result = await shareElementAsPdf(
-        target,
-        `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`,
-        `${documentLabel} ${documentNumber}`,
-        `${businessName} - ${documentLabel} #${documentNumber}\nCustomer: ${customerName}`,
-        widthMm,
-      );
-      if (result.shared) {
-        showMessage('success', 'PDF shared successfully', 'share-pdf');
-      } else if (result.downloaded) {
-        showMessage('success', 'PDF downloaded (sharing not supported)', 'share-pdf');
-      } else {
-        showMessage('failed', 'Unable to share PDF', 'share-pdf');
-      }
-    } catch (err) {
-      console.error('PDF share failed:', err);
-      showMessage('failed', 'PDF share failed. Try sharing as image.', 'share-pdf');
-    }
-  };
+  const handleWhatsApp = () => {
+    const waPhone = customerWhatsapp || customerPhone;
+    const message = `Please find the ${documentLabel} ${documentNumber} from ${businessName} for ${customerName}.`;
+    const text = encodeURIComponent(message);
 
-  const handleShareImage = async () => {
-    const target = getExportElement();
-    if (!target) {
-      showMessage('failed', 'Unable to generate image', 'share-image');
-      return;
-    }
-    showMessage('generating', 'Generating image for sharing...', 'share-image');
-    try {
-      const result = await shareElementAsImage(
-        target,
-        `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`,
-        `${documentLabel} ${documentNumber}`,
-        `${businessName} - ${documentLabel} #${documentNumber}\nCustomer: ${customerName}`,
-        widthMm,
-      );
-      if (result.shared) {
-        showMessage('success', 'Image shared successfully', 'share-image');
-      } else if (result.downloaded) {
-        showMessage('success', 'Image downloaded (sharing not supported)', 'share-image');
-      } else {
-        showMessage('failed', 'Unable to share image', 'share-image');
-      }
-    } catch (err) {
-      console.error('Image share failed:', err);
-      showMessage('failed', 'Image share failed. Try text share.', 'share-image');
-    }
-  };
-
-  const handleWhatsApp = async () => {
-    if (customerPhone) {
-      const digits = customerPhone.replace(/\D/g, '');
+    if (waPhone) {
+      const digits = waPhone.replace(/\D/g, '');
       const waNumber = digits.startsWith('91') ? digits : `91${digits.slice(-10)}`;
-      const text = encodeURIComponent([
-        `Hello ${customerName || 'Customer'},`,
-        '',
-        `Please find the attached ${documentLabel.toLowerCase()} ${documentNumber} from ${businessName}.`,
-        '',
-        'Thank you.',
-      ].join('\n'));
-
-      // Try sharing PDF first via native share
-      const target = getExportElement();
-      if (target && canUseNativeShare() && canShareFiles([new File([], 'test.pdf')])) {
-        showMessage('generating', 'Generating PDF for WhatsApp...', 'whatsapp');
-        try {
-          const result = await shareElementAsPdf(
-            target,
-            `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`,
-            `${documentLabel} ${documentNumber}`,
-            `Please find the attached ${documentLabel.toLowerCase()} ${documentNumber} from ${businessName}.`,
-            widthMm,
-          );
-          if (result.shared) {
-            showMessage('success', 'Sent via share sheet', 'whatsapp');
-            return;
-          }
-        } catch {}
-      }
-
-      // Fallback: open WhatsApp URL
       window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank', 'noopener,noreferrer');
       showMessage('success', 'WhatsApp opened', 'whatsapp');
     } else {
-      // No customer phone: download first then open generic WhatsApp
-      showMessage('generating', 'No customer phone. Downloading...', 'whatsapp');
-      try {
-        await handleDownloadPdf();
-        window.open('https://wa.me', '_blank', 'noopener,noreferrer');
-        showMessage('success', 'WhatsApp opened. Attach the downloaded file manually.', 'whatsapp');
-      } catch {
-        window.open('https://wa.me', '_blank', 'noopener,noreferrer');
-        showMessage('success', 'WhatsApp opened', 'whatsapp');
-      }
+      window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer');
+      showMessage('success', 'WhatsApp opened (no customer number). Attach downloaded file if needed.', 'whatsapp');
     }
   };
 
   const handleEmail = () => {
+    const recipient = customerEmail || '';
     const subject = encodeURIComponent(`${documentLabel} ${documentNumber} from ${businessName}`);
     const body = encodeURIComponent([
       `Dear ${customerName || 'Customer'},`,
@@ -223,8 +140,15 @@ export default function ExportPanel({
       '',
       'Thank you.',
     ].join('\n'));
-    window.open(`mailto:?subject=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');
-    showMessage('success', 'Email draft opened', 'email');
+
+    if (!customerEmail) {
+      showMessage('failed', 'No customer email saved. Add email in customer profile.', 'email');
+    } else {
+      showMessage('success', `Email draft opened for ${customerEmail}. Please attach the downloaded PDF manually.`, 'email');
+    }
+
+    window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');
+
     // Also offer download PDF for attachment
     if (getExportElement()) {
       setTimeout(() => handleDownloadPdf(), 500);
@@ -237,10 +161,10 @@ export default function ExportPanel({
     { id: 'print', label: 'Print', icon: Printer, onClick: handlePrint, description: 'Browser print dialog' },
     { id: 'pdf', label: 'Download PDF', icon: FileDown, onClick: handleDownloadPdf, description: 'A4 PDF file' },
     { id: 'image', label: 'Download Image', icon: Image, onClick: handleDownloadImage, description: 'PNG image' },
-    { id: 'share-pdf', label: 'Share PDF', icon: Share2, onClick: handleSharePdf, description: 'Share as PDF' },
-    { id: 'share-image', label: 'Share Image', icon: Image, onClick: handleShareImage, description: 'Share as image' },
-    { id: 'whatsapp', label: 'WhatsApp', icon: Smartphone, onClick: handleWhatsApp, description: customerPhone ? `Send to ${customerName}` : 'Open WhatsApp' },
-    { id: 'email', label: 'Email', icon: Mail, onClick: handleEmail, description: 'Open email draft' },
+    // Share PDF and Share Image hidden — unreliable on mobile/Poco
+    // Can be restored once native file sharing is verified stable
+    { id: 'whatsapp', label: 'WhatsApp', icon: Smartphone, onClick: handleWhatsApp, description: (customerWhatsapp || customerPhone) ? `Send to ${customerName}` : 'Open WhatsApp' },
+    { id: 'email', label: 'Email', icon: Mail, onClick: handleEmail, description: customerEmail ? `Send to ${customerEmail}` : 'Open email draft' },
   ];
 
   return (
@@ -295,7 +219,7 @@ export default function ExportPanel({
                     key={action.id}
                     onClick={action.onClick}
                     disabled={isLoading && !isActionLoading}
-                    className={`flex flex-col items-center gap-2 rounded-2xl border p-4 text-sm font-semibold transition-all ${
+                    className={`flex flex-col items-center gap-2 rounded-2xl border min-h-[60px] p-3 sm:p-4 text-sm font-semibold transition-all ${
                       isActionLoading
                         ? 'border-blue-200 bg-blue-50 text-blue-700'
                         : 'border-stone-200 bg-white text-stone-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:scale-[0.98]'

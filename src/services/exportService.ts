@@ -21,6 +21,16 @@ const A4_HEIGHT_MM = 297;
 const PDF_MARGIN_MM = 5;
 const CANVAS_SCALE = 2;
 
+/** Use lower scale on mobile/tablet to avoid memory crashes on older devices */
+export function getSafeExportScale(): number {
+  if (typeof window === 'undefined') return 1;
+  // Check if screen is small (mobile/tablet) or device has limited memory
+  const isMobile = window.innerWidth < 768;
+  const isTablet = window.innerWidth >= 768 && window.innerWidth <= 1024;
+  if (isMobile || isTablet) return 1;
+  return 2;
+}
+
 export type ShareResult = {
   shared: boolean;
   reason?: 'unsupported' | 'files_not_supported' | 'cancelled' | 'generation_failed';
@@ -128,15 +138,16 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   return { clone, targetWidthPx };
 }
 
-async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM) {
+async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {
   await new Promise((resolve) => setTimeout(resolve, 100));
   const { clone, targetWidthPx } = prepareExportClone(element, widthMm);
   document.body.appendChild(clone);
   normalizeColorsForCanvas(element, clone);
 
   try {
+    const safeScale = scale ?? getSafeExportScale();
     const canvas = await html2canvas(clone, {
-      scale: CANVAS_SCALE,
+      scale: safeScale,
       backgroundColor: '#ffffff',
       useCORS: true,
       allowTaint: true,
@@ -226,13 +237,40 @@ export async function createPdfBlobFromElement(element: HTMLElement, widthMm = A
 export async function exportInvoiceAsImage(
   element: HTMLElement,
   fileName: string,
+  widthMm = 190,
 ) {
   try {
-    const blob = await createPngBlobFromElement(element, 190);
-    downloadBlob(blob, `${fileName}.png`);
+    const blob = await createPngBlobFromElement(element, widthMm);
+    if (blob.size > 0) {
+      downloadBlob(blob, `${fileName}.png`);
+      return;
+    }
+    throw new Error('Empty PNG');
   } catch (err) {
-    console.error('Export failed:', err);
-    throw new Error('Unable to generate PNG file');
+    console.error('PNG export failed, trying JPEG fallback:', err);
+    // Fallback to JPEG
+    try {
+      const { clone, targetWidthPx } = prepareExportClone(element, widthMm);
+      document.body.appendChild(clone);
+      const canvas = await html2canvas(clone, {
+        scale: getSafeExportScale(),
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        imageTimeout: 5000,
+        width: targetWidthPx,
+        windowWidth: targetWidthPx,
+      });
+      clone.parentNode?.removeChild(clone);
+      const jpegBlob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('JPEG generation failed'))), 'image/jpeg', 0.9);
+      });
+      downloadBlob(jpegBlob, `${fileName}.jpg`);
+    } catch (jpegErr) {
+      console.error('JPEG fallback also failed:', jpegErr);
+      throw new Error('Unable to generate image file');
+    }
   }
 }
 

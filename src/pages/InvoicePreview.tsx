@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Copy, Edit, Printer, Share2 } from 'lucide-react';
+import { ArrowLeft, Copy, Edit, Share2 } from 'lucide-react';
 import ExportPanel from '../components/export/ExportPanel';
 import { format } from 'date-fns';
 import { useData } from '../context/DataContext';
@@ -288,6 +288,8 @@ export default function InvoicePreview() {
         documentLabel={isEstimate ? documentName : 'Invoice'}
         customerName={customer?.name || 'Customer'}
         customerPhone={customer?.phone}
+        customerWhatsapp={customer?.whatsapp || customer?.phone}
+        customerEmail={customer?.email || ''}
         businessName={state.profile.name}
         getExportElement={getExportElement}
         onPrint={() => window.print()}

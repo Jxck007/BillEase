@@ -4,14 +4,6 @@ import { ArrowLeft, Edit, Share2 } from 'lucide-react';
 import ExportPanel from '../components/export/ExportPanel';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
-import {
-  exportDeliveryNoteAsImage,
-  getShareResultMessage,
-  shareDeliveryNote,
-  shareDeliveryNoteOnWhatsApp,
-  shareElementAsImage,
-  shareElementAsPdf,
-} from '../services/exportService';
 import IndustrialDeliveryNoteTemplate from '../templates/IndustrialDeliveryNoteTemplate';
 
 export default function DeliveryNotePreview() {
@@ -128,6 +120,8 @@ export default function DeliveryNotePreview() {
         documentLabel="Delivery Note"
         customerName={customer?.name || 'Customer'}
         customerPhone={customer?.phone}
+        customerWhatsapp={customer?.whatsapp || customer?.phone}
+        customerEmail={customer?.email || ''}
         businessName={state.profile.name}
         getExportElement={getExportElement}
         onPrint={() => window.print()}
