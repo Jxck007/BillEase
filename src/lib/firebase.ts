@@ -172,13 +172,31 @@ export async function deleteAppDataBackup() {
  * Call this hook in DataContext to enable cloud backup on every state change
  * @param state - Current app state
  * @param enabled - Whether to enable auto-sync (respects VITE_FIREBASE_ENABLED)
+ * @param recordCounts - Optional record counts for safety guard (blocks empty overwrites)
  */
-export function useFirestoreSync(state: unknown, enabled = true) {
+export function useFirestoreSync(state: unknown, enabled = true, recordCounts?: { customers: number; products: number; invoices: number; deliveryNotes: number }) {
   useEffect(() => {
     if (!enabled || !firebaseEnabled()) return;
 
     // Debounce sync to avoid excessive writes
     const timeout = setTimeout(async () => {
+      // SAFETY GUARD: Prevent empty overwrites of non-empty cloud data
+      const outboundTotal = (recordCounts?.customers || 0) + (recordCounts?.products || 0) + (recordCounts?.invoices || 0) + (recordCounts?.deliveryNotes || 0);
+      if (outboundTotal === 0) {
+        try {
+          const existingData = await getAppDataBackup();
+          if (existingData) {
+            const existingTotal = (existingData.customers?.length || 0) + (existingData.products?.length || 0) + (existingData.invoices?.length || 0) + (existingData.deliveryNotes?.length || 0);
+            if (existingTotal > 0) {
+              console.warn('[Firebase] SAFETY GUARD: Blocked empty overwrite — cloud has existing data. Skipping auto-sync.');
+              return;
+            }
+          }
+        } catch {
+          // If we can't read cloud, allow the write (fresh start)
+        }
+      }
+
       try {
         await setAppDataBackup(state);
       } catch (err) {
@@ -191,5 +209,5 @@ export function useFirestoreSync(state: unknown, enabled = true) {
     }, 2000); // 2 second debounce
 
     return () => clearTimeout(timeout);
-  }, [state, enabled]);
+  }, [state, enabled, recordCounts?.customers, recordCounts?.products, recordCounts?.invoices, recordCounts?.deliveryNotes]);
 }

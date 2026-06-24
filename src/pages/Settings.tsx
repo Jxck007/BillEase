@@ -202,6 +202,26 @@ export default function Settings() {
       </Section>
 
       <Section title="Data Management" subtitle="Backup, restore, and sync your business data.">
+        {/* Backup reminder */}
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div className="font-bold">💾 Backup Reminder</div>
+          <p className="mt-1 text-xs">
+            {language === 'en'
+              ? 'Export your data as a JSON file regularly to avoid data loss. Keep a copy on your phone or computer.'
+              : 'தரவு இழப்பைத் தவிர்க்க, உங்கள் தரவை JSON கோப்பாக அடிக்கடி எக்ஸ்போர்ட் செய்யவும்.'}
+          </p>
+          <div className="mt-2 flex items-center gap-2 text-xs">
+            <span>Current records:</span>
+            <span className="font-semibold">{state.customers.length} customers</span>
+            <span className="text-stone-500">·</span>
+            <span className="font-semibold">{state.products.length} products</span>
+            <span className="text-stone-500">·</span>
+            <span className="font-semibold">{state.invoices.length} invoices</span>
+            <span className="text-stone-500">·</span>
+            <span className="font-semibold">{state.deliveryNotes.length} DNs</span>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <button 
             type="button" 
@@ -209,18 +229,18 @@ export default function Settings() {
               const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
               const downloadAnchorNode = document.createElement('a');
               downloadAnchorNode.setAttribute("href", dataStr);
-              downloadAnchorNode.setAttribute("download", "billease_backup.json");
+              downloadAnchorNode.setAttribute("download", `billease_backup_${new Date().toISOString().split('T')[0]}.json`);
               document.body.appendChild(downloadAnchorNode);
               downloadAnchorNode.click();
               downloadAnchorNode.remove();
             }}
             className="rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold text-stone-700 hover:bg-stone-50 text-left"
           >
-            Export Backup (Download File)
+            💾 Export Backup (Download JSON)
           </button>
           
           <label className="rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold text-stone-700 hover:bg-stone-50 cursor-pointer text-left">
-            Import Backup (Upload File)
+            📂 Import Backup (Upload JSON)
             <input 
               type="file" 
               accept=".json" 
@@ -232,10 +252,15 @@ export default function Settings() {
                 reader.onload = (event) => {
                   try {
                     const importedState = JSON.parse(event.target?.result as string);
+                    if (!importedState.customers && !importedState.products && !importedState.invoices) {
+                      alert(language === 'en' ? 'Invalid backup file format.' : 'தவறான backup கோப்பு வடிவம்.');
+                      return;
+                    }
+                    if (!confirm(language === 'en' ? 'This will replace ALL current data with the backup. Continue?' : 'இது தற்போதைய தரவு அனைத்தையும் மாற்றும். தொடரவா?')) return;
                     localStorage.setItem('appData', JSON.stringify(importedState));
                     window.location.reload();
                   } catch (err) {
-                    alert('Invalid backup file');
+                    alert(language === 'en' ? 'Invalid backup file.' : 'தவறான backup கோப்பு.');
                   }
                 };
                 reader.readAsText(file);
@@ -248,14 +273,14 @@ export default function Settings() {
             onClick={async () => {
               try {
                 await uploadBackup();
-                alert('Force Upload To Cloud Successful');
+                alert(language === 'en' ? 'Cloud upload successful.' : 'Cloud upload வெற்றி.');
               } catch (err) {
-                alert('Upload Failed');
+                alert(language === 'en' ? 'Upload failed.' : 'Upload தோல்வி.');
               }
             }}
             className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800 hover:bg-emerald-100 text-left"
           >
-            Force Upload To Cloud
+            ☁️ Force Upload To Cloud
           </button>
 
           <button 
@@ -263,15 +288,15 @@ export default function Settings() {
             onClick={async () => {
               try {
                 await downloadBackup();
-                alert('Force Download From Cloud Successful');
+                alert(language === 'en' ? 'Cloud download successful. Reloading...' : 'Cloud download வெற்றி.');
                 window.location.reload();
               } catch (err) {
-                alert('Download Failed');
+                alert(language === 'en' ? 'Download failed.' : 'Download தோல்வி.');
               }
             }}
             className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 font-semibold text-amber-800 hover:bg-amber-100 text-left"
           >
-            Force Download From Cloud
+            ☁️ Force Download From Cloud
           </button>
         </div>
       </Section>          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">

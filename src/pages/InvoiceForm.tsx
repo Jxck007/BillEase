@@ -222,6 +222,15 @@ export default function InvoiceForm() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-40 md:pb-12">
+      {/* Step indicator for older users */}
+      <div className="flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-2 text-xs font-medium text-emerald-800 print:hidden overflow-x-auto">
+        <span className="shrink-0 whitespace-nowrap">Step 1: Select customer</span>
+        <span className="shrink-0 text-emerald-300">→</span>
+        <span className="shrink-0 whitespace-nowrap">Step 2: Add items</span>
+        <span className="shrink-0 text-emerald-300">→</span>
+        <span className="shrink-0 whitespace-nowrap">Step 3: Review &amp; Save</span>
+      </div>
+
       <div className="flex items-start gap-3 border-b border-stone-200 pb-4">
         <button type="button" title="Back" aria-label="Back" onClick={() => navigate(-1)} className="shrink-0 rounded-full border border-stone-200 bg-white p-2 shadow-sm">
           <ArrowLeft size={24} className="text-stone-600" />

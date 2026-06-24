@@ -1,5 +1,3 @@
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
 import { DeliveryNote, Invoice } from '../lib/types';
 import { formatCurrency } from '../lib/utils';
 
@@ -139,6 +137,7 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
 }
 
 async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {
+  const html2canvas = (await import('html2canvas')).default;
   await new Promise((resolve) => setTimeout(resolve, 100));
   const { clone, targetWidthPx } = prepareExportClone(element, widthMm);
   document.body.appendChild(clone);
@@ -172,6 +171,7 @@ async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH
 }
 
 export async function createPdfBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM) {
+  const { jsPDF } = await import('jspdf');
   const pngBlob = await createPngBlobFromElement(element, widthMm);
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -250,9 +250,10 @@ export async function exportInvoiceAsImage(
     console.error('PNG export failed, trying JPEG fallback:', err);
     // Fallback to JPEG
     try {
+      const { default: html2canvasFallback } = await import('html2canvas');
       const { clone, targetWidthPx } = prepareExportClone(element, widthMm);
       document.body.appendChild(clone);
-      const canvas = await html2canvas(clone, {
+      const canvas = await html2canvasFallback(clone, {
         scale: getSafeExportScale(),
         backgroundColor: '#ffffff',
         useCORS: true,

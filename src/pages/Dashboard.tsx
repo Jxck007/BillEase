@@ -130,19 +130,57 @@ export default function Dashboard() {
                   <p className="text-xs text-white/70">விரைவு செயல்பாடுகள்</p>
                 </div>
               </div>
-              <div className="space-y-3">
-                <Link to="/invoices/new" className="block bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
-                  <p className="text-sm font-bold mb-1 flex items-center justify-between">New Invoice <ArrowRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" /></p>
-                  <p className="text-[10px] text-white/70">Create a new bill instantly</p>
+              <div className="space-y-2">
+                <Link to="/invoices/new" className="flex items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">INV</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold">New Invoice</p>
+                    <p className="text-[10px] text-white/70 truncate">Create a bill instantly</p>
+                  </div>
+                  <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
                 </Link>
-                <Link to="/payments" className="block bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
-                  <p className="text-sm font-bold mb-1 flex items-center justify-between">Record Payment <ArrowRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" /></p>
-                  <p className="text-[10px] text-white/70">Update pending bills</p>
+                <Link to="/estimates/new" className="flex items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">EST</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold">New Quotation</p>
+                    <p className="text-[10px] text-white/70 truncate">Send pricing quotes</p>
+                  </div>
+                  <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
                 </Link>
-                <Link to="/products" className="block bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
-                  <p className="text-sm font-bold mb-1 flex items-center justify-between">Add Items <ArrowRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" /></p>
-                  <p className="text-[10px] text-white/70">Manage your product list</p>
+                <Link to="/delivery-notes/new" className="flex items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">DN</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold">New Delivery Note</p>
+                    <p className="text-[10px] text-white/70 truncate">Transport documents</p>
+                  </div>
+                  <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
                 </Link>
+                <div className="border-t border-white/10 pt-2 mt-2">
+                  <Link to="/customers" className="flex items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">CU</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold">Customers</p>
+                      <p className="text-[10px] text-white/70 truncate">Manage contacts</p>
+                    </div>
+                    <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
+                  </Link>
+                  <Link to="/products" className="flex items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">PR</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold">Products</p>
+                      <p className="text-[10px] text-white/70 truncate">Manage items</p>
+                    </div>
+                    <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
+                  </Link>
+                  <Link to="/payments" className="flex items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">$</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold">Record Payment</p>
+                      <p className="text-[10px] text-white/70 truncate">Update pending bills</p>
+                    </div>
+                    <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
+                  </Link>
+                </div>
               </div>
             </div>
             

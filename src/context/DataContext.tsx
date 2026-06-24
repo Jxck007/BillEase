@@ -6,6 +6,7 @@ import { firebaseEnabled, setAppDataBackup, getAppDataBackup, deleteAppDataBacku
 import { normalizeCustomerRecord, normalizeDeliveryNote } from '../lib/deliveryNoteUtils';
 import { useAuth } from './AuthContext';
 import { doc, onSnapshot } from 'firebase/firestore';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 export type SyncStatus = 'loading' | 'online' | 'syncing' | 'offline';
 
@@ -196,8 +197,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [state, isLoaded]);
 
-  // Auto-sync to Firestore if enabled
-  useFirestoreSync(state, cloudSyncEnabled);
+  // Auto-sync to Firestore if enabled (with empty-data safety guard)
+  useFirestoreSync(state, cloudSyncEnabled, {
+    customers: state.customers.length,
+    products: state.products.length,
+    invoices: state.invoices.length,
+    deliveryNotes: state.deliveryNotes.length,
+  });
 
   // Local / cloud helpers
   const clearLocalData = () => {
@@ -446,14 +452,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   if (!isLoaded) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50">
-        <div className="flex flex-col items-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600"></div>
-          <p className="mt-4 text-sm font-medium text-stone-500">Syncing data...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen text="Syncing data..." />;
   }
 
   return (

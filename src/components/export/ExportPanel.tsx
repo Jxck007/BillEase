@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Printer, FileDown, Image, Share2, Smartphone, Mail, Loader2, CheckCircle, AlertCircle, X } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
-import { exportInvoiceAsImage, downloadBlob } from '../../services/exportService';
+import { Printer, FileDown, Image, Smartphone, Mail, Loader2, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { downloadBlob } from '../../services/exportService';
 
 export type ExportState = 'idle' | 'generating' | 'success' | 'failed';
 export type DocumentType = 'invoice' | 'quotation' | 'delivery-note';
@@ -105,6 +104,7 @@ export default function ExportPanel({
     }
     showMessage('generating', 'Generating image...', 'image');
     try {
+      const { exportInvoiceAsImage } = await import('../../services/exportService');
       await exportInvoiceAsImage(target, `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`);
       showMessage('success', 'Image downloaded', 'image');
     } catch (err) {
@@ -168,20 +168,14 @@ export default function ExportPanel({
   ];
 
   return (
-    <AnimatePresence>
+    <>
       {isOpen && (
         <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             onClick={onClose}
             className="fixed inset-0 bg-black/30 z-40"
           />
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+          <div
             className="fixed bottom-0 left-0 right-0 z-50 mx-auto max-w-lg rounded-t-3xl bg-white p-6 shadow-2xl pb-[calc(env(safe-area-inset-bottom)+1rem)]"
           >
             <div className="flex items-center justify-between mb-6">
@@ -189,7 +183,7 @@ export default function ExportPanel({
                 <h3 className="text-lg font-bold text-stone-800">Export & Share</h3>
                 <p className="text-xs text-stone-500 mt-1">{documentLabel} #{documentNumber}</p>
               </div>
-              <button onClick={onClose} className="p-2 text-stone-400 hover:text-stone-600 rounded-full hover:bg-stone-100 transition-colors" aria-label="Close">
+              <button onClick={onClose} className="p-2 text-stone-400 hover:text-stone-600 rounded-full hover:bg-stone-100" aria-label="Close">
                 <X size={20} />
               </button>
             </div>
@@ -240,9 +234,9 @@ export default function ExportPanel({
             <p className="mt-4 text-center text-[10px] text-stone-400">
               {documentType === 'delivery-note' ? 'DN' : documentLabel} exports use A4 format. Print uses browser print.
             </p>
-          </motion.div>
+          </div>
         </>
       )}
-    </AnimatePresence>
+    </>
   );
 }

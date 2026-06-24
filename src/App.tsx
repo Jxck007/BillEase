@@ -6,31 +6,28 @@ import { HelpProvider } from './context/HelpContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppLayout from './components/layout/AppLayout';
 import Dashboard from './pages/Dashboard';
-import Customers from './pages/Customers';
-import Products from './pages/Products';
 import Invoices from './pages/Invoices';
-import InvoiceForm from './pages/InvoiceForm';
-import InvoicePreview from './pages/InvoicePreview';
-import Estimates from './pages/Estimates';
 import Payments from './pages/Payments';
 import Expenses from './pages/Expenses';
-import Settings from './pages/Settings';
 import DeliveryNotes from './pages/DeliveryNotes';
-import DeliveryNoteForm from './pages/DeliveryNoteForm';
-import DeliveryNotePreview from './pages/DeliveryNotePreview';
-import Login from './pages/Login';
+import LoadingSpinner from './components/ui/LoadingSpinner';
 
+const Login = lazy(() => import('./pages/Login'));
+const Customers = lazy(() => import('./pages/Customers'));
+const Products = lazy(() => import('./pages/Products'));
+const InvoiceForm = lazy(() => import('./pages/InvoiceForm'));
+const InvoicePreview = lazy(() => import('./pages/InvoicePreview'));
+const Estimates = lazy(() => import('./pages/Estimates'));
+const Settings = lazy(() => import('./pages/Settings'));
+const DeliveryNoteForm = lazy(() => import('./pages/DeliveryNoteForm'));
+const DeliveryNotePreview = lazy(() => import('./pages/DeliveryNotePreview'));
 const Reports = lazy(() => import('./pages/Reports'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600"></div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen />;
   }
 
   if (!user || !isAdmin) {
@@ -47,11 +44,7 @@ export default function App() {
         <DataProvider>
           <HelpProvider>
             <BrowserRouter>
-              <Suspense fallback={
-                <div className="flex min-h-screen items-center justify-center bg-stone-50">
-                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600"></div>
-                </div>
-              }>
+              <Suspense fallback={<LoadingSpinner fullScreen />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>

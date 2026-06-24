@@ -5,6 +5,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -147,7 +148,7 @@ export default function Login() {
               className="group relative flex w-full justify-center overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-4 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 transition-all hover:scale-[1.02] hover:shadow-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-stone-900 disabled:opacity-70 disabled:hover:scale-100"
             >
               {loading ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                <LoadingSpinner inline size={5} light />
               ) : (
                 'Login'
               )}
