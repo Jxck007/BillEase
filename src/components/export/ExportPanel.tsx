@@ -81,9 +81,14 @@ export default function ExportPanel({
       showMessage('failed', 'Unable to generate PDF - document not found', 'pdf');
       return;
     }
-    showMessage('generating', 'Generating PDF...', 'pdf');
+    showMessage('generating', 'Loading export tools...', 'pdf');
+    // Yield briefly so the UI updates before the heavy dynamic import
+    await new Promise(r => setTimeout(r, 50));
     try {
-      const blob = await (await import('../../services/exportService')).createPdfBlobFromElement(target, widthMm);
+      const { createPdfBlobFromElement: generatePdf } = await import('../../services/exportService');
+      showMessage('generating', 'Generating PDF...', 'pdf');
+      await new Promise(r => setTimeout(r, 30));
+      const blob = await generatePdf(target, widthMm);
       if (blob && blob.size > 0) {
         downloadBlob(blob, `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}.pdf`);
         showMessage('success', 'PDF downloaded', 'pdf');
@@ -102,9 +107,13 @@ export default function ExportPanel({
       showMessage('failed', 'Unable to generate image', 'image');
       return;
     }
-    showMessage('generating', 'Generating image...', 'image');
+    showMessage('generating', 'Loading export tools...', 'image');
+    // Yield briefly so the UI updates before the heavy dynamic import
+    await new Promise(r => setTimeout(r, 50));
     try {
       const { exportInvoiceAsImage } = await import('../../services/exportService');
+      showMessage('generating', 'Generating image...', 'image');
+      await new Promise(r => setTimeout(r, 30));
       await exportInvoiceAsImage(target, `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`);
       showMessage('success', 'Image downloaded', 'image');
     } catch (err) {
@@ -191,7 +200,7 @@ export default function ExportPanel({
             {/* Status message */}
             {exportMessage && (
               <div className={`mb-4 rounded-2xl p-3 text-sm flex items-center gap-2 ${
-                exportState === 'generating' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                exportState === 'generating' ? 'export-generating-bg text-blue-700 border border-blue-200' :
                 exportState === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                 exportState === 'failed' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
                 'bg-stone-50 text-stone-600 border border-stone-200'

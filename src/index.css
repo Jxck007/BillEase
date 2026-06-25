@@ -198,6 +198,24 @@
   table th, table td { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
 }
 
+/* Shimmer animation for loading states in ExportPanel */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.export-generating-bg {
+  background: linear-gradient(
+    90deg,
+    #eff6ff 0%,
+    #dbeafe 25%,
+    #bfdbfe 50%,
+    #dbeafe 75%,
+    #eff6ff 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
 @media (max-width: 1024px) {
   /* Disable heavy backdrop-blur on mobile/tablet for performance */
   .backdrop-blur-sm,
