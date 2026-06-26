@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Printer, FileDown, Image, Smartphone, Mail, Loader2, CheckCircle, AlertCircle, X } from 'lucide-react';
-import { downloadBlob } from '../../services/exportService';
 
 export type ExportState = 'idle' | 'generating' | 'success' | 'failed';
 export type DocumentType = 'invoice' | 'quotation' | 'delivery-note';
@@ -36,6 +35,22 @@ export default function ExportPanel({
   onPrint,
   widthMm = 190,
 }: ExportPanelProps) {
+  const downloadBlob = useCallback((blob: Blob, fileName: string) => {
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }, []);
+
+  const normalizeIndianWhatsAppNumber = useCallback((phone: string) => {
+    const digits = phone.replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.startsWith('91') && digits.length >= 12) return digits;
+    const tenDigit = digits.slice(-10);
+    return tenDigit ? `91${tenDigit}` : '';
+  }, []);
+
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [exportMessage, setExportMessage] = useState('');
   const [activeAction, setActiveAction] = useState<string | null>(null);
@@ -78,7 +93,7 @@ export default function ExportPanel({
   const handleDownloadPdf = async () => {
     const target = getExportElement();
     if (!target) {
-      showMessage('failed', 'Unable to generate PDF - document not found', 'pdf');
+      showMessage('failed', 'PDF failed. Document not found.', 'pdf');
       return;
     }
     showMessage('generating', 'Loading export tools...', 'pdf');
@@ -97,14 +112,14 @@ export default function ExportPanel({
       }
     } catch (err) {
       console.error('PDF export failed:', err);
-      showMessage('failed', 'PDF export failed. Try Image export or Print.', 'pdf');
+      showMessage('failed', 'PDF failed. Try Image export.', 'pdf');
     }
   };
 
   const handleDownloadImage = async () => {
     const target = getExportElement();
     if (!target) {
-      showMessage('failed', 'Unable to generate image', 'image');
+      showMessage('failed', 'Image export failed. Document not found.', 'image');
       return;
     }
     showMessage('generating', 'Loading export tools...', 'image');
@@ -118,7 +133,7 @@ export default function ExportPanel({
       showMessage('success', 'Image downloaded', 'image');
     } catch (err) {
       console.error('Image export failed:', err);
-      showMessage('failed', 'Image export failed. Try Print.', 'image');
+      showMessage('failed', 'Image failed. Try Print.', 'image');
     }
   };
 
@@ -128,17 +143,15 @@ export default function ExportPanel({
     const text = encodeURIComponent(message);
 
     if (waPhone) {
-      const digits = waPhone.replace(/\D/g, '');
-      const waNumber = digits.startsWith('91') ? digits : `91${digits.slice(-10)}`;
+      const waNumber = normalizeIndianWhatsAppNumber(waPhone);
       window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank', 'noopener,noreferrer');
-      showMessage('success', 'WhatsApp opened', 'whatsapp');
+      showMessage('success', 'WhatsApp opened. Attach the downloaded PDF or image manually if needed.', 'whatsapp');
     } else {
-      window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer');
-      showMessage('success', 'WhatsApp opened (no customer number). Attach downloaded file if needed.', 'whatsapp');
+      showMessage('failed', 'WhatsApp number missing.', 'whatsapp');
     }
   };
 
-  const handleEmail = () => {
+  const handleEmail = async () => {
     const recipient = customerEmail || '';
     const subject = encodeURIComponent(`${documentLabel} ${documentNumber} from ${businessName}`);
     const body = encodeURIComponent([
@@ -151,16 +164,26 @@ export default function ExportPanel({
     ].join('\n'));
 
     if (!customerEmail) {
-      showMessage('failed', 'No customer email saved. Add email in customer profile.', 'email');
-    } else {
-      showMessage('success', `Email draft opened for ${customerEmail}. Please attach the downloaded PDF manually.`, 'email');
+      showMessage('failed', 'No email saved for this customer.', 'email');
+      return;
     }
-
-    window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');
-
-    // Also offer download PDF for attachment
-    if (getExportElement()) {
-      setTimeout(() => handleDownloadPdf(), 500);
+    const target = getExportElement();
+    if (!target) {
+      showMessage('failed', 'PDF failed. Document not found.', 'email');
+      return;
+    }
+    showMessage('generating', 'Downloading PDF for email...', 'email');
+    try {
+      const { createPdfBlobFromElement: generatePdf } = await import('../../services/exportService');
+      const blob = await generatePdf(target, widthMm);
+      if (!blob.size) throw new Error('Empty PDF');
+      downloadBlob(blob, `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}.pdf`);
+      window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');
+      showMessage('success', `Email draft opened for ${customerEmail}. Attach the downloaded PDF manually.`, 'email');
+    } catch (err) {
+      console.error('Email PDF preparation failed:', err);
+      window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');
+      showMessage('failed', 'PDF could not be generated. Email draft opened. Attach file manually if needed.', 'email');
     }
   };
 
@@ -241,7 +264,7 @@ export default function ExportPanel({
             </div>
 
             <p className="mt-4 text-center text-[10px] text-stone-400">
-              {documentType === 'delivery-note' ? 'DN' : documentLabel} exports use A4 format. Print uses browser print.
+              {documentType === 'delivery-note' ? 'DN' : documentLabel} exports use A4 format. Print uses your browser print dialog.
             </p>
           </div>
         </>

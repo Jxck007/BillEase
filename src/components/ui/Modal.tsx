@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
@@ -11,6 +11,11 @@ interface ModalProps {
 }
 
 export default function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-md' }: ModalProps) {
+  const reduceMotion = useMemo(
+    () => typeof window !== 'undefined' && (window.innerWidth < 1024 || window.matchMedia('(prefers-reduced-motion: reduce)').matches),
+    [],
+  );
+
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = 'unset';
@@ -22,16 +27,16 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = 'ma
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={reduceMotion ? { opacity: 1 } : { opacity: 1 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0 }}
             onClick={onClose} 
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/40 md:backdrop-blur-sm"
           />
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.95, y: 10 }}
+            animate={reduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: 10 }}
             className={`bg-white rounded-2xl shadow-xl w-full ${maxWidth} flex flex-col relative z-50 max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)] overflow-hidden`}
           >
             <div className="flex items-center justify-between p-4 border-b">

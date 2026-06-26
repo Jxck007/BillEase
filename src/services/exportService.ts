@@ -1,17 +1,7 @@
 import { DeliveryNote, Invoice } from '../lib/types';
 import { formatCurrency } from '../lib/utils';
+import { sanitizeForHtml2Canvas } from '../utils/sanitizeForHtml2Canvas';
 
-
-const COLOR_PROPERTIES = [
-  'color',
-  'background-color',
-  'border-top-color',
-  'border-right-color',
-  'border-bottom-color',
-  'border-left-color',
-  'outline-color',
-  'text-decoration-color',
-] as const;
 
 const MM_TO_PX = 96 / 25.4;
 const A4_WIDTH_MM = 210;
@@ -72,37 +62,6 @@ export function downloadBlob(blob: Blob, fileName: string) {
   URL.revokeObjectURL(link.href);
 }
 
-function toSafeColorValue(value: string, cache: Map<string, string>) {
-  if (!value || !value.includes('oklch')) return value;
-  const cached = cache.get(value);
-  if (cached) return cached;
-  const probe = document.createElement('span');
-  probe.style.color = value;
-  document.body.appendChild(probe);
-  const resolved = getComputedStyle(probe).color || 'rgb(0, 0, 0)';
-  document.body.removeChild(probe);
-  cache.set(value, resolved);
-  return resolved;
-}
-
-function normalizeColorsForCanvas(sourceRoot: HTMLElement, cloneRoot: HTMLElement) {
-  const sourceNodes = [sourceRoot, ...Array.from(sourceRoot.querySelectorAll<HTMLElement>('*'))];
-  const cloneNodes = [cloneRoot, ...Array.from(cloneRoot.querySelectorAll<HTMLElement>('*'))];
-  const colorCache = new Map<string, string>();
-
-  sourceNodes.forEach((sourceNode, index) => {
-    const cloneNode = cloneNodes[index];
-    if (!cloneNode) return;
-    const computed = getComputedStyle(sourceNode);
-
-    COLOR_PROPERTIES.forEach((prop) => {
-      const value = computed.getPropertyValue(prop).trim();
-      if (!value) return;
-      cloneNode.style.setProperty(prop, toSafeColorValue(value, colorCache), 'important');
-    });
-  });
-}
-
 function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   const targetWidthPx = mmToPx(widthMm);
   const clone = element.cloneNode(true) as HTMLElement;
@@ -123,6 +82,7 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   clone.style.margin = '0';
   clone.style.padding = '0';
   clone.style.background = '#ffffff';
+  clone.setAttribute('data-export-root', 'true');
 
   const templateRoot = clone.querySelector('.dn-export-page, .quotation-export-page') as HTMLElement | null;
   if (templateRoot) {
@@ -131,6 +91,9 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
     templateRoot.style.maxWidth = `${targetWidthPx}px`;
     templateRoot.style.margin = '0';
     templateRoot.style.boxSizing = 'border-box';
+    templateRoot.style.background = '#ffffff';
+    templateRoot.style.color = '#111111';
+    templateRoot.setAttribute('data-export-root', 'true');
   }
 
   return { clone, targetWidthPx };
@@ -155,12 +118,11 @@ async function waitForExportAssets(clone: HTMLElement) {
   }));
 }
 
-async function renderCanvasFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {
+export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {
   const html2canvas = (await import('html2canvas')).default;
   await new Promise((resolve) => setTimeout(resolve, 100));
   const { clone, targetWidthPx } = prepareExportClone(element, widthMm);
   document.body.appendChild(clone);
-  normalizeColorsForCanvas(element, clone);
 
   try {
     const safeScale = scale ?? getSafeExportScale();
@@ -181,15 +143,21 @@ async function renderCanvasFromElement(element: HTMLElement, widthMm = A4_WIDTH_
         const classList = el.className?.toString() || '';
         return classList.includes('print:hidden') || classList.includes('no-export');
       },
+      onclone: (clonedDoc) => {
+        sanitizeForHtml2Canvas(clonedDoc.body);
+        clonedDoc.querySelectorAll('[data-no-export]').forEach((el) => el.remove());
+      },
     });
     return { canvas, scale: safeScale };
+  } catch (error) {
+    throw new Error(`Export rendering failed: ${(error as Error).message}`);
   } finally {
     clone.parentNode?.removeChild(clone);
   }
 }
 
 async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {
-  const { canvas } = await renderCanvasFromElement(element, widthMm, scale);
+  const { canvas } = await renderExportCanvas(element, widthMm, scale);
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Failed to generate PNG blob'))), 'image/png', 1.0);
   });
@@ -197,7 +165,7 @@ async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH
 
 export async function createPdfBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   const { jsPDF } = await import('jspdf');
-  const { canvas, scale } = await renderCanvasFromElement(element, widthMm);
+  const { canvas, scale } = await renderExportCanvas(element, widthMm);
   const dataUrl = canvas.toDataURL('image/png', 1.0);
   const imageWidthPx = canvas.width / scale;
   const imageHeightPx = canvas.height / scale;
@@ -253,25 +221,25 @@ export async function exportInvoiceAsImage(
   widthMm = 190,
 ) {
   try {
-    const blob = await createPngBlobFromElement(element, widthMm);
-    if (blob.size > 0) {
-      downloadBlob(blob, `${fileName}.png`);
+    const { canvas } = await renderExportCanvas(element, widthMm);
+    const pngBlob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/png', 1.0);
+    });
+    if (pngBlob && pngBlob.size > 0) {
+      downloadBlob(pngBlob, `${fileName}.png`);
       return;
     }
-    throw new Error('Empty PNG');
-  } catch (err) {
-    console.error('PNG export failed, trying JPEG fallback:', err);
-    // Fallback to JPEG
-    try {
-      const { canvas } = await renderCanvasFromElement(element, widthMm);
-      const jpegBlob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('JPEG generation failed'))), 'image/jpeg', 0.9);
-      });
+    const jpegBlob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.9);
+    });
+    if (jpegBlob && jpegBlob.size > 0) {
       downloadBlob(jpegBlob, `${fileName}.jpg`);
-    } catch (jpegErr) {
-      console.error('JPEG fallback also failed:', jpegErr);
-      throw new Error('Unable to generate image file');
+      return;
     }
+    throw new Error('Unable to generate image file');
+  } catch (err) {
+    console.error('Image export failed:', err);
+    throw new Error('Unable to generate image file');
   }
 }
 

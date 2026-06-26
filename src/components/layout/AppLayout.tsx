@@ -11,14 +11,15 @@ function SyncStatusBadge({ status }: { status: string }) {
     online: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     syncing: 'bg-blue-50 text-blue-700 border-blue-200',
     offline: 'bg-amber-50 text-amber-700 border-amber-200',
+    failed: 'bg-rose-50 text-rose-700 border-rose-200',
   };
   const labels: Record<string, string> = {
     loading: 'Loading cloud data...',
-    online: 'Online',
-    syncing: 'Syncing...',
+    online: 'Saved',
+    syncing: 'Saving...',
     offline: 'Offline',
+    failed: 'Cloud sync failed',
   };
-  if (status === 'online') return null;
   return (
     <div className={`px-4 py-1 text-[10px] font-medium text-center border-b ${colors[status] || colors.offline}`}>
       {labels[status] || labels.offline}
@@ -27,7 +28,7 @@ function SyncStatusBadge({ status }: { status: string }) {
 }
 
 export default function AppLayout() {
-  const { firebaseStatus, syncStatus } = useData();
+  const { firebaseStatus, syncStatus, lastSavedAt } = useData();
 
   return (
     <div className="min-h-dvh bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_35%),linear-gradient(180deg,_#fffdf9_0%,_#f7f5ef_100%)] flex flex-col md:flex-row text-stone-800 font-sans">
@@ -35,6 +36,11 @@ export default function AppLayout() {
       <div className="flex-1 flex flex-col min-w-0 min-h-dvh md:h-screen overflow-hidden">
         <Navbar />
         <SyncStatusBadge status={syncStatus} />
+        {lastSavedAt && (
+          <div className="border-b border-stone-200 bg-white/80 px-4 py-1 text-[11px] text-stone-500 md:px-8">
+            Last saved: {new Date(lastSavedAt).toLocaleString()}
+          </div>
+        )}
         {firebaseStatus.localMode && syncStatus === 'offline' && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800 md:px-8">
             Firebase not connected. Running in local mode.

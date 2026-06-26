@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { DataProvider } from './context/DataContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { HelpProvider } from './context/HelpContext';
@@ -37,6 +37,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function RouteLoadingFallback() {
+  const location = useLocation();
+  const previewRoute = /\/(invoices|estimates|delivery-notes)\/[^/]+$/.test(location.pathname);
+  return <LoadingSpinner fullScreen text={previewRoute ? 'Opening preview...' : 'Opening page...'} />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -44,7 +50,7 @@ export default function App() {
         <DataProvider>
           <HelpProvider>
             <BrowserRouter>
-              <Suspense fallback={<LoadingSpinner fullScreen />}>
+              <Suspense fallback={<RouteLoadingFallback />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>

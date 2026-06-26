@@ -60,7 +60,7 @@ export default function QuotationEstimateTemplate({
   const hasDiscount = (invoice.discountTotal || 0) > 0;
 
   return (
-    <div className="quotation-export-page mx-auto box-border w-[190mm] max-w-[190mm] bg-white p-[6mm] text-[10px] leading-tight text-black print:w-[190mm] print:max-w-[190mm] print:p-[5mm]">
+    <div className="quotation-export-page mx-auto box-border w-[190mm] max-w-[190mm] bg-white p-[6mm] text-[10px] leading-tight text-black print:w-[190mm] print:max-w-[190mm] print:p-[5mm]" data-export-root="true">
       <div className="border-2 border-black">
         {/* ROW 1: Dedicated Title Row */}
         <div className="border-b-2 border-black py-2.5 text-center">

@@ -2,12 +2,17 @@ import { useHelp } from '../../context/HelpContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { X, HelpCircle, Info, MessageSquareQuote, ShieldQuestion, FileText, Smartphone, CreditCard } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 
 export default function FloatingHelp() {
   const { isOpen, closeHelp, openHelp } = useHelp();
   const { language } = useLanguage();
   const location = useLocation();
+  const reduceMotion = useMemo(
+    () => typeof window !== 'undefined' && (window.innerWidth < 1024 || window.matchMedia('(prefers-reduced-motion: reduce)').matches),
+    [],
+  );
 
   const getHelpContent = () => {
     let topicKey = 'general';
@@ -174,10 +179,10 @@ export default function FloatingHelp() {
         )}
         <button
           onClick={() => isOpen ? closeHelp() : openHelp()}
-          className="w-14 h-14 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 transition-transform cursor-pointer ring-4 ring-emerald-50 group"
+          className="w-14 h-14 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-2xl md:hover:scale-110 transition-transform cursor-pointer ring-4 ring-emerald-50 group"
           aria-label="Help"
         >
-          <HelpCircle size={28} className="group-hover:scale-110 transition-transform" />
+          <HelpCircle size={28} className="md:group-hover:scale-110 transition-transform" />
         </button>
       </div>
 
@@ -185,17 +190,17 @@ export default function FloatingHelp() {
         {isOpen && (
           <>
             <motion.div
-              initial={{ opacity: 0 }}
+              initial={reduceMotion ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={closeHelp}
               className="print:hidden fixed inset-0 bg-black/20 z-40"
             />
             <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              initial={reduceMotion ? false : { x: '100%' }}
+              animate={reduceMotion ? { opacity: 1 } : { x: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { x: '100%' }}
+              transition={reduceMotion ? { duration: 0.15 } : { type: 'spring', damping: 25, stiffness: 200 }}
               className="print:hidden fixed top-0 right-0 h-full w-full max-w-sm bg-white shadow-2xl z-50 flex flex-col border-l"
             >
               <div className="flex items-center justify-between p-4 border-b">
@@ -233,4 +238,3 @@ export default function FloatingHelp() {
     </>
   );
 }
-

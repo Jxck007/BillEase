@@ -4,6 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { InvoiceTemplateId, TemplateVisibilitySettings } from '../lib/types';
 import { INVOICE_TEMPLATES, TEMPLATE_PRESETS } from '../templates/invoiceTemplates';
 import { Trash2 } from 'lucide-react';
+import { getCloudBackupRecordCounts, getRecordTotal } from '../lib/firebase';
 
 type BankDetailsForm = {
   bankName: string;
@@ -60,7 +61,7 @@ function Toggle({ checked, onChange, label, tamil }: { checked: boolean; onChang
 }
 
 export default function Settings() {
-  const { state, updateProfile, updateSettings, firebaseStatus, uploadBackup, downloadBackup } = useData();
+  const { state, updateProfile, updateSettings, firebaseStatus, uploadBackup, downloadBackup, exportBackupJson, importBackupJson, backupReminderNeeded, lastBackupExportAt, syncStatus, lastSavedAt } = useData();
   const { t, language, setLanguage } = useLanguage();
   const [logoPreview, setLogoPreview] = useState(state.profile.logo);
   const [logoError, setLogoError] = useState('');
@@ -203,12 +204,22 @@ export default function Settings() {
 
       <Section title="Data Management" subtitle="Backup, restore, and sync your business data.">
         {/* Backup reminder */}
-        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <div className={`mb-4 rounded-2xl p-4 text-sm ${backupReminderNeeded ? 'border border-amber-200 bg-amber-50 text-amber-800' : 'border border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
           <div className="font-bold">💾 Backup Reminder</div>
           <p className="mt-1 text-xs">
-            {language === 'en'
-              ? 'Export your data as a JSON file regularly to avoid data loss. Keep a copy on your phone or computer.'
-              : 'தரவு இழப்பைத் தவிர்க்க, உங்கள் தரவை JSON கோப்பாக அடிக்கடி எக்ஸ்போர்ட் செய்யவும்.'}
+            {backupReminderNeeded
+              ? (language === 'en'
+                ? 'Please export a fresh JSON backup. Keep a copy on your phone or computer.'
+                : 'புதிய JSON backup எடுத்து வைத்துக்கொள்ளுங்கள்.')
+              : (language === 'en'
+                ? 'Backup recently exported. Keep that file in a safe place.'
+                : 'சமீபத்தில் backup எடுக்கப்பட்டது. அதை பாதுகாப்பாக வைத்துக்கொள்ளுங்கள்.')}
+          </p>
+          <p className="mt-2 text-xs">
+            {language === 'en' ? 'Last backup export:' : 'கடைசி backup export:'} {lastBackupExportAt ? new Date(lastBackupExportAt).toLocaleString() : (language === 'en' ? 'Not yet exported' : 'இன்னும் எடுக்கவில்லை')}
+          </p>
+          <p className="mt-1 text-xs">
+            {language === 'en' ? 'Last saved:' : 'கடைசியாக சேமித்தது:'} {lastSavedAt ? new Date(lastSavedAt).toLocaleString() : '-'} · {syncStatus === 'online' ? 'Saved' : syncStatus === 'syncing' ? 'Saving' : syncStatus === 'failed' ? 'Cloud sync failed' : syncStatus === 'offline' ? 'Offline' : 'Loading'}
           </p>
           <div className="mt-2 flex items-center gap-2 text-xs">
             <span>Current records:</span>
@@ -226,13 +237,7 @@ export default function Settings() {
           <button 
             type="button" 
             onClick={async () => {
-              const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
-              const downloadAnchorNode = document.createElement('a');
-              downloadAnchorNode.setAttribute("href", dataStr);
-              downloadAnchorNode.setAttribute("download", `billease_backup_${new Date().toISOString().split('T')[0]}.json`);
-              document.body.appendChild(downloadAnchorNode);
-              downloadAnchorNode.click();
-              downloadAnchorNode.remove();
+              exportBackupJson();
             }}
             className="rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold text-stone-700 hover:bg-stone-50 text-left"
           >
@@ -249,15 +254,10 @@ export default function Settings() {
                 const file = e.target.files?.[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = (event) => {
+                reader.onload = async () => {
                   try {
-                    const importedState = JSON.parse(event.target?.result as string);
-                    if (!importedState.customers && !importedState.products && !importedState.invoices) {
-                      alert(language === 'en' ? 'Invalid backup file format.' : 'தவறான backup கோப்பு வடிவம்.');
-                      return;
-                    }
                     if (!confirm(language === 'en' ? 'This will replace ALL current data with the backup. Continue?' : 'இது தற்போதைய தரவு அனைத்தையும் மாற்றும். தொடரவா?')) return;
-                    localStorage.setItem('appData', JSON.stringify(importedState));
+                    await importBackupJson(file);
                     window.location.reload();
                   } catch (err) {
                     alert(language === 'en' ? 'Invalid backup file.' : 'தவறான backup கோப்பு.');
@@ -275,7 +275,18 @@ export default function Settings() {
                 await uploadBackup();
                 alert(language === 'en' ? 'Cloud upload successful.' : 'Cloud upload வெற்றி.');
               } catch (err) {
-                alert(language === 'en' ? 'Upload failed.' : 'Upload தோல்வி.');
+                if ((err as Error).message === 'EMPTY_OVERWRITE_BLOCKED') {
+                  const cloudCounts = await getCloudBackupRecordCounts();
+                  const warning = language === 'en'
+                    ? `Cloud already has ${getRecordTotal(cloudCounts)} records. Current local data is empty. Uploading now could erase cloud data. Continue only if you are sure.`
+                    : 'Cloud-ல் ஏற்கனவே data உள்ளது. இப்போது upload செய்தால் அதை நீக்கலாம். உறுதியாக இருந்தால் மட்டுமே தொடரவும்.';
+                  if (confirm(warning)) {
+                    await uploadBackup(true);
+                    alert(language === 'en' ? 'Cloud upload successful.' : 'Cloud upload வெற்றி.');
+                  }
+                } else {
+                  alert(language === 'en' ? 'Upload failed.' : 'Upload தோல்வி.');
+                }
               }
             }}
             className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800 hover:bg-emerald-100 text-left"
@@ -497,4 +508,3 @@ export default function Settings() {
     </div>
   );
 }
-

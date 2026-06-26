@@ -130,8 +130,11 @@ export default function Dashboard() {
                   <p className="text-xs text-white/70">விரைவு செயல்பாடுகள்</p>
                 </div>
               </div>
+              <div className="mb-4 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white/90">
+                {language === 'en' ? 'Choose one clear next step below.' : 'கீழே இருந்து அடுத்த படியைத் தேர்வு செய்யுங்கள்.'}
+              </div>
               <div className="space-y-2">
-                <Link to="/invoices/new" className="flex items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
+                <Link to="/invoices/new" className="flex min-h-[56px] items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">INV</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold">New Invoice</p>
@@ -139,7 +142,7 @@ export default function Dashboard() {
                   </div>
                   <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
                 </Link>
-                <Link to="/estimates/new" className="flex items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
+                <Link to="/estimates/new" className="flex min-h-[56px] items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">EST</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold">New Quotation</p>
@@ -147,7 +150,7 @@ export default function Dashboard() {
                   </div>
                   <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
                 </Link>
-                <Link to="/delivery-notes/new" className="flex items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
+                <Link to="/delivery-notes/new" className="flex min-h-[56px] items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">DN</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold">New Delivery Note</p>
@@ -156,7 +159,7 @@ export default function Dashboard() {
                   <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
                 </Link>
                 <div className="border-t border-white/10 pt-2 mt-2">
-                  <Link to="/customers" className="flex items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
+                  <Link to="/customers" className="flex min-h-[56px] items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">CU</div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold">Customers</p>
@@ -164,7 +167,7 @@ export default function Dashboard() {
                     </div>
                     <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
                   </Link>
-                  <Link to="/products" className="flex items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
+                  <Link to="/products" className="flex min-h-[56px] items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">PR</div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold">Products</p>
@@ -185,8 +188,8 @@ export default function Dashboard() {
             </div>
             
             {/* Background design elements */}
-            <div className="absolute -bottom-12 -right-12 w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
-            <div className="absolute -top-12 -left-12 w-32 h-32 bg-emerald-500/20 rounded-full blur-2xl"></div>
+            <div className="absolute -bottom-12 -right-12 hidden md:block w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
+            <div className="absolute -top-12 -left-12 hidden md:block w-32 h-32 bg-emerald-500/20 rounded-full blur-2xl"></div>
           </div>
 
           <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm">

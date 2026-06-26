@@ -8,7 +8,7 @@ export default function Navbar() {
   const { openHelp } = useHelp();
 
   return (
-    <header className="print:hidden h-20 bg-white/90 backdrop-blur border-b border-stone-200 px-4 md:px-8 flex items-center justify-between sticky top-0 z-20">
+    <header className="print:hidden h-20 bg-white/95 md:bg-white/90 md:backdrop-blur border-b border-stone-200 px-4 md:px-8 flex items-center justify-between sticky top-0 z-20">
       <div className="min-w-0">
         <h2 className="text-xl font-bold text-stone-800 hidden md:block">
           {language === 'en' ? 'Good Morning!' : 'காலை வணக்கம்!'}

@@ -47,7 +47,7 @@ export default function TraditionalTaxInvoice({ invoice, profile, customer, show
   const label = copyLabel || invoice.copyType || 'DUPLICATE COPY';
 
   return (
-    <div className="invoice-print-page">
+    <div className="invoice-print-page bg-white text-black" data-export-root="true">
       <div className="tv-container">
         <header className="tv-header">
           <div className="tv-title">TAX INVOICE</div>

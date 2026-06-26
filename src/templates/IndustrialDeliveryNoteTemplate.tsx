@@ -54,7 +54,7 @@ export default function IndustrialDeliveryNoteTemplate({ note, profile, customer
   ].join('\n');
 
   return (
-    <div className="dn-export-page mx-auto box-border w-[210mm] max-w-[210mm] bg-white p-[8mm] text-[11px] leading-tight text-black print:w-[210mm] print:max-w-[210mm] print:p-[6mm]">
+    <div className="dn-export-page mx-auto box-border w-[210mm] max-w-[210mm] bg-white p-[8mm] text-[11px] leading-tight text-black print:w-[210mm] print:max-w-[210mm] print:p-[6mm]" data-export-root="true">
       <div className="border-2 border-black">
         <div className="border-b-2 border-black px-3 py-2 text-center">
           <div className="text-[18px] font-black tracking-[0.24em]">DELIVERY NOTE</div>

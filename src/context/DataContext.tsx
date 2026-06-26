@@ -2,18 +2,24 @@ import { createContext, useContext, useState, ReactNode, useEffect, useRef } fro
 import { AppState, AuditLog, AppSettings, BusinessProfile, Customer, Expense, Invoice, Payment, Product, DeliveryNote } from '../lib/types';
 import { generateId } from '../lib/utils';
 import { buildAuditLog, getDefaultSettings } from '../services/invoiceService';
-import { firebaseEnabled, setAppDataBackup, getAppDataBackup, deleteAppDataBackup, useFirestoreSync, getFirebaseStatus, FirebaseStatus, db } from '../lib/firebase';
+import { firebaseEnabled, setAppDataBackup, getAppDataBackup, deleteAppDataBackup, useFirestoreSync, getFirebaseStatus, FirebaseStatus, db, getRecordTotal } from '../lib/firebase';
 import { normalizeCustomerRecord, normalizeDeliveryNote } from '../lib/deliveryNoteUtils';
 import { useAuth } from './AuthContext';
 import { doc, onSnapshot } from 'firebase/firestore';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 
-export type SyncStatus = 'loading' | 'online' | 'syncing' | 'offline';
+export type SyncStatus = 'loading' | 'online' | 'syncing' | 'offline' | 'failed';
+type SaveIndicator = 'saving' | 'saved' | 'offline' | 'failed';
+const BACKUP_EXPORTED_AT_KEY = 'billease.lastBackupExportAt';
 
 interface DataContextType {
   state: AppState;
   firebaseStatus: FirebaseStatus;
   syncStatus: SyncStatus;
+  saveIndicator: SaveIndicator;
+  lastSavedAt: string | null;
+  lastBackupExportAt: string | null;
+  backupReminderNeeded: boolean;
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt'>) => void;
   updateCustomer: (id: string, customer: Partial<Customer>) => void;
   deleteCustomer: (id: string) => void;
@@ -35,7 +41,9 @@ interface DataContextType {
   deleteDeliveryNote: (id: string) => void;
   // Local / cloud helpers
   clearLocalData: () => void;
-  uploadBackup: () => Promise<void>;
+  exportBackupJson: () => void;
+  importBackupJson: (file: File) => Promise<void>;
+  uploadBackup: (force?: boolean) => Promise<void>;
   downloadBackup: () => Promise<void>;
   deleteCloudBackup: () => Promise<void>;
 }
@@ -72,12 +80,41 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('loading');
+  const [saveIndicator, setSaveIndicator] = useState<SaveIndicator>('saving');
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [lastBackupExportAt, setLastBackupExportAt] = useState<string | null>(() => localStorage.getItem(BACKUP_EXPORTED_AT_KEY));
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const hydrateState = (remote: any) => {
+    const profile = remote.profile || defaultProfile;
+    return {
+      ...initialState,
+      ...remote,
+      customers: (remote.customers || []).map((customer: Customer) => normalizeCustomerRecord(customer)),
+      products: remote.products || [],
+      invoices: remote.invoices || [],
+      payments: remote.payments || [],
+      expenses: remote.expenses || [],
+      deliveryNotes: (remote.deliveryNotes || []).map((note: DeliveryNote) => normalizeDeliveryNote(note as Partial<DeliveryNote> & Record<string, unknown>)),
+      profile,
+      settings: { ...getDefaultSettings(profile), ...(remote.settings || {}) },
+      auditLogs: remote.auditLogs || [],
+    } as AppState;
+  };
+
+  const recordBackupExport = () => {
+    const now = new Date().toISOString();
+    localStorage.setItem(BACKUP_EXPORTED_AT_KEY, now);
+    setLastBackupExportAt(now);
+  };
+
+  const backupReminderNeeded = !lastBackupExportAt || (Date.now() - new Date(lastBackupExportAt).getTime()) > 7 * 24 * 60 * 60 * 1000;
 
   useEffect(() => {
     const initData = async () => {
       if (!user) {
         setSyncStatus('offline');
+        setSaveIndicator('offline');
         setIsLoaded(true);
         // Try loading from local cache
         try {
@@ -85,7 +122,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           if (cached) {
             const parsed = JSON.parse(cached);
             if (parsed && parsed.customers) {
-              setState(prev => ({ ...prev, ...parsed }));
+              setState(hydrateState(parsed));
+              setLastSavedAt(new Date().toISOString());
             }
           }
         } catch {}
@@ -97,42 +135,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const remote = await getAppDataBackup();
 
         if (remote) {
-          const profile = remote.profile || defaultProfile;
-          setState(prev => {
-            const newState = {
-              ...initialState,
-              ...remote,
-              customers: (remote.customers || []).map((customer: Customer) => normalizeCustomerRecord(customer)),
-              products: remote.products || [],
-              invoices: remote.invoices || [],
-              payments: remote.payments || [],
-              expenses: remote.expenses || [],
-              deliveryNotes: (remote.deliveryNotes || []).map((note: DeliveryNote) => normalizeDeliveryNote(note as Partial<DeliveryNote> & Record<string, unknown>)),
-              profile,
-              settings: { ...getDefaultSettings(profile), ...(remote.settings || {}) },
-              auditLogs: remote.auditLogs || [],
-            } as AppState;
-            return newState;
-          });
+          setState(hydrateState(remote));
           setCloudSyncEnabled(true);
           setSyncStatus('online');
+          setSaveIndicator('saved');
+          setLastSavedAt(new Date().toISOString());
         } else {
           // Cloud empty: Create fresh default structure
           setState(initialState);
           setCloudSyncEnabled(true);
           setSyncStatus('online');
+          setSaveIndicator('saved');
         }
       } catch (err) {
         console.error('Failed to read cloud data on startup:', err);
         setCloudSyncEnabled(false);
         setSyncStatus('offline');
+        setSaveIndicator('offline');
         // Try loading from local cache
         try {
           const cached = localStorage.getItem('appData');
           if (cached) {
             const parsed = JSON.parse(cached);
             if (parsed && parsed.customers) {
-              setState(prev => ({ ...prev, ...parsed }));
+              setState(hydrateState(parsed));
+              setLastSavedAt(new Date().toISOString());
             }
           }
         } catch {}
@@ -157,31 +184,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const payload = snapshot.data();
         const remote = payload?.data;
         if (remote) {
-          const profile = remote.profile || defaultProfile;
-          setState(prev => {
-            const newState = {
-              ...initialState,
-              ...remote,
-              customers: (remote.customers || []).map((customer: Customer) => normalizeCustomerRecord(customer)),
-              products: remote.products || [],
-              invoices: remote.invoices || [],
-              payments: remote.payments || [],
-              expenses: remote.expenses || [],
-              deliveryNotes: (remote.deliveryNotes || []).map((note: DeliveryNote) => normalizeDeliveryNote(note as Partial<DeliveryNote> & Record<string, unknown>)),
-              profile,
-              settings: { ...getDefaultSettings(profile), ...(remote.settings || {}) },
-              auditLogs: remote.auditLogs || [],
-            } as AppState;
-            return newState;
-          });
+          setState(hydrateState(remote));
           setSyncStatus('online');
+          setSaveIndicator('saved');
+          setLastSavedAt(payload?.updatedAt || new Date().toISOString());
         }
       } else {
         setSyncStatus('online');
+        setSaveIndicator('saved');
       }
     }, (error) => {
       console.error('[FIRESTORE SYNC] Real-time listener error:', error);
-      setSyncStatus('offline');
+      setSyncStatus('failed');
+      setSaveIndicator('failed');
     });
 
     return () => unsubscribe();
@@ -191,8 +206,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoaded) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    setSaveIndicator(cloudSyncEnabled ? 'saving' : 'offline');
+    if (cloudSyncEnabled) {
+      setSyncStatus((current) => (current === 'loading' ? current : 'syncing'));
+    }
     debounceRef.current = setTimeout(() => {
-      localStorage.setItem('appData', JSON.stringify(state));
+      try {
+        localStorage.setItem('appData', JSON.stringify(state));
+        setLastSavedAt(new Date().toISOString());
+        if (!cloudSyncEnabled) setSaveIndicator('offline');
+      } catch (error) {
+        console.error('localStorage save failed', error);
+        setSaveIndicator('failed');
+      }
     }, 1500);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [state, isLoaded]);
@@ -203,6 +229,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     products: state.products.length,
     invoices: state.invoices.length,
     deliveryNotes: state.deliveryNotes.length,
+  }, {
+    onSuccess: () => {
+      setSyncStatus('online');
+      setSaveIndicator('saved');
+      setLastSavedAt(new Date().toISOString());
+    },
+    onError: () => {
+      setSyncStatus('failed');
+      setSaveIndicator('failed');
+    },
   });
 
   // Local / cloud helpers
@@ -212,10 +248,44 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setState(initialState);
   };
 
-  const uploadBackup = async () => {
+  const exportBackupJson = () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `billease_backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    recordBackupExport();
+  };
+
+  const importBackupJson = async (file: File) => {
+    const text = await file.text();
+    const importedState = JSON.parse(text);
+    if (!importedState || typeof importedState !== 'object') {
+      throw new Error('INVALID_BACKUP');
+    }
+    const counts = {
+      customers: Array.isArray(importedState.customers) ? importedState.customers.length : 0,
+      products: Array.isArray(importedState.products) ? importedState.products.length : 0,
+      invoices: Array.isArray(importedState.invoices) ? importedState.invoices.length : 0,
+      deliveryNotes: Array.isArray(importedState.deliveryNotes) ? importedState.deliveryNotes.length : 0,
+    };
+    if (getRecordTotal(counts) === 0 && !importedState.profile && !importedState.settings) {
+      throw new Error('INVALID_BACKUP');
+    }
+    const hydrated = hydrateState(importedState);
+    setState(hydrated);
+    localStorage.setItem('appData', JSON.stringify(hydrated));
+    setLastSavedAt(new Date().toISOString());
+  };
+
+  const uploadBackup = async (force = false) => {
     if (!firebaseEnabled()) throw new Error('Firebase not enabled');
     try {
-      await setAppDataBackup(state);
+      await setAppDataBackup(state, { force });
+      setSyncStatus('online');
+      setSaveIndicator('saved');
+      setLastSavedAt(new Date().toISOString());
     } catch (err) {
       console.error('uploadBackup failed', err);
       throw err;
@@ -227,18 +297,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const remote = await getAppDataBackup();
       if (remote && Object.keys(remote).length > 0) {
-        const profile = remote.profile || defaultProfile;
-        setState({
-          ...initialState,
-          ...remote,
-          customers: (remote.customers || []).map((customer: Customer) => normalizeCustomerRecord(customer)),
-          deliveryNotes: (remote.deliveryNotes || []).map((note: DeliveryNote) => normalizeDeliveryNote(note as Partial<DeliveryNote> & Record<string, unknown>)),
-          profile,
-          settings: { ...getDefaultSettings(profile), ...(remote.settings || {}) },
-          auditLogs: remote.auditLogs || [],
-        } as AppState);
+        const hydrated = hydrateState(remote);
+        setState(hydrateState(remote));
         // persist locally
-        localStorage.setItem('appData', JSON.stringify(remote));
+        localStorage.setItem('appData', JSON.stringify(hydrated));
+        setLastSavedAt(new Date().toISOString());
+        setSaveIndicator('saved');
+        setSyncStatus('online');
       }
     } catch (err) {
       console.error('downloadBackup failed', err);
@@ -460,6 +525,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       state,
       firebaseStatus,
       syncStatus,
+      saveIndicator,
+      lastSavedAt,
+      lastBackupExportAt,
+      backupReminderNeeded,
       addCustomer, updateCustomer, deleteCustomer,
       addProduct, updateProduct, deleteProduct,
       addInvoice, updateInvoice, deleteInvoice,
@@ -470,6 +539,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       addAuditLog,
       // helpers
       clearLocalData,
+      exportBackupJson,
+      importBackupJson,
       uploadBackup,
       downloadBackup,
       deleteCloudBackup

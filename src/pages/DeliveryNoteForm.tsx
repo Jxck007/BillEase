@@ -170,9 +170,10 @@ export default function DeliveryNoteForm() {
           onClick={() => navigate('/delivery-notes')}
           title={language === 'en' ? 'Back to delivery notes' : 'டெலிவரி நோட்ஸ்க்கு திரும்பு'}
           aria-label={language === 'en' ? 'Back to delivery notes' : 'டெலிவரி நோட்ஸ்க்கு திரும்பு'}
-          className="rounded-full border border-stone-200 bg-white p-2 shadow-sm"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2 shadow-sm"
         >
           <ArrowLeft size={22} className="text-stone-600" />
+          <span className="text-sm font-semibold text-stone-700">{language === 'en' ? 'Back to Delivery Notes' : 'டெலிவரி நோட்ஸ்'}</span>
         </button>
         <div>
           <h1 className="text-2xl font-black text-stone-800">
@@ -180,6 +181,14 @@ export default function DeliveryNoteForm() {
           </h1>
           <p className="mt-1 text-sm text-stone-500">{language === 'en' ? 'Transport / dispatch document' : 'பரிமாற்ற / டிஸ்பாட்ச் ஆவணம்'}</p>
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-800">
+        <span>Step 1: Select customer</span>
+        <span className="text-emerald-300">→</span>
+        <span>Step 2: Add goods rows</span>
+        <span className="text-emerald-300">→</span>
+        <span>Step 3: Save and export</span>
       </div>
 
       <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">

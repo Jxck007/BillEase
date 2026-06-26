@@ -232,8 +232,9 @@ export default function InvoiceForm() {
       </div>
 
       <div className="flex items-start gap-3 border-b border-stone-200 pb-4">
-        <button type="button" title="Back" aria-label="Back" onClick={() => navigate(-1)} className="shrink-0 rounded-full border border-stone-200 bg-white p-2 shadow-sm">
+        <button type="button" title="Back" aria-label="Back" onClick={() => navigate(isEstimate ? '/estimates' : '/invoices')} className="shrink-0 inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2 shadow-sm">
           <ArrowLeft size={24} className="text-stone-600" />
+          <span className="text-sm font-semibold text-stone-700">{isEstimate ? 'Back to Quotations' : 'Back to Invoices'}</span>
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">

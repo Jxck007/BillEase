@@ -27,6 +27,13 @@ export type FirebaseStatus = {
 export let db: ReturnType<typeof getFirestore> | null = null;
 export let auth: ReturnType<typeof getAuth> | null = null;
 
+export type RecordCounts = {
+  customers: number;
+  products: number;
+  invoices: number;
+  deliveryNotes: number;
+};
+
 function getMissingFirebaseVariables() {
   if (!enabled) return [];
   return requiredEnvKeys.filter((key) => !String(import.meta.env[key] || '').trim());
@@ -93,6 +100,19 @@ export function firebaseEnabled() {
   return enabled && !!db;
 }
 
+export function getRecordCounts(data: any): RecordCounts {
+  return {
+    customers: Array.isArray(data?.customers) ? data.customers.length : 0,
+    products: Array.isArray(data?.products) ? data.products.length : 0,
+    invoices: Array.isArray(data?.invoices) ? data.invoices.length : 0,
+    deliveryNotes: Array.isArray(data?.deliveryNotes) ? data.deliveryNotes.length : 0,
+  };
+}
+
+export function getRecordTotal(counts: RecordCounts) {
+  return counts.customers + counts.products + counts.invoices + counts.deliveryNotes;
+}
+
 function sanitizeForFirestore(value: unknown, seen = new WeakSet<object>()): unknown {
   if (value === undefined) {
     return null;
@@ -128,11 +148,23 @@ function sanitizeForFirestore(value: unknown, seen = new WeakSet<object>()): unk
   return value;
 }
 
-export async function setAppDataBackup(data: unknown) {
+export async function setAppDataBackup(data: unknown, options?: { force?: boolean }) {
   if (!firebaseEnabled()) throw new Error('Firebase not enabled');
   console.log('[Firestore] Operation: WRITE | Collection: billease | Path: billease/appData');
   try {
     const d = doc(db as any, 'billease', 'appData');
+    const outboundCounts = getRecordCounts(data);
+    const outboundTotal = getRecordTotal(outboundCounts);
+    if (!options?.force && outboundTotal === 0) {
+      const existing = await getDoc(d);
+      const existingData = existing.data()?.data;
+      const existingCounts = getRecordCounts(existingData);
+      if (getRecordTotal(existingCounts) > 0) {
+        const err = new Error('EMPTY_OVERWRITE_BLOCKED');
+        (err as Error & { name: string }).name = 'EmptyOverwriteBlockedError';
+        throw err;
+      }
+    }
     const safeData = sanitizeForFirestore(data);
     await setDoc(d, { data: safeData, updatedAt: new Date().toISOString() });
     console.log('[Firestore] WRITE SUCCESS | Path: billease/appData');
@@ -167,6 +199,11 @@ export async function deleteAppDataBackup() {
   await deleteDoc(d);
 }
 
+export async function getCloudBackupRecordCounts(): Promise<RecordCounts> {
+  const data = await getAppDataBackup();
+  return getRecordCounts(data);
+}
+
 /**
  * Firestore sync hook - Automatically syncs app state to Firestore when data changes
  * Call this hook in DataContext to enable cloud backup on every state change
@@ -174,19 +211,27 @@ export async function deleteAppDataBackup() {
  * @param enabled - Whether to enable auto-sync (respects VITE_FIREBASE_ENABLED)
  * @param recordCounts - Optional record counts for safety guard (blocks empty overwrites)
  */
-export function useFirestoreSync(state: unknown, enabled = true, recordCounts?: { customers: number; products: number; invoices: number; deliveryNotes: number }) {
+export function useFirestoreSync(
+  state: unknown,
+  enabled = true,
+  recordCounts?: RecordCounts,
+  callbacks?: {
+    onSuccess?: () => void;
+    onError?: (error: Error) => void;
+  },
+) {
   useEffect(() => {
     if (!enabled || !firebaseEnabled()) return;
 
     // Debounce sync to avoid excessive writes
     const timeout = setTimeout(async () => {
       // SAFETY GUARD: Prevent empty overwrites of non-empty cloud data
-      const outboundTotal = (recordCounts?.customers || 0) + (recordCounts?.products || 0) + (recordCounts?.invoices || 0) + (recordCounts?.deliveryNotes || 0);
+      const outboundTotal = getRecordTotal(recordCounts || getRecordCounts(state));
       if (outboundTotal === 0) {
         try {
           const existingData = await getAppDataBackup();
           if (existingData) {
-            const existingTotal = (existingData.customers?.length || 0) + (existingData.products?.length || 0) + (existingData.invoices?.length || 0) + (existingData.deliveryNotes?.length || 0);
+            const existingTotal = getRecordTotal(getRecordCounts(existingData));
             if (existingTotal > 0) {
               console.warn('[Firebase] SAFETY GUARD: Blocked empty overwrite — cloud has existing data. Skipping auto-sync.');
               return;
@@ -199,12 +244,14 @@ export function useFirestoreSync(state: unknown, enabled = true, recordCounts?: 
 
       try {
         await setAppDataBackup(state);
+        callbacks?.onSuccess?.();
       } catch (err) {
         const errMsg = (err as Error).message;
         // Suppress blocked-by-client errors (browser extension) as they're non-critical
         if (!errMsg.includes('ERR_BLOCKED_BY_CLIENT') && !errMsg.includes('blocked')) {
           console.warn('[Firebase] Auto-sync failed (non-critical):', errMsg);
         }
+        callbacks?.onError?.(err as Error);
       }
     }, 2000); // 2 second debounce
 
