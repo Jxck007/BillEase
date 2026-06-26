@@ -17,7 +17,6 @@ const MM_TO_PX = 96 / 25.4;
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 const PDF_MARGIN_MM = 5;
-const CANVAS_SCALE = 2;
 
 /** Use lower scale on mobile/tablet to avoid memory crashes on older devices */
 export function getSafeExportScale(): number {
@@ -108,10 +107,11 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   const targetWidthPx = mmToPx(widthMm);
   const clone = element.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('.hidden.print\\:block').forEach((el) => ((el as HTMLElement).style.display = 'none'));
-  clone.style.position = 'fixed';
-  clone.style.top = '-9999px';
-  clone.style.left = '-9999px';
+  clone.style.position = 'absolute';
+  clone.style.top = '0';
+  clone.style.left = '-10000px';
   clone.style.zIndex = '-1';
+  clone.style.visibility = 'hidden';
   clone.style.width = `${targetWidthPx}px`;
   clone.style.minWidth = `${targetWidthPx}px`;
   clone.style.maxWidth = `${targetWidthPx}px`;
@@ -136,7 +136,26 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   return { clone, targetWidthPx };
 }
 
-async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {
+async function waitForExportAssets(clone: HTMLElement) {
+  if (typeof document !== 'undefined' && 'fonts' in document) {
+    try {
+      await document.fonts.ready;
+    } catch {
+      // Ignore font loading failures and continue with export.
+    }
+  }
+
+  const images = Array.from(clone.querySelectorAll('img'));
+  await Promise.all(images.map((img) => {
+    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      img.addEventListener('load', () => resolve(), { once: true });
+      img.addEventListener('error', () => resolve(), { once: true });
+    });
+  }));
+}
+
+async function renderCanvasFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {
   const html2canvas = (await import('html2canvas')).default;
   await new Promise((resolve) => setTimeout(resolve, 100));
   const { clone, targetWidthPx } = prepareExportClone(element, widthMm);
@@ -145,6 +164,7 @@ async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH
 
   try {
     const safeScale = scale ?? getSafeExportScale();
+    await waitForExportAssets(clone);
     const canvas = await html2canvas(clone, {
       scale: safeScale,
       backgroundColor: '#ffffff',
@@ -162,31 +182,27 @@ async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH
         return classList.includes('print:hidden') || classList.includes('no-export');
       },
     });
-    return await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Failed to generate PNG blob'))), 'image/png', 1.0);
-    });
+    return { canvas, scale: safeScale };
   } finally {
     clone.parentNode?.removeChild(clone);
   }
 }
 
+async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {
+  const { canvas } = await renderCanvasFromElement(element, widthMm, scale);
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Failed to generate PNG blob'))), 'image/png', 1.0);
+  });
+}
+
 export async function createPdfBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   const { jsPDF } = await import('jspdf');
-  const pngBlob = await createPngBlobFromElement(element, widthMm);
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Failed to read PNG for PDF conversion'));
-    reader.readAsDataURL(pngBlob);
-  });
-
-  const image = new Image();
-  await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
-    image.onerror = () => reject(new Error('Failed to decode PNG for PDF conversion'));
-    image.src = dataUrl;
-  });
-
+  const { canvas, scale } = await renderCanvasFromElement(element, widthMm);
+  const dataUrl = canvas.toDataURL('image/png', 1.0);
+  const imageWidthPx = canvas.width / scale;
+  const imageHeightPx = canvas.height / scale;
+  const imgWidthMm = pxToMm(imageWidthPx);
+  const imgHeightMm = pxToMm(imageHeightPx);
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -198,9 +214,6 @@ export async function createPdfBlobFromElement(element: HTMLElement, widthMm = A
   const pageHeight = A4_HEIGHT_MM;
   const contentWidth = pageWidth - PDF_MARGIN_MM * 2;
   const contentHeight = pageHeight - PDF_MARGIN_MM * 2;
-
-  const imgWidthMm = pxToMm(image.width / CANVAS_SCALE);
-  const imgHeightMm = pxToMm(image.height / CANVAS_SCALE);
   const renderWidth = contentWidth;
   const renderHeight = (imgHeightMm * renderWidth) / imgWidthMm;
 
@@ -250,20 +263,7 @@ export async function exportInvoiceAsImage(
     console.error('PNG export failed, trying JPEG fallback:', err);
     // Fallback to JPEG
     try {
-      const { default: html2canvasFallback } = await import('html2canvas');
-      const { clone, targetWidthPx } = prepareExportClone(element, widthMm);
-      document.body.appendChild(clone);
-      const canvas = await html2canvasFallback(clone, {
-        scale: getSafeExportScale(),
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        imageTimeout: 5000,
-        width: targetWidthPx,
-        windowWidth: targetWidthPx,
-      });
-      clone.parentNode?.removeChild(clone);
+      const { canvas } = await renderCanvasFromElement(element, widthMm);
       const jpegBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('JPEG generation failed'))), 'image/jpeg', 0.9);
       });

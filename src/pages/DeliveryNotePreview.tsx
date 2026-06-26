@@ -16,6 +16,8 @@ export default function DeliveryNotePreview() {
   const exportTemplateRef = useRef<HTMLDivElement>(null);
   const scalerRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
+  const note = state.deliveryNotes.find(n => n.id === id);
+  const customer = state.customers.find(c => c.id === note?.customerId);
 
   // Fit document preview to screen width
   const updateScale = useCallback(() => {
@@ -38,9 +40,6 @@ export default function DeliveryNotePreview() {
     if (el) observer.observe(el);
     return () => observer.disconnect();
   }, [updateScale, note]);
-
-  const note = state.deliveryNotes.find(n => n.id === id);
-  const customer = state.customers.find(c => c.id === note?.customerId);
 
   if (!note) {
     return (
