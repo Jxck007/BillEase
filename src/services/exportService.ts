@@ -64,39 +64,49 @@ export function downloadBlob(blob: Blob, fileName: string) {
 
 function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   const targetWidthPx = mmToPx(widthMm);
-  const clone = element.cloneNode(true) as HTMLElement;
+  const sourceRoot = element.matches('[data-export-root="true"]')
+    ? element
+    : element.querySelector<HTMLElement>('[data-export-root="true"]');
+
+  if (!sourceRoot) {
+    throw new Error('Export failed: document content not found');
+  }
+
+  const sandbox = document.createElement('div');
+  sandbox.style.position = 'fixed';
+  sandbox.style.left = '-10000px';
+  sandbox.style.top = '0';
+  sandbox.style.width = `${targetWidthPx}px`;
+  sandbox.style.background = '#ffffff';
+  sandbox.style.zIndex = '-1';
+  sandbox.style.opacity = '1';
+  sandbox.style.pointerEvents = 'none';
+  sandbox.style.display = 'block';
+  sandbox.style.visibility = 'visible';
+  sandbox.style.overflow = 'visible';
+
+  const clone = sourceRoot.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('.hidden.print\\:block').forEach((el) => ((el as HTMLElement).style.display = 'none'));
-  clone.style.position = 'absolute';
-  clone.style.top = '0';
-  clone.style.left = '-10000px';
-  clone.style.zIndex = '-1';
-  clone.style.visibility = 'hidden';
   clone.style.width = `${targetWidthPx}px`;
   clone.style.minWidth = `${targetWidthPx}px`;
   clone.style.maxWidth = `${targetWidthPx}px`;
   clone.style.boxSizing = 'border-box';
   clone.style.overflow = 'visible';
   clone.style.transform = 'none';
+  clone.style.scale = 'none';
   clone.style.borderRadius = '0';
   clone.style.boxShadow = 'none';
   clone.style.margin = '0';
-  clone.style.padding = '0';
+  clone.style.padding = clone.style.padding || '0';
   clone.style.background = '#ffffff';
+  clone.style.color = '#111111';
+  clone.style.display = 'block';
+  clone.style.visibility = 'visible';
+  clone.style.opacity = '1';
   clone.setAttribute('data-export-root', 'true');
 
-  const templateRoot = clone.querySelector('.dn-export-page, .quotation-export-page') as HTMLElement | null;
-  if (templateRoot) {
-    templateRoot.style.width = `${targetWidthPx}px`;
-    templateRoot.style.minWidth = `${targetWidthPx}px`;
-    templateRoot.style.maxWidth = `${targetWidthPx}px`;
-    templateRoot.style.margin = '0';
-    templateRoot.style.boxSizing = 'border-box';
-    templateRoot.style.background = '#ffffff';
-    templateRoot.style.color = '#111111';
-    templateRoot.setAttribute('data-export-root', 'true');
-  }
-
-  return { clone, targetWidthPx };
+  sandbox.appendChild(clone);
+  return { sandbox, clone, targetWidthPx };
 }
 
 async function waitForExportAssets(clone: HTMLElement) {
@@ -111,48 +121,88 @@ async function waitForExportAssets(clone: HTMLElement) {
   const images = Array.from(clone.querySelectorAll('img'));
   await Promise.all(images.map((img) => {
     if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+    if (typeof img.decode === 'function') {
+      return img.decode().catch(() => undefined);
+    }
     return new Promise<void>((resolve) => {
       img.addEventListener('load', () => resolve(), { once: true });
       img.addEventListener('error', () => resolve(), { once: true });
     });
   }));
+
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
 
 export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {
   const html2canvas = (await import('html2canvas')).default;
   await new Promise((resolve) => setTimeout(resolve, 100));
-  const { clone, targetWidthPx } = prepareExportClone(element, widthMm);
-  document.body.appendChild(clone);
+  const { sandbox, clone, targetWidthPx } = prepareExportClone(element, widthMm);
+  document.body.appendChild(sandbox);
 
   try {
     const safeScale = scale ?? getSafeExportScale();
     await waitForExportAssets(clone);
+    sanitizeForHtml2Canvas(clone);
+    clone.style.background = '#ffffff';
+    clone.style.color = '#111111';
+    clone.style.opacity = '1';
+    clone.style.visibility = 'visible';
+    clone.style.display = 'block';
+    clone.style.transform = 'none';
+
+    const width = clone.scrollWidth || clone.clientWidth || targetWidthPx;
+    const height = clone.scrollHeight || clone.clientHeight;
+    const text = (clone.innerText || '').trim();
+    console.log('export root size', { width, height, text: text.slice(0, 200) });
+    if (!width || !height) {
+      throw new Error('Export failed: document size is zero');
+    }
+    if (!text) {
+      throw new Error('Export failed: document content not found');
+    }
+
     const canvas = await html2canvas(clone, {
       scale: safeScale,
       backgroundColor: '#ffffff',
       useCORS: true,
       allowTaint: true,
-      logging: false,
+      logging: true,
       imageTimeout: 5000,
       scrollX: 0,
       scrollY: 0,
-      width: targetWidthPx,
-      windowWidth: targetWidthPx,
-      windowHeight: clone.scrollHeight || clone.clientHeight,
+      width,
+      height,
+      windowWidth: width,
+      windowHeight: height,
       ignoreElements: (el) => {
         const classList = el.className?.toString() || '';
         return classList.includes('print:hidden') || classList.includes('no-export');
       },
       onclone: (clonedDoc) => {
-        sanitizeForHtml2Canvas(clonedDoc.body);
-        clonedDoc.querySelectorAll('[data-no-export]').forEach((el) => el.remove());
+        const clonedExportRoot = clonedDoc.querySelector<HTMLElement>('[data-export-root="true"]');
+        if (!clonedExportRoot) return;
+        sanitizeForHtml2Canvas(clonedExportRoot);
+        clonedDoc.querySelectorAll('[data-no-export]').forEach((el) => {
+          if (!(el as HTMLElement).closest('[data-export-root="true"]')) {
+            el.remove();
+          }
+        });
+        clonedExportRoot.style.background = '#ffffff';
+        clonedExportRoot.style.color = '#111111';
+        clonedExportRoot.style.opacity = '1';
+        clonedExportRoot.style.visibility = 'visible';
+        clonedExportRoot.style.display = 'block';
+        clonedExportRoot.style.transform = 'none';
       },
     });
+    if (!canvas.width || !canvas.height) {
+      throw new Error('Export failed: document size is zero');
+    }
     return { canvas, scale: safeScale };
   } catch (error) {
     throw new Error(`Export rendering failed: ${(error as Error).message}`);
   } finally {
-    clone.parentNode?.removeChild(clone);
+    sandbox.parentNode?.removeChild(sandbox);
   }
 }
 
@@ -166,6 +216,9 @@ async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH
 export async function createPdfBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   const { jsPDF } = await import('jspdf');
   const { canvas, scale } = await renderExportCanvas(element, widthMm);
+  if (!canvas.width || !canvas.height) {
+    throw new Error('Export failed: document size is zero');
+  }
   const dataUrl = canvas.toDataURL('image/png', 1.0);
   const imageWidthPx = canvas.width / scale;
   const imageHeightPx = canvas.height / scale;
