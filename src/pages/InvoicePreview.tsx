@@ -30,7 +30,8 @@ export default function InvoicePreview() {
   const [isThermal, setIsThermal] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
-  const exportTemplateRef = useRef<HTMLDivElement>(null);
+  const estimateExportRootRef = useRef<HTMLDivElement>(null);
+  const invoiceExportRootRef = useRef<HTMLDivElement>(null);
   const scalerRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
 
@@ -91,7 +92,7 @@ export default function InvoicePreview() {
     visibility,
   };
 
-  const getExportElement = useCallback(() => exportTemplateRef.current || printRef.current, []);
+  const exportRootRef = isEstimate ? estimateExportRootRef : invoiceExportRootRef;
 
   const handleDuplicate = () => {
     const nextNumber = state.invoices.filter((entry) => entry.type === invoice.type).length + 1;
@@ -148,8 +149,8 @@ export default function InvoicePreview() {
             <div className="hidden print:block">
               <QuotationEstimateTemplate {...estimateTemplateProps} />
             </div>
-            <div className="fixed -left-[10000px] top-0 w-[190mm] bg-white p-0" aria-hidden="true">
-              <div ref={exportTemplateRef}>
+            <div className="export-capture-source fixed -left-[10000px] top-0 w-[190mm] bg-white p-0" aria-hidden="true">
+              <div ref={estimateExportRootRef}>
                 <QuotationEstimateTemplate {...estimateTemplateProps} />
               </div>
             </div>
@@ -271,13 +272,11 @@ export default function InvoicePreview() {
           <TraditionalTaxInvoice invoice={invoice} profile={state.profile} customer={customer} showQr={visibility.qrCode} />
         </div>
 
-        {isExportOpen && (
-        <div className="fixed -left-[10000px] top-0 w-[190mm] bg-white p-0" aria-hidden="true">
-          <div ref={exportTemplateRef}>
+        <div className="export-capture-source fixed -left-[10000px] top-0 w-[190mm] bg-white p-0" aria-hidden="true">
+          <div ref={invoiceExportRootRef}>
             <TraditionalTaxInvoice invoice={invoice} profile={state.profile} customer={customer} showQr={visibility.qrCode} />
           </div>
         </div>
-        )}
         </>
         )}
       </div>
@@ -294,7 +293,7 @@ export default function InvoicePreview() {
         customerWhatsapp={customer?.whatsapp || customer?.phone}
         customerEmail={customer?.email || ''}
         businessName={state.profile.name}
-        getExportElement={getExportElement}
+        exportRootRef={exportRootRef}
         onPrint={() => window.print()}
         widthMm={190}
       />

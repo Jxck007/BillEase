@@ -64,11 +64,7 @@ export function downloadBlob(blob: Blob, fileName: string) {
 
 function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   const targetWidthPx = mmToPx(widthMm);
-  const sourceRoot = element.matches('[data-export-root="true"]')
-    ? element
-    : element.querySelector<HTMLElement>('[data-export-root="true"]');
-
-  if (!sourceRoot) {
+  if (!element.matches('[data-export-root="true"]')) {
     throw new Error('Export failed: document content not found');
   }
 
@@ -85,7 +81,7 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   sandbox.style.visibility = 'visible';
   sandbox.style.overflow = 'visible';
 
-  const clone = sourceRoot.cloneNode(true) as HTMLElement;
+  const clone = element.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('.hidden.print\\:block').forEach((el) => ((el as HTMLElement).style.display = 'none'));
   clone.style.width = `${targetWidthPx}px`;
   clone.style.minWidth = `${targetWidthPx}px`;
@@ -198,6 +194,11 @@ export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDT
     if (!canvas.width || !canvas.height) {
       throw new Error('Export failed: document size is zero');
     }
+    console.log('EXPORT CANVAS', {
+      width: canvas.width,
+      height: canvas.height,
+      dataUrlStart: canvas.toDataURL('image/png').slice(0, 50),
+    });
     return { canvas, scale: safeScale };
   } catch (error) {
     throw new Error(`Export rendering failed: ${(error as Error).message}`);

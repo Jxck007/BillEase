@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Printer, FileDown, Image, Smartphone, Mail, Loader2, CheckCircle, AlertCircle, X } from 'lucide-react';
+import type { RefObject } from 'react';
 
 export type ExportState = 'idle' | 'generating' | 'success' | 'failed';
 export type DocumentType = 'invoice' | 'quotation' | 'delivery-note';
@@ -15,7 +16,7 @@ interface ExportPanelProps {
   customerWhatsapp?: string;
   customerEmail?: string;
   businessName: string;
-  getExportElement: () => HTMLElement | null;
+  exportRootRef: RefObject<HTMLElement | null>;
   onPrint: () => void;
   widthMm?: number;
 }
@@ -31,7 +32,7 @@ export default function ExportPanel({
   customerWhatsapp,
   customerEmail,
   businessName,
-  getExportElement,
+  exportRootRef,
   onPrint,
   widthMm = 190,
 }: ExportPanelProps) {
@@ -82,6 +83,48 @@ export default function ExportPanel({
     }
   }, [clearMessage]);
 
+  const resolveExportRoot = useCallback(() => {
+    const root = exportRootRef.current;
+    if (!root) {
+      throw new Error('Export failed: export root not found');
+    }
+
+    const exportRoots = root.matches('[data-export-root="true"]')
+      ? [root]
+      : Array.from(root.querySelectorAll<HTMLElement>('[data-export-root="true"]'));
+
+    if (exportRoots.length !== 1) {
+      throw new Error(`Export failed: expected 1 export root, found ${exportRoots.length}`);
+    }
+
+    const exportRoot = exportRoots[0] as HTMLElement;
+    const text = exportRoot.innerText?.trim() || '';
+    const rect = exportRoot.getBoundingClientRect();
+    const width = exportRoot.scrollWidth || rect.width;
+    const height = exportRoot.scrollHeight || rect.height;
+
+    console.log('EXPORT TARGET', {
+      tag: exportRoot.tagName,
+      className: exportRoot.className,
+      text: text.slice(0, 200),
+      htmlLength: exportRoot.innerHTML.length,
+      rootsInside: exportRoot.querySelectorAll('[data-export-root="true"]').length,
+      scrollWidth: exportRoot.scrollWidth,
+      scrollHeight: exportRoot.scrollHeight,
+      rect,
+    });
+
+    if (!text) {
+      throw new Error('Export failed: export document has no text content');
+    }
+
+    if (!width || !height) {
+      throw new Error('Export failed: export document size is zero');
+    }
+
+    return exportRoot;
+  }, [exportRootRef]);
+
   const handlePrint = () => {
     showMessage('generating', 'Opening print dialog...', 'print');
     setTimeout(() => {
@@ -91,15 +134,11 @@ export default function ExportPanel({
   };
 
   const handleDownloadPdf = async () => {
-    const target = getExportElement();
-    if (!target) {
-      showMessage('failed', 'PDF failed. Document not found.', 'pdf');
-      return;
-    }
     showMessage('generating', 'Loading export tools...', 'pdf');
     // Yield briefly so the UI updates before the heavy dynamic import
     await new Promise(r => setTimeout(r, 50));
     try {
+      const target = resolveExportRoot();
       const { createPdfBlobFromElement: generatePdf } = await import('../../services/exportService');
       showMessage('generating', 'Generating PDF...', 'pdf');
       await new Promise(r => setTimeout(r, 30));
@@ -117,15 +156,11 @@ export default function ExportPanel({
   };
 
   const handleDownloadImage = async () => {
-    const target = getExportElement();
-    if (!target) {
-      showMessage('failed', 'Image export failed. Document not found.', 'image');
-      return;
-    }
     showMessage('generating', 'Loading export tools...', 'image');
     // Yield briefly so the UI updates before the heavy dynamic import
     await new Promise(r => setTimeout(r, 50));
     try {
+      const target = resolveExportRoot();
       const { exportInvoiceAsImage } = await import('../../services/exportService');
       showMessage('generating', 'Generating image...', 'image');
       await new Promise(r => setTimeout(r, 30));
@@ -167,13 +202,9 @@ export default function ExportPanel({
       showMessage('failed', 'No email saved for this customer.', 'email');
       return;
     }
-    const target = getExportElement();
-    if (!target) {
-      showMessage('failed', 'PDF failed. Document not found.', 'email');
-      return;
-    }
     showMessage('generating', 'Downloading PDF for email...', 'email');
     try {
+      const target = resolveExportRoot();
       const { createPdfBlobFromElement: generatePdf } = await import('../../services/exportService');
       const blob = await generatePdf(target, widthMm);
       if (!blob.size) throw new Error('Empty PDF');

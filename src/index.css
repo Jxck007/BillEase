@@ -216,6 +216,29 @@
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
+.export-capture-source {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 794px;
+  background: #ffffff;
+  pointer-events: none;
+  opacity: 1;
+  visibility: visible;
+  display: block;
+  z-index: -1;
+}
+
+.export-capture-source [data-export-root="true"] {
+  transform: none !important;
+  scale: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  background: #ffffff;
+  color: #111111;
+}
+
 @media (max-width: 1024px) {
   /* Disable heavy backdrop-blur on mobile/tablet for performance */
   .backdrop-blur-sm,
@@ -234,4 +257,3 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
   }
 }
-

@@ -13,7 +13,7 @@ export default function DeliveryNotePreview() {
   const { language } = useLanguage();
   const [isExportOpen, setIsExportOpen] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
-  const exportTemplateRef = useRef<HTMLDivElement>(null);
+  const exportRootRef = useRef<HTMLDivElement>(null);
   const scalerRef = useRef<HTMLDivElement>(null);
   const [previewScale, setPreviewScale] = useState(1);
   const note = state.deliveryNotes.find(n => n.id === id);
@@ -55,8 +55,6 @@ export default function DeliveryNotePreview() {
       </div>
     );
   }
-
-  const getExportElement = useCallback(() => exportTemplateRef.current || printRef.current, []);
 
   return (
     <div className="delivery-note-preview mx-auto max-w-6xl space-y-6 pb-12">
@@ -104,13 +102,11 @@ export default function DeliveryNotePreview() {
           </div>
         </div>
 
-        {isExportOpen && (
-        <div className="fixed -left-[10000px] top-0 w-[210mm] bg-white p-0" aria-hidden="true">
-          <div ref={exportTemplateRef}>
+        <div className="export-capture-source fixed -left-[10000px] top-0 w-[210mm] bg-white p-0" aria-hidden="true">
+          <div ref={exportRootRef}>
             <IndustrialDeliveryNoteTemplate note={note} profile={state.profile} customer={customer || undefined} />
           </div>
         </div>
-        )}
       </div>
 
       {/* Export Panel */}
@@ -125,7 +121,7 @@ export default function DeliveryNotePreview() {
         customerWhatsapp={customer?.whatsapp || customer?.phone}
         customerEmail={customer?.email || ''}
         businessName={state.profile.name}
-        getExportElement={getExportElement}
+        exportRootRef={exportRootRef}
         onPrint={() => window.print()}
         widthMm={210}
       />
