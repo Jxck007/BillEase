@@ -164,7 +164,7 @@ export default function ExportPanel({
       const { exportInvoiceAsImage } = await import('../../services/exportService');
       showMessage('generating', 'Generating image...', 'image');
       await new Promise(r => setTimeout(r, 30));
-      await exportInvoiceAsImage(target, `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`);
+      await exportInvoiceAsImage(target, `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`, widthMm);
       showMessage('success', 'Image downloaded', 'image');
     } catch (err) {
       console.error('Image export failed:', err);
@@ -177,13 +177,29 @@ export default function ExportPanel({
     const message = `Please find the ${documentLabel} ${documentNumber} from ${businessName} for ${customerName}.`;
     const text = encodeURIComponent(message);
 
-    if (waPhone) {
-      const waNumber = normalizeIndianWhatsAppNumber(waPhone);
-      window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank', 'noopener,noreferrer');
-      showMessage('success', 'WhatsApp opened. Attach the downloaded PDF or image manually if needed.', 'whatsapp');
-    } else {
-      showMessage('failed', 'WhatsApp number missing.', 'whatsapp');
-    }
+    (async () => {
+      try {
+        const target = resolveExportRoot();
+        const fileBase = `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`;
+        const { createPdfFileFromElement, canShareFiles } = await import('../../services/exportService');
+        const file = await createPdfFileFromElement(target, fileBase, widthMm);
+        if (canShareFiles([file])) {
+          await navigator.share({ files: [file] });
+          showMessage('success', 'File share opened. Choose WhatsApp to send the PDF.', 'whatsapp');
+          return;
+        }
+      } catch (err) {
+        console.error('WhatsApp file share failed:', err);
+      }
+
+      if (waPhone) {
+        const waNumber = normalizeIndianWhatsAppNumber(waPhone);
+        window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank', 'noopener,noreferrer');
+        showMessage('failed', 'Direct file share is not supported on this device. WhatsApp message opened instead.', 'whatsapp');
+      } else {
+        showMessage('failed', 'WhatsApp number missing.', 'whatsapp');
+      }
+    })();
   };
 
   const handleEmail = async () => {
@@ -205,12 +221,19 @@ export default function ExportPanel({
     showMessage('generating', 'Downloading PDF for email...', 'email');
     try {
       const target = resolveExportRoot();
-      const { createPdfBlobFromElement: generatePdf } = await import('../../services/exportService');
-      const blob = await generatePdf(target, widthMm);
-      if (!blob.size) throw new Error('Empty PDF');
-      downloadBlob(blob, `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}.pdf`);
+      const fileBase = `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`;
+      const { createPdfFileFromElement, canShareFiles } = await import('../../services/exportService');
+      const file = await createPdfFileFromElement(target, fileBase, widthMm);
+
+      if (canShareFiles([file])) {
+        await navigator.share({ files: [file] });
+        showMessage('success', 'File share opened. Choose your email app to send the PDF.', 'email');
+        return;
+      }
+
+      downloadBlob(file, file.name);
       window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');
-      showMessage('success', `Email draft opened for ${customerEmail}. Attach the downloaded PDF manually.`, 'email');
+      showMessage('success', `PDF downloaded. Email draft opened for ${customerEmail}. Attach the PDF manually.`, 'email');
     } catch (err) {
       console.error('Email PDF preparation failed:', err);
       window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');

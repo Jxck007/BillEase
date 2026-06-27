@@ -62,6 +62,25 @@ export function downloadBlob(blob: Blob, fileName: string) {
   URL.revokeObjectURL(link.href);
 }
 
+function measureExportRootSize(element: HTMLElement, fallbackWidth: number) {
+  const rootRect = element.getBoundingClientRect();
+  let maxRight = rootRect.width;
+  let maxBottom = rootRect.height;
+
+  const descendants = element.querySelectorAll<HTMLElement>('*');
+  descendants.forEach((node) => {
+    const rect = node.getBoundingClientRect();
+    if (!rect.width && !rect.height) return;
+    maxRight = Math.max(maxRight, rect.right - rootRect.left);
+    maxBottom = Math.max(maxBottom, rect.bottom - rootRect.top);
+  });
+
+  return {
+    width: Math.ceil(Math.max(element.scrollWidth, element.clientWidth, rootRect.width, maxRight, fallbackWidth)),
+    height: Math.ceil(Math.max(element.scrollHeight, element.clientHeight, element.offsetHeight, rootRect.height, maxBottom)),
+  };
+}
+
 function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   const targetWidthPx = mmToPx(widthMm);
   if (!element.matches('[data-export-root="true"]')) {
@@ -89,6 +108,9 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   clone.style.maxWidth = `${targetWidthPx}px`;
   clone.style.boxSizing = 'border-box';
   clone.style.overflow = 'visible';
+  clone.style.height = 'auto';
+  clone.style.minHeight = '0';
+  clone.style.maxHeight = 'none';
   clone.style.transform = 'none';
   clone.style.scale = 'none';
   clone.style.borderRadius = '0';
@@ -147,8 +169,7 @@ export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDT
     clone.style.display = 'block';
     clone.style.transform = 'none';
 
-    const width = clone.scrollWidth || clone.clientWidth || targetWidthPx;
-    const height = clone.scrollHeight || clone.clientHeight;
+    const { width, height } = measureExportRootSize(clone, targetWidthPx);
     const text = (clone.innerText || '').trim();
     console.log('export root size', { width, height, text: text.slice(0, 200) });
     if (!width || !height) {
@@ -239,32 +260,58 @@ export async function createPdfBlobFromElement(element: HTMLElement, widthMm = A
   const contentHeight = pageHeight - PDF_MARGIN_MM * 2;
   const renderWidth = contentWidth;
   const renderHeight = (imgHeightMm * renderWidth) / imgWidthMm;
+  const pageContentHeightPx = Math.max(1, Math.floor((contentHeight / renderHeight) * canvas.height));
 
-  let heightLeft = renderHeight;
-  let positionY = PDF_MARGIN_MM;
+  let offsetPx = 0;
   let pageIndex = 0;
 
-  while (heightLeft > 0) {
+  while (offsetPx < canvas.height) {
     if (pageIndex > 0) {
       pdf.addPage();
-      positionY = PDF_MARGIN_MM - (pageIndex * contentHeight);
     }
 
+    const sliceHeightPx = Math.min(pageContentHeightPx, canvas.height - offsetPx);
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = canvas.width;
+    pageCanvas.height = sliceHeightPx;
+
+    const ctx = pageCanvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Failed to prepare PDF page');
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+    ctx.drawImage(
+      canvas,
+      0,
+      offsetPx,
+      canvas.width,
+      sliceHeightPx,
+      0,
+      0,
+      pageCanvas.width,
+      pageCanvas.height,
+    );
+
+    const sliceHeightMm = (sliceHeightPx / canvas.height) * renderHeight;
+    const pageDataUrl = pageCanvas.toDataURL('image/png', 1.0);
+
     pdf.addImage(
-      dataUrl,
+      pageDataUrl,
       'PNG',
       PDF_MARGIN_MM,
-      positionY,
+      PDF_MARGIN_MM,
       renderWidth,
-      renderHeight,
+      sliceHeightMm,
       undefined,
       'FAST',
     );
 
-    heightLeft -= contentHeight;
+    offsetPx += sliceHeightPx;
     pageIndex += 1;
 
-    if (pageIndex > 20) break;
+    if (pageIndex > 50) break;
   }
 
   return new Blob([pdf.output('arraybuffer')], { type: 'application/pdf' });
@@ -300,12 +347,34 @@ export async function exportInvoiceAsImage(
 
 export async function exportDeliveryNoteAsImage(element: HTMLElement, fileName: string) {
   try {
-    const blob = await createPngBlobFromElement(element, A4_WIDTH_MM);
-    downloadBlob(blob, `${fileName}.png`);
+    await exportInvoiceAsImage(element, fileName, A4_WIDTH_MM);
   } catch (err) {
     console.error('Delivery note export failed:', err);
     throw new Error('Unable to generate PNG file');
   }
+}
+
+export async function createPdfFileFromElement(element: HTMLElement, fileName: string, widthMm = A4_WIDTH_MM) {
+  const blob = await createPdfBlobFromElement(element, widthMm);
+  if (!blob.size) throw new Error('Empty PDF');
+  return new File([blob], `${fileName}.pdf`, { type: 'application/pdf' });
+}
+
+export async function createImageFileFromElement(element: HTMLElement, fileName: string, widthMm = A4_WIDTH_MM) {
+  const { canvas } = await renderExportCanvas(element, widthMm);
+  const pngBlob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/png', 1.0);
+  });
+  if (pngBlob && pngBlob.size > 0) {
+    return new File([pngBlob], `${fileName}.png`, { type: 'image/png' });
+  }
+  const jpegBlob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, 'image/jpeg', 0.9);
+  });
+  if (jpegBlob && jpegBlob.size > 0) {
+    return new File([jpegBlob], `${fileName}.jpg`, { type: 'image/jpeg' });
+  }
+  throw new Error('Unable to generate image file');
 }
 
 export async function shareElementAsImage(
@@ -316,14 +385,9 @@ export async function shareElementAsImage(
   widthMm = A4_WIDTH_MM,
 ): Promise<ShareResult> {
   try {
-    const blob = await createPngBlobFromElement(element, widthMm);
-    if (!blob.size) {
-      return { shared: false, reason: 'generation_failed' };
-    }
-
-    const file = new File([blob], `${fileName}.png`, { type: 'image/png' });
+    const file = await createImageFileFromElement(element, fileName, widthMm);
     if (!canShareFiles([file])) {
-      downloadBlob(blob, `${fileName}.png`);
+      downloadBlob(file, file.name);
       return { shared: false, reason: 'files_not_supported', downloaded: true };
     }
 
@@ -345,14 +409,9 @@ export async function shareElementAsPdf(
   widthMm = A4_WIDTH_MM,
 ): Promise<ShareResult> {
   try {
-    const blob = await createPdfBlobFromElement(element, widthMm);
-    if (!blob.size) {
-      return { shared: false, reason: 'generation_failed' };
-    }
-
-    const file = new File([blob], `${fileName}.pdf`, { type: 'application/pdf' });
+    const file = await createPdfFileFromElement(element, fileName, widthMm);
     if (!canShareFiles([file])) {
-      downloadBlob(blob, `${fileName}.pdf`);
+      downloadBlob(file, file.name);
       return { shared: false, reason: 'files_not_supported', downloaded: true };
     }
 
