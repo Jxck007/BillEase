@@ -70,7 +70,7 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
 
   const sandbox = document.createElement('div');
   sandbox.style.position = 'fixed';
-  sandbox.style.left = '-10000px';
+  sandbox.style.left = '0';
   sandbox.style.top = '0';
   sandbox.style.width = `${targetWidthPx}px`;
   sandbox.style.background = '#ffffff';
@@ -80,6 +80,7 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   sandbox.style.display = 'block';
   sandbox.style.visibility = 'visible';
   sandbox.style.overflow = 'visible';
+  sandbox.style.isolation = 'isolate';
 
   const clone = element.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('.hidden.print\\:block').forEach((el) => ((el as HTMLElement).style.display = 'none'));

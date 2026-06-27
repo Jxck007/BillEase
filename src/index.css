@@ -218,7 +218,7 @@
 
 .export-capture-source {
   position: fixed;
-  left: -10000px;
+  left: 0;
   top: 0;
   width: 794px;
   background: #ffffff;
