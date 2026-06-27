@@ -2,24 +2,25 @@ const UNSUPPORTED_COLOR_PATTERNS = ['oklch(', 'oklab(', 'lch(', 'lab(', 'color-m
 
 const STYLE_FALLBACKS: Array<{
   property: keyof CSSStyleDeclaration;
+  cssName: string;
   fallback: string;
   preserveTransparent?: boolean;
 }> = [
-  { property: 'color', fallback: '#111111' },
-  { property: 'backgroundColor', fallback: '#ffffff', preserveTransparent: true },
-  { property: 'borderTopColor', fallback: '#d1d5db' },
-  { property: 'borderRightColor', fallback: '#d1d5db' },
-  { property: 'borderBottomColor', fallback: '#d1d5db' },
-  { property: 'borderLeftColor', fallback: '#d1d5db' },
-  { property: 'outlineColor', fallback: '#d1d5db' },
-  { property: 'textDecorationColor', fallback: '#111111' },
-  { property: 'fill', fallback: '#111111' },
-  { property: 'stroke', fallback: '#111111' },
-  { property: 'boxShadow', fallback: 'none' },
-  { property: 'textShadow', fallback: 'none' },
-  { property: 'backgroundImage', fallback: 'none' },
-  { property: 'filter', fallback: 'none' },
-  { property: 'backdropFilter', fallback: 'none' },
+  { property: 'color', cssName: 'color', fallback: '#111111' },
+  { property: 'backgroundColor', cssName: 'background-color', fallback: '#ffffff', preserveTransparent: true },
+  { property: 'borderTopColor', cssName: 'border-top-color', fallback: '#d1d5db' },
+  { property: 'borderRightColor', cssName: 'border-right-color', fallback: '#d1d5db' },
+  { property: 'borderBottomColor', cssName: 'border-bottom-color', fallback: '#d1d5db' },
+  { property: 'borderLeftColor', cssName: 'border-left-color', fallback: '#d1d5db' },
+  { property: 'outlineColor', cssName: 'outline-color', fallback: '#d1d5db' },
+  { property: 'textDecorationColor', cssName: 'text-decoration-color', fallback: '#111111' },
+  { property: 'fill', cssName: 'fill', fallback: '#111111' },
+  { property: 'stroke', cssName: 'stroke', fallback: '#111111' },
+  { property: 'boxShadow', cssName: 'box-shadow', fallback: 'none' },
+  { property: 'textShadow', cssName: 'text-shadow', fallback: 'none' },
+  { property: 'backgroundImage', cssName: 'background-image', fallback: 'none' },
+  { property: 'filter', cssName: 'filter', fallback: 'none' },
+  { property: 'backdropFilter', cssName: 'backdrop-filter', fallback: 'none' },
 ];
 
 function hasUnsupportedColor(value: string) {
@@ -32,19 +33,36 @@ function isTransparent(value: string) {
   return lower === 'transparent' || lower === 'rgba(0, 0, 0, 0)' || lower === 'rgb(0 0 0 / 0)';
 }
 
-function sanitizeElement(element: HTMLElement) {
-  STYLE_FALLBACKS.forEach(({ property, fallback, preserveTransparent }) => {
-    const value = element.style[property];
-    if (!value || !hasUnsupportedColor(value)) return;
-    if (preserveTransparent && isTransparent(value)) return;
-    element.style.setProperty(property.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`), fallback, 'important');
+function sanitizeElement(element: HTMLElement, win: Window) {
+  const computed = win.getComputedStyle(element);
+
+  STYLE_FALLBACKS.forEach(({ property, cssName, fallback, preserveTransparent }) => {
+    const inlineValue = String(element.style[property] || '').trim();
+    const computedValue = String(computed[property] || computed.getPropertyValue(cssName) || '').trim();
+    const candidateValue = inlineValue || computedValue;
+
+    if (!candidateValue) return;
+
+    if (preserveTransparent && isTransparent(candidateValue)) {
+      element.style.setProperty(cssName, 'transparent', 'important');
+      return;
+    }
+
+    if (hasUnsupportedColor(candidateValue)) {
+      element.style.setProperty(cssName, fallback, 'important');
+      return;
+    }
+
+    element.style.setProperty(cssName, computedValue || candidateValue, 'important');
   });
 }
 
 export function sanitizeForHtml2Canvas(root: Document | HTMLElement) {
   const container = root instanceof Document ? root.body : root;
   if (!container) return;
-  sanitizeElement(container as HTMLElement);
+  const win = container.ownerDocument.defaultView;
+  if (!win) return;
+  sanitizeElement(container as HTMLElement, win);
   const nodes = container.querySelectorAll<HTMLElement>('*');
-  nodes.forEach((node) => sanitizeElement(node));
+  nodes.forEach((node) => sanitizeElement(node, win));
 }
