@@ -177,28 +177,26 @@ export default function ExportPanel({
     const message = `Please find the ${documentLabel} ${documentNumber} from ${businessName} for ${customerName}.`;
     const text = encodeURIComponent(message);
 
+    if (!waPhone) {
+      showMessage('failed', 'WhatsApp number missing.', 'whatsapp');
+      return;
+    }
+
     (async () => {
       try {
+        showMessage('generating', 'Preparing PDF and opening WhatsApp...', 'whatsapp');
         const target = resolveExportRoot();
         const fileBase = `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`;
-        const { createPdfFileFromElement, canShareFiles } = await import('../../services/exportService');
+        const { createPdfFileFromElement } = await import('../../services/exportService');
         const file = await createPdfFileFromElement(target, fileBase, widthMm);
-        if (canShareFiles([file])) {
-          await navigator.share({ files: [file] });
-          showMessage('success', 'File share opened. Choose WhatsApp to send the PDF.', 'whatsapp');
-          return;
-        }
+        downloadBlob(file, file.name);
       } catch (err) {
-        console.error('WhatsApp file share failed:', err);
+        console.error('WhatsApp PDF preparation failed:', err);
       }
 
-      if (waPhone) {
-        const waNumber = normalizeIndianWhatsAppNumber(waPhone);
-        window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank', 'noopener,noreferrer');
-        showMessage('failed', 'Direct file share is not supported on this device. WhatsApp message opened instead.', 'whatsapp');
-      } else {
-        showMessage('failed', 'WhatsApp number missing.', 'whatsapp');
-      }
+      const waNumber = normalizeIndianWhatsAppNumber(waPhone);
+      window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank', 'noopener,noreferrer');
+      showMessage('success', `WhatsApp opened for ${customerName}. PDF downloaded. Attach the file in chat.`, 'whatsapp');
     })();
   };
 
@@ -222,18 +220,12 @@ export default function ExportPanel({
     try {
       const target = resolveExportRoot();
       const fileBase = `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`;
-      const { createPdfFileFromElement, canShareFiles } = await import('../../services/exportService');
+      const { createPdfFileFromElement } = await import('../../services/exportService');
       const file = await createPdfFileFromElement(target, fileBase, widthMm);
-
-      if (canShareFiles([file])) {
-        await navigator.share({ files: [file] });
-        showMessage('success', 'File share opened. Choose your email app to send the PDF.', 'email');
-        return;
-      }
 
       downloadBlob(file, file.name);
       window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');
-      showMessage('success', `PDF downloaded. Email draft opened for ${customerEmail}. Attach the PDF manually.`, 'email');
+      showMessage('success', `Email draft opened for ${customerEmail}. PDF downloaded for attachment.`, 'email');
     } catch (err) {
       console.error('Email PDF preparation failed:', err);
       window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');

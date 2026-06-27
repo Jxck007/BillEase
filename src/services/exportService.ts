@@ -7,6 +7,7 @@ const MM_TO_PX = 96 / 25.4;
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 const PDF_MARGIN_MM = 5;
+const EXPORT_EDGE_BUFFER_PX = 12;
 
 /** Use lower scale on mobile/tablet to avoid memory crashes on older devices */
 export function getSafeExportScale(): number {
@@ -76,8 +77,8 @@ function measureExportRootSize(element: HTMLElement, fallbackWidth: number) {
   });
 
   return {
-    width: Math.ceil(Math.max(element.scrollWidth, element.clientWidth, rootRect.width, maxRight, fallbackWidth)),
-    height: Math.ceil(Math.max(element.scrollHeight, element.clientHeight, element.offsetHeight, rootRect.height, maxBottom)),
+    width: Math.ceil(Math.max(element.scrollWidth, element.clientWidth, rootRect.width, maxRight, fallbackWidth) + EXPORT_EDGE_BUFFER_PX),
+    height: Math.ceil(Math.max(element.scrollHeight, element.clientHeight, element.offsetHeight, rootRect.height, maxBottom) + EXPORT_EDGE_BUFFER_PX),
   };
 }
 
@@ -117,6 +118,7 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   clone.style.boxShadow = 'none';
   clone.style.margin = '0';
   clone.style.padding = clone.style.padding || '0';
+  clone.style.paddingBottom = `calc(${clone.style.paddingBottom || '0px'} + ${EXPORT_EDGE_BUFFER_PX}px)`;
   clone.style.background = '#ffffff';
   clone.style.color = '#111111';
   clone.style.display = 'block';
