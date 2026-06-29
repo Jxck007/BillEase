@@ -7,7 +7,7 @@ const MM_TO_PX = 96 / 25.4;
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 const PDF_MARGIN_MM = 5;
-const EXPORT_EDGE_BUFFER_PX = 12;
+const EXPORT_EDGE_BUFFER_PX = 32;
 
 /** Use lower scale on mobile/tablet to avoid memory crashes on older devices */
 export function getSafeExportScale(): number {

@@ -80,6 +80,10 @@
   }
 
   /* print preview styling for the traditional invoice */
+  .invoice-print-page {
+    box-sizing: border-box;
+    padding-bottom: 8mm;
+  }
   .invoice-print-page .tv-container { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; width: 100%; max-width: 190mm; margin: 0 auto; padding: 0 1mm; box-sizing: border-box; }
   .invoice-print-page .tv-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
   .invoice-print-page .tv-title { font-weight:700; text-align:center; flex:1; font-size:18px; }
