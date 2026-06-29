@@ -61,7 +61,16 @@
     main { padding: 0 !important; margin: 0 !important; max-width: none !important; width: 100% !important; overflow: visible !important; background: white; }
     .screen-only { display: block !important; width: 100%; padding: 0; margin: 0; }
     .hidden.print\:block { display: block !important; }
-    .invoice-print-page { display: block !important; width: 100%; min-height: auto; margin: 0; padding: 0; box-shadow: none; background: white; box-sizing: border-box; }
+    .invoice-print-page {
+      display: block !important;
+      width: 100%;
+      min-height: auto;
+      margin: 0;
+      padding: 0 0 8mm;
+      box-shadow: none;
+      background: white;
+      box-sizing: border-box;
+    }
     .dn-print-page { display: block !important; }
     .delivery-note-preview { padding: 0 !important; margin: 0 !important; }
     .delivery-note-preview .dn-export-root { width: 210mm !important; max-width: 210mm !important; margin: 0 auto !important; padding: 0 !important; overflow: visible !important; }
