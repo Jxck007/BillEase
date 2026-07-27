@@ -2,6 +2,8 @@ import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { formatCurrency } from '../lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ChartTooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { Link } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 
 export default function Reports() {
   const { state } = useData();
@@ -35,6 +37,7 @@ export default function Reports() {
   return (
     <div className="space-y-6">
       <div>
+        <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> Back to Dashboard</Link>
         <h1 className="text-2xl font-bold text-stone-800">{t('reports')}</h1>
         <p className="text-stone-500 mt-1">
           {language === 'en' ? 'Overview of your business performance.' : 'உங்கள் வியாபாரத்தின் அறிக்கை.'}

@@ -11,6 +11,8 @@ import Payments from './pages/Payments';
 import Expenses from './pages/Expenses';
 import DeliveryNotes from './pages/DeliveryNotes';
 import LoadingSpinner from './components/ui/LoadingSpinner';
+import AppErrorBoundary from './components/errors/AppErrorBoundary';
+import { ToastProvider } from './context/ToastContext';
 
 const Login = lazy(() => import('./pages/Login'));
 const Customers = lazy(() => import('./pages/Customers'));
@@ -50,6 +52,8 @@ export default function App() {
         <DataProvider>
           <HelpProvider>
             <BrowserRouter>
+              <AppErrorBoundary>
+              <ToastProvider>
               <Suspense fallback={<RouteLoadingFallback />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -79,7 +83,9 @@ export default function App() {
                   <Route path="settings" element={<Settings />} />
                 </Route>
               </Routes>
-            </Suspense>
+              </Suspense>
+              </ToastProvider>
+              </AppErrorBoundary>
             </BrowserRouter>
           </HelpProvider>
         </DataProvider>

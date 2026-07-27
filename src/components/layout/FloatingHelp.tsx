@@ -170,7 +170,7 @@ export default function FloatingHelp() {
 
   return (
     <>
-      <div className="print:hidden fixed bottom-24 md:bottom-6 right-6 flex items-center gap-3 z-50">
+      <div className="print:hidden fixed bottom-4 right-4 z-30 hidden items-center gap-3 lg:flex">
         {!isOpen && (
           <div className="bg-white border border-emerald-100 px-4 py-2 rounded-2xl shadow-lg flex-col items-end hidden sm:flex">
             <p className="text-[10px] font-bold text-emerald-600">{language === 'en' ? 'Need help?' : 'உதவி வேண்டுமா?'}</p>

@@ -1,0 +1,14 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - heading "Secure Access" [level=2] [ref=e11]
+    - paragraph [ref=e12]: Login to continue to BillEase
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]: Email address
+        - textbox "Email address" [ref=e17]
+      - generic [ref=e18]:
+        - generic [ref=e19]: Password
+        - textbox "Password" [ref=e20]
+        - button "Show password" [ref=e21]
+    - button "Login" [ref=e26]

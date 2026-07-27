@@ -1,100 +1,109 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useData } from '../../context/DataContext';
-import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
-import { getEstimatesNavLabel } from '../../lib/estimateUtils';
-import { LayoutDashboard, Users, FileText, Settings, Menu, X, PiggyBank, Receipt, DollarSign, Wallet, BarChart2, Truck, LogOut } from 'lucide-react';
+import {
+  Building2, FilePlus2, FileText, LayoutDashboard, LogOut, Menu, Package,
+  ReceiptText, Settings, Truck, Users, X, BarChart3,
+} from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '../../lib/utils';
 
+const groups = [
+  {
+    label: '',
+    links: [{ to: '/', icon: LayoutDashboard, label: 'Dashboard' }],
+  },
+  {
+    label: 'Create',
+    links: [
+      { to: '/invoices/new', icon: FilePlus2, label: 'New Invoice' },
+      { to: '/estimates/new', icon: FilePlus2, label: 'New Quotation' },
+      { to: '/delivery-notes/new', icon: FilePlus2, label: 'New Delivery Note' },
+    ],
+  },
+  {
+    label: 'Records',
+    links: [
+      { to: '/invoices', icon: FileText, label: 'Invoices' },
+      { to: '/estimates', icon: ReceiptText, label: 'Quotations' },
+      { to: '/delivery-notes', icon: Truck, label: 'Delivery Notes' },
+    ],
+  },
+  {
+    label: '',
+    links: [
+      { to: '/customers', icon: Users, label: 'Customers' },
+      { to: '/products', icon: Package, label: 'Products' },
+      { to: '/reports', icon: BarChart3, label: 'Reports' },
+      { to: '/settings#company', icon: Building2, label: 'Company' },
+      { to: '/settings', icon: Settings, label: 'Settings' },
+    ],
+  },
+];
+
 export default function Sidebar() {
-  const { state } = useData();
-  const { t, language } = useLanguage();
   const { logout } = useAuth();
   const location = useLocation();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
-  const links = [
-    { to: '/', icon: LayoutDashboard, label: t('dashboard') },
-    { to: '/invoices', icon: FileText, label: t('invoices') },
-    { to: '/estimates', icon: Receipt, label: getEstimatesNavLabel(state.settings, language) },
-    { to: '/delivery-notes', icon: Truck, label: 'Delivery Notes' },
-    { to: '/customers', icon: Users, label: t('customers') },
-    { to: '/products', icon: PiggyBank, label: t('products') },
-    { to: '/payments', icon: DollarSign, label: t('payments') },
-    { to: '/expenses', icon: Wallet, label: t('expenses') },
-    { to: '/reports', icon: BarChart2, label: t('reports') },
-    { to: '/settings', icon: Settings, label: t('settings') },
-  ];
-
-  const closeMenu = () => setIsMobileMenuOpen(false);
+  const isActive = (to: string) => {
+    const path = to.split('#')[0];
+    if (path === '/') return location.pathname === '/';
+    if (path === '/settings') return location.pathname === '/settings' && (to.includes('#') ? location.hash === '#company' : location.hash !== '#company');
+    if (path.endsWith('/new')) return location.pathname === path;
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
+  };
 
   return (
     <>
-      <div className="print:hidden lg:hidden flex min-h-[64px] items-center justify-between bg-white border-b px-4 py-3">
-        <span className="font-bold text-lg text-primary-600">BillEase (பில்-ஈஸ்)</span>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl p-2 -mr-2" aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}>
-          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+      <div className="print:hidden flex min-h-16 items-center justify-between border-b bg-white px-4 lg:hidden">
+        <Link to="/" className="font-bold text-lg text-emerald-700">BillEase</Link>
+        <button type="button" onClick={() => setIsOpen(true)} className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 px-3 font-semibold" aria-label="Open navigation menu">
+          <Menu size={22} />
+          Menu
         </button>
       </div>
-      
-      <div className={cn(
-        "fixed inset-y-0 left-0 z-40 w-[min(19rem,88vw)] bg-white border-r shadow-sm transform transition-transform duration-200 ease-in-out lg:relative lg:w-60 lg:translate-x-0 flex flex-col",
-        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-      ) + " print:hidden"}>
-        <div className="min-h-[64px] p-4 flex items-center justify-between gap-3 border-b border-stone-100">
-          <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">B</div>
-          <div>
-            <h1 className="font-bold text-sm leading-tight uppercase tracking-wider text-stone-800">BillEase</h1>
-            <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">பில்ease</p>
+      <aside className={cn(
+        'print:hidden fixed inset-y-0 left-0 z-50 flex w-[min(19rem,90vw)] flex-col border-r border-stone-200 bg-white transition-transform lg:relative lg:z-auto lg:w-64 lg:translate-x-0',
+        isOpen ? 'translate-x-0' : '-translate-x-full',
+      )}>
+        <div className="flex min-h-16 items-center gap-3 border-b border-stone-100 px-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-xl font-bold text-white">B</div>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-stone-900">BillEase</p>
+            <p className="text-xs text-stone-500">Simple business billing</p>
           </div>
-          <button type="button" onClick={closeMenu} className="lg:hidden inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl text-stone-600 hover:bg-stone-100" aria-label="Close menu"><X size={24} /></button>
+          <button type="button" onClick={() => setIsOpen(false)} className="flex min-h-12 min-w-12 items-center justify-center rounded-xl hover:bg-stone-100 lg:hidden" aria-label="Close navigation menu"><X size={24} /></button>
         </div>
-
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {links.map((link) => {
-            const Icon = link.icon;
-            const isActive = link.to === '/' ? location.pathname === '/' : location.pathname.startsWith(link.to);
-            return (
-              <Link
-                key={link.to}
-                to={link.to}
-                onClick={closeMenu}
-                className={cn(
-                  "flex min-h-[48px] items-center gap-3 px-4 py-3 rounded-xl transition-colors",
-                  isActive 
-                    ? "bg-emerald-50 text-emerald-700 font-semibold" 
-                    : "text-stone-500 hover:bg-stone-50 font-medium"
-                )}
-              >
-                <Icon size={20} className={cn(isActive ? "text-emerald-600" : "text-stone-400")} />
-                <span className="text-sm">{link.label}</span>
-              </Link>
-            );
-          })}
+        <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Primary navigation">
+          {groups.map((group, groupIndex) => (
+            <div key={`${group.label}-${groupIndex}`} className={groupIndex ? 'mt-4' : ''}>
+              {group.label && <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-[0.16em] text-stone-400">{group.label}</p>}
+              <div className="space-y-1">
+                {group.links.map((link) => {
+                  const Icon = link.icon;
+                  const active = isActive(link.to);
+                  return (
+                    <Link key={link.to} to={link.to} onClick={() => setIsOpen(false)} aria-current={active ? 'page' : undefined} className={cn(
+                      'flex min-h-12 items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold',
+                      active ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900',
+                    )}>
+                      <Icon size={20} className="shrink-0" />
+                      {link.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
-        
-        <div className="p-4 border-t border-stone-100">
-          <button
-            onClick={() => {
-              closeMenu();
-              logout();
-            }}
-            className="flex w-full items-center gap-3 px-4 py-3 rounded-xl transition-colors text-rose-600 hover:bg-rose-50 font-medium"
-          >
+        <div className="border-t border-stone-100 p-3">
+          <button type="button" onClick={() => { setIsOpen(false); logout(); }} className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50">
             <LogOut size={20} />
-            <span className="text-sm">Logout</span>
+            Logout
           </button>
         </div>
-      </div>
-      
-      {/* Overlay */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/20 z-30 lg:hidden" 
-          onClick={closeMenu}
-        />
-      )}
+      </aside>
+      {isOpen && <button type="button" className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setIsOpen(false)} aria-label="Close navigation menu backdrop" />}
     </>
   );
 }

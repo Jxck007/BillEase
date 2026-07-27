@@ -2,15 +2,19 @@ import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Search, FileText, Trash2, Edit } from 'lucide-react';
+import { ArrowLeft, Plus, Search, FileText, Trash2, Edit } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
 import { getEstimateDocumentName, getEstimateNumberLabel, getEstimatesNavLabel } from '../lib/estimateUtils';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { useToast } from '../context/ToastContext';
 
 export default function Estimates() {
   const { state, deleteInvoice } = useData();
   const { t, language } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   const estimates = state.invoices.filter(i => i.type === 'estimate');
@@ -28,6 +32,7 @@ export default function Estimates() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> Back to Dashboard</Link>
           <h1 className="text-2xl font-bold text-stone-800">{navLabel}</h1>
           <p className="text-stone-500 mt-1">
             {language === 'en' ? `Manage your ${documentName.toLowerCase()}s before billing.` : 'பில் போடுவதற்கு முன் கொடுக்கும் தோராய மதிப்பீடுகள்.'}
@@ -78,7 +83,7 @@ export default function Estimates() {
                         <button onClick={(e) => { e.stopPropagation(); navigate(`/estimates/${invoice.id}/edit`); }} className="text-emerald-600 hover:text-emerald-800 p-2 bg-emerald-50 rounded-lg"><Edit size={16} /></button>
                         <button onClick={(e) => {
                           e.stopPropagation();
-                          if(confirm('Are you sure?')) deleteInvoice(invoice.id);
+                          setPendingDeleteId(invoice.id);
                         }} className="text-rose-500 hover:text-rose-700 p-2 bg-rose-50 rounded-lg"><Trash2 size={16} /></button>
                        </td>
                     </tr>
@@ -101,6 +106,7 @@ export default function Estimates() {
           </div>
         )}
       </div>
+      <ConfirmDialog open={Boolean(pendingDeleteId)} title={`Delete ${documentName.toLowerCase()}?`} message="This removes the document from your records. This action cannot be undone." onCancel={() => setPendingDeleteId(null)} onConfirm={() => { if (pendingDeleteId) { deleteInvoice(pendingDeleteId); showToast(`${documentName} deleted`, 'success'); } setPendingDeleteId(null); }} />
     </div>
   );
 }

@@ -24,6 +24,9 @@ export interface Customer {
   phone: string;
   email: string;
   address: string;
+  billingPin?: string;
+  shippingAddress?: string;
+  shippingPin?: string;
   gstin?: string;
   gstNumber?: string;
   stateCode?: string;
@@ -128,6 +131,7 @@ export interface Expense {
 export interface BusinessProfile {
   name: string;
   address: string;
+  pinCode?: string;
   phone: string;
   email: string;
   gst: string;
@@ -184,6 +188,17 @@ export interface AppSettings {
   compactMode: boolean;
   whatsappCountryCode: string;
   estimateDocumentLabel: EstimateDocumentLabel;
+  integrations: {
+    serverEmail: boolean;
+    pinLookup: boolean;
+    authorizedSignature: boolean;
+    gstVerification: false;
+    barcodeScanner: false;
+    ocrImport: false;
+    aiQuickActions: false;
+  };
+  signatureVisibility: { invoice: boolean; quotation: boolean; deliveryNote: boolean };
+  emailCcBusiness: boolean;
 }
 
 export interface DeliveryNoteItem {

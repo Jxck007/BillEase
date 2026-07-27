@@ -1,6 +1,6 @@
 // Minimal Firebase helpers for optional cloud backup (Firestore + Storage)
 /// <reference types="vite/client" />
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { initializeApp } from 'firebase/app';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
@@ -105,6 +105,28 @@ if (enabled && startupStatus.missingVariables.length === 0) {
 
 export function firebaseEnabled() {
   return enabled && !!db;
+}
+
+export type VisualAssetName = 'signature';
+export async function saveVisualAsset(name: VisualAssetName, dataUrl: string) {
+  if (!db) throw new Error('Firebase not enabled');
+  await setDoc(doc(db as any, 'billeaseAssets', name), { dataUrl, updatedAt: new Date().toISOString() });
+}
+export async function removeVisualAsset(name: VisualAssetName) {
+  if (!db) throw new Error('Firebase not enabled');
+  await deleteDoc(doc(db as any, 'billeaseAssets', name));
+}
+export function useVisualAsset(name: VisualAssetName) {
+  const [dataUrl, setDataUrl] = useState('');
+  useEffect(() => {
+    if (!db) return;
+    let active = true;
+    getDoc(doc(db as any, 'billeaseAssets', name)).then((snapshot) => {
+      if (active && snapshot.exists()) setDataUrl(String(snapshot.data()?.dataUrl || ''));
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [name]);
+  return dataUrl;
 }
 
 export function getRecordCounts(data: any): RecordCounts {

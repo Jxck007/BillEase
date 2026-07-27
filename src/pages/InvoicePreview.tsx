@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Copy, Edit, Share2 } from 'lucide-react';
+import { ArrowLeft, Copy, Edit, Mail, Share2 } from 'lucide-react';
 import ExportPanel from '../components/export/ExportPanel';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -8,6 +8,8 @@ import { duplicateInvoice, saveDraft } from '../services/invoiceService';
 import CanonicalInvoiceDocument from '../components/invoices/TraditionalTaxInvoice';
 import QuotationEstimateTemplate from '../templates/QuotationEstimateTemplate';
 import { getEstimateDocumentName, getEstimateDocumentTitle, getEstimateNumberLabel } from '../lib/estimateUtils';
+import EmailDocumentModal from '../components/export/EmailDocumentModal';
+import { useIntegrationAvailability } from '../hooks/useIntegrationAvailability';
 
 const A4_INVOICE_WIDTH = 190 * (96 / 25.4);
 
@@ -17,6 +19,8 @@ export default function InvoicePreview() {
   const { state } = useData();
   const { t, language } = useLanguage();
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isEmailOpen, setIsEmailOpen] = useState(false);
+  const { availability } = useIntegrationAvailability();
   const viewportRef = useRef<HTMLDivElement>(null);
   const documentRef = useRef<HTMLDivElement>(null);
   const [preview, setPreview] = useState({ scale: 1, height: 0 });
@@ -60,6 +64,7 @@ export default function InvoicePreview() {
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => setIsExportOpen(true)} className="inline-flex min-h-[48px] items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 font-semibold text-white"><Share2 size={18} />Share Document</button>
+          {availability.email && state.settings.integrations.serverEmail && <button type="button" onClick={() => setIsEmailOpen(true)} className="inline-flex min-h-[48px] items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-2.5 font-semibold text-emerald-800"><Mail size={18} />Send Email</button>}
           <button type="button" onClick={handleDuplicate} className="inline-flex min-h-[48px] items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2.5 font-semibold text-stone-700"><Copy size={18} />{t('duplicate')}</button>
           <button type="button" onClick={() => navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${invoice.id}/edit`)} className="inline-flex min-h-[48px] items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 font-semibold text-emerald-700"><Edit size={18} />{t('edit')}</button>
         </div>
@@ -74,6 +79,7 @@ export default function InvoicePreview() {
       </div>
 
       <ExportPanel isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} documentType={isEstimate ? 'quotation' : 'invoice'} documentNumber={invoice.invoiceNumber} documentLabel={isEstimate ? documentName : 'Invoice'} customerName={customer?.name || 'Customer'} customerPhone={customer?.phone} customerWhatsapp={customer?.whatsapp} customerEmail={customer?.email || ''} businessName={state.profile.name} exportRootRef={documentRef} onPrint={() => window.print()} widthMm={190} />
+      <EmailDocumentModal open={isEmailOpen} onClose={() => setIsEmailOpen(false)} documentId={invoice.id} documentLabel={isEstimate ? documentName : 'Invoice'} documentNumber={invoice.invoiceNumber} businessName={state.profile.name} businessEmail={state.profile.email} ccBusiness={state.settings.emailCcBusiness} customerName={customer?.name || 'Customer'} customerEmail={customer?.email || ''} exportRoot={documentRef.current} />
     </div>
   );
 }

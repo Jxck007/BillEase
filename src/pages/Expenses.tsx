@@ -7,11 +7,15 @@ import { formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
 import Modal from '../components/ui/Modal';
 import { Expense } from '../lib/types';
+import { useToast } from '../context/ToastContext';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 
 export default function Expenses() {
   const { state, addExpense, deleteExpense } = useData();
   const { t, language } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const { showToast } = useToast();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ category: 'Office Supplies', amount: 0, date: new Date().toISOString().split('T')[0], notes: '' });
@@ -23,10 +27,14 @@ export default function Expenses() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.amount <= 0) return alert('Invalid amount');
+    if (formData.amount <= 0) {
+      showToast('Enter a valid expense amount.', 'error');
+      return;
+    }
     addExpense(formData);
     setIsModalOpen(false);
     setFormData({ category: 'Office Supplies', amount: 0, date: new Date().toISOString().split('T')[0], notes: '' });
+    showToast('Expense saved', 'success');
   };
 
   return (
@@ -82,7 +90,7 @@ export default function Expenses() {
                        <td className="px-6 py-4">{expense.notes || '-'}</td>
                        <td className="px-6 py-4 font-bold text-rose-600 text-right">-{formatCurrency(expense.amount)}</td>
                        <td className="px-6 py-4 text-right">
-                          <button onClick={() => { if(confirm('Are you sure?')) deleteExpense(expense.id) }} className="text-stone-500 hover:text-rose-600 font-medium">Delete</button>
+                          <button onClick={() => setPendingDeleteId(expense.id)} className="min-h-12 rounded-xl px-3 font-semibold text-rose-600 hover:bg-rose-50">Delete</button>
                        </td>
                      </tr>
                  ))}
@@ -141,6 +149,7 @@ export default function Expenses() {
           </div>
         </form>
       </Modal>
+      <ConfirmDialog open={Boolean(pendingDeleteId)} title="Delete expense?" message="This removes the expense record. This action cannot be undone." onCancel={() => setPendingDeleteId(null)} onConfirm={() => { if (pendingDeleteId) { deleteExpense(pendingDeleteId); showToast('Expense deleted', 'success'); } setPendingDeleteId(null); }} />
 
     </div>
   );

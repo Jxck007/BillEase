@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Eye, Plus, Save, Trash2 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { formatCurrency, generateId } from '../lib/utils';
@@ -13,6 +13,8 @@ import {
   normalizeDeliveryNoteCopyType,
   normalizeDeliveryNoteItem,
 } from '../lib/deliveryNoteUtils';
+import { useToast } from '../context/ToastContext';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 
 function createDraftNumber(existingCount: number) {
   const currentYear = new Date().getFullYear();
@@ -22,8 +24,11 @@ function createDraftNumber(existingCount: number) {
 export default function DeliveryNoteForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { state, addDeliveryNote, updateDeliveryNote } = useData();
   const { language } = useLanguage();
+  const { showToast } = useToast();
+  const [leaveTarget, setLeaveTarget] = useState<string | null>(null);
 
   const existingNote = state.deliveryNotes.find((note) => note.id === id);
 
@@ -35,8 +40,8 @@ export default function DeliveryNoteForm() {
           dnNumber: createDraftNumber(state.deliveryNotes.length),
           date: new Date().toISOString().split('T')[0],
           copyType: 'Original for Consignee',
-          customerId: '',
-          consigneeId: '',
+          customerId: searchParams.get('customer') || '',
+          consigneeId: searchParams.get('customer') || '',
           transportPurpose: '',
           fromPlace: '',
           toPlace: '',
@@ -61,6 +66,14 @@ export default function DeliveryNoteForm() {
     if (!existingNote) return;
     setFormData(normalizeDeliveryNote(existingNote as Partial<DeliveryNote> & Record<string, unknown>));
   }, [existingNote]);
+
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (formData.customerId || (formData.items || []).some((item) => item.description.trim())) event.preventDefault();
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [formData.customerId, formData.items]);
 
   const selectedCustomer = useMemo(
     () => state.customers.find((customer) => customer.id === formData.customerId),
@@ -110,7 +123,7 @@ export default function DeliveryNoteForm() {
 
   const handleSave = () => {
     if (!formData.customerId) {
-      alert(language === 'en' ? 'Please select a customer' : 'வாடிக்கையாளரைத் தேர்ந்தெடுக்கவும்');
+      showToast(language === 'en' ? 'Please select a customer' : 'வாடிக்கையாளரைத் தேர்ந்தெடுக்கவும்', 'error');
       return;
     }
 
@@ -118,7 +131,7 @@ export default function DeliveryNoteForm() {
     const validItems = items.filter((item) => item.description.trim());
 
     if (validItems.length === 0) {
-      alert(language === 'en' ? 'Add at least one goods row' : 'குறைந்தபட்சம் ஒரு பொருள் வரியைச் சேர்க்கவும்');
+      showToast(language === 'en' ? 'Add at least one goods row' : 'குறைந்தபட்சம் ஒரு பொருள் வரியைச் சேர்க்கவும்', 'error');
       return;
     }
 
@@ -157,6 +170,7 @@ export default function DeliveryNoteForm() {
       addDeliveryNote(note);
     }
 
+    showToast('Delivery Note saved', 'success');
     navigate('/delivery-notes');
   };
 
@@ -167,7 +181,7 @@ export default function DeliveryNoteForm() {
       <div className="flex items-center gap-3 border-b border-stone-200 pb-4">
         <button
           type="button"
-          onClick={() => navigate('/delivery-notes')}
+          onClick={() => setLeaveTarget('/delivery-notes')}
           title={language === 'en' ? 'Back to delivery notes' : 'டெலிவரி நோட்ஸ்க்கு திரும்பு'}
           aria-label={language === 'en' ? 'Back to delivery notes' : 'டெலிவரி நோட்ஸ்க்கு திரும்பு'}
           className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2 shadow-sm"
@@ -184,11 +198,15 @@ export default function DeliveryNoteForm() {
       </div>
 
       <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-800">
-        <span>Step 1: Select customer</span>
+        <span>1. Customer</span>
         <span className="text-emerald-300">→</span>
-        <span>Step 2: Add goods rows</span>
+        <span>2. Document details</span>
         <span className="text-emerald-300">→</span>
-        <span>Step 3: Save and export</span>
+        <span>3. Items</span>
+        <span className="text-emerald-300">→</span>
+        <span>4. Review</span>
+        <span className="text-emerald-300">→</span>
+        <span>5. Preview and Share</span>
       </div>
 
       <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
@@ -306,7 +324,7 @@ export default function DeliveryNoteForm() {
             const normalizedItem = normalizeDeliveryNoteItem(item as Partial<DeliveryNoteItem>);
             return (
               <div key={normalizedItem.id || index} className="rounded-2xl border border-stone-200 p-4">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-[2fr_160px_140px_120px_2fr_auto]">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[2fr_160px_140px_120px_2fr_auto]">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-stone-600">{language === 'en' ? 'Description of Goods' : 'பொருள் விளக்கம்'}</label>
                     <input
@@ -381,7 +399,7 @@ export default function DeliveryNoteForm() {
       </div>
 
       <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="block text-sm font-semibold text-stone-700">{language === 'en' ? 'Transport Purpose' : 'போக்குவரத்து நோக்கம்'}</label>
             <select
@@ -460,19 +478,22 @@ export default function DeliveryNoteForm() {
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
-          onClick={() => navigate('/delivery-notes')}
-          className="rounded-2xl border border-stone-200 bg-white px-6 py-3 font-semibold text-stone-700 shadow-sm"
+          onClick={() => setLeaveTarget('/delivery-notes')}
+          className="min-h-12 rounded-2xl border border-stone-200 bg-white px-6 py-3 font-semibold text-stone-700 shadow-sm"
         >
-          {language === 'en' ? 'Cancel' : 'ரத்து செய்'}
+          Back
         </button>
+        <button type="button" onClick={() => showToast('Draft saved locally', 'success')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-6 py-3 font-semibold text-stone-700 shadow-sm">Save Draft</button>
+        <button type="button" onClick={() => id ? navigate(`/delivery-notes/${id}`) : showToast('Save the document first to open its full preview.', 'info')} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-3 font-semibold text-emerald-800"><Eye size={18} /> Preview</button>
         <button
           type="button"
           onClick={handleSave}
-          className="rounded-2xl bg-emerald-600 px-6 py-3 font-semibold text-white shadow-sm"
+          className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-semibold text-white shadow-sm"
         >
-          {language === 'en' ? 'Save' : 'சேமிக்கவும்'}
+          <Save size={18} /> Save and Finish
         </button>
       </div>
+      <ConfirmDialog open={Boolean(leaveTarget)} title="Leave this delivery note?" message="Your latest changes may only be saved locally. Continue?" confirmLabel="Leave" onCancel={() => setLeaveTarget(null)} onConfirm={() => { const target = leaveTarget; setLeaveTarget(null); if (target) navigate(target); }} />
     </div>
   );
 }

@@ -7,11 +7,13 @@ import { formatCurrency } from '../lib/utils';
 import { PaymentMethod } from '../lib/types';
 import { format } from 'date-fns';
 import Modal from '../components/ui/Modal';
+import { useToast } from '../context/ToastContext';
 
 export default function Payments() {
   const { state, addPayment } = useData();
   const { t, language } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
+  const { showToast } = useToast();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<{ invoiceId: string; amount: number; date: string; method: PaymentMethod; notes: string }>({ invoiceId: '', amount: 0, date: new Date().toISOString().split('T')[0], method: 'Cash', notes: '' });
@@ -27,10 +29,14 @@ export default function Payments() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.invoiceId || formData.amount <= 0) return alert('Invalid details');
+    if (!formData.invoiceId || formData.amount <= 0) {
+      showToast('Select an invoice and enter a valid amount.', 'error');
+      return;
+    }
     addPayment(formData);
     setIsModalOpen(false);
     setFormData({ invoiceId: '', amount: 0, date: new Date().toISOString().split('T')[0], method: 'Cash', notes: '' });
+    showToast('Payment saved', 'success');
   };
 
   return (

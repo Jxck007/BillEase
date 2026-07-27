@@ -1,16 +1,20 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Eye, Download } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Plus, Edit, Trash2, Eye } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { useToast } from '../context/ToastContext';
 
 export default function DeliveryNotes() {
   const navigate = useNavigate();
   const { state, deleteDeliveryNote } = useData();
   const { language, t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const deliveryNotes = state.deliveryNotes || [];
   const filtered = deliveryNotes.filter(note =>
@@ -18,16 +22,11 @@ export default function DeliveryNotes() {
     state.customers.find(c => c.id === note.customerId)?.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDelete = (id: string) => {
-    if (confirm(language === 'en' ? 'Delete this delivery note?' : 'இந்த டெலிவரி நோட்டை நீக்கவா?')) {
-      deleteDeliveryNote(id);
-    }
-  };
-
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-12">
       <div className="flex flex-col gap-4 border-b border-stone-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
+          <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> Back to Dashboard</Link>
           <h1 className="text-2xl font-black text-stone-800">{language === 'en' ? 'Delivery Notes' : 'டெலிவரி நோட்ஸ்'}</h1>
           <p className="mt-1 text-sm text-stone-500">{language === 'en' ? 'Manage your delivery documents' : 'உங்கள் டெலிவரி ஆவணங்களை நிர்வகிக்கவும்'}</p>
         </div>
@@ -110,7 +109,7 @@ export default function DeliveryNotes() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => deleteDeliveryNote(note.id)}
+                          onClick={() => setPendingDeleteId(note.id)}
                           className="rounded-lg border border-red-200 bg-white p-2 text-red-600 hover:bg-red-50"
                           title={language === 'en' ? 'Delete' : 'நீக்கு'}
                         >
@@ -125,6 +124,7 @@ export default function DeliveryNotes() {
           </table>
         </div>
       )}
+      <ConfirmDialog open={Boolean(pendingDeleteId)} title="Delete delivery note?" message="This removes the delivery note from your records. This action cannot be undone." onCancel={() => setPendingDeleteId(null)} onConfirm={() => { if (pendingDeleteId) { deleteDeliveryNote(pendingDeleteId); showToast('Delivery Note deleted', 'success'); } setPendingDeleteId(null); }} />
     </div>
   );
 }

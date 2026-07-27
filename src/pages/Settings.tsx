@@ -2,8 +2,13 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { TemplateVisibilitySettings } from '../lib/types';
-import { Eye, EyeOff, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Save, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { removeVisualAsset, saveVisualAsset, useVisualAsset } from '../lib/firebase';
 import { getCloudBackupRecordCounts, getRecordTotal } from '../lib/firebase';
+import { prepareSignatureImage } from '../utils/imageAssets';
+import { useIntegrationAvailability } from '../hooks/useIntegrationAvailability';
+import PinLookupField from '../components/forms/PinLookupField';
 
 type BankDetailsForm = {
   bankName: string;
@@ -62,6 +67,7 @@ function Toggle({ checked, onChange, label, tamil }: { checked: boolean; onChang
   return (
     <label className="flex items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
       <div>
+        <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> Back to Dashboard</Link>
         <div className="font-semibold text-stone-800">{label}</div>
         <div className="text-xs text-stone-500">{tamil}</div>
       </div>
@@ -77,15 +83,15 @@ export default function Settings() {
   const lastBackupExportAt: string | null = null;
   const lastSavedAt: string | null = null;
   const syncStatus = (false ? 'online' : 'offline') as 'online' | 'syncing' | 'offline' | 'failed' | 'loading';
-  const exportBackupJson = () => undefined;
-  const importBackupJson = async (_file: File) => undefined;
-  const uploadBackup = async (_force?: boolean) => undefined;
-  const downloadBackup = async () => undefined;
   const { t, language, setLanguage } = useLanguage();
   const [logoPreview, setLogoPreview] = useState(state.profile.logo);
   const [logoError, setLogoError] = useState('');
   const [qrPreview, setQrPreview] = useState(state.profile.qrCodeImage || '');
   const [qrError, setQrError] = useState('');
+  const signature = useVisualAsset('signature');
+  const [signaturePreview, setSignaturePreview] = useState(signature);
+  const [signatureStatus, setSignatureStatus] = useState('');
+  const { availability, status: integrationStatus } = useIntegrationAvailability();
 
   const visibility = state.settings.template.visibility;
   const [bankDraft, setBankDraft] = useState<BankDetailsForm>(() => parseBankDetails(state.profile.bankDetails));
@@ -93,8 +99,9 @@ export default function Settings() {
   const [showAccount, setShowAccount] = useState(false);
 
   useEffect(() => { setBankDraft(parseBankDetails(state.profile.bankDetails)); }, [state.profile.bankDetails]);
+  useEffect(() => { if (signature) setSignaturePreview(signature); }, [signature]);
 
-  const updateProfileField = (field: 'name' | 'address' | 'phone' | 'email' | 'gst' | 'logo' | 'qrCodeImage' | 'stateCode' | 'tagline' | 'bankDetails' | 'msmeNumber' | 'upiId' | 'upiPayeeName' | 'upiPaymentNote' | 'paymentQrImage', value: string) => {
+  const updateProfileField = (field: 'name' | 'address' | 'pinCode' | 'phone' | 'email' | 'gst' | 'logo' | 'qrCodeImage' | 'stateCode' | 'tagline' | 'bankDetails' | 'msmeNumber' | 'upiId' | 'upiPayeeName' | 'upiPaymentNote' | 'paymentQrImage', value: string) => {
     updateProfile({ ...state.profile, [field]: value });
   };
   const saveBankDetails = () => {
@@ -255,11 +262,11 @@ export default function Settings() {
                 const reader = new FileReader();
                 reader.onload = async () => {
                   try {
-                    if (!confirm(language === 'en' ? 'This will replace ALL current data with the backup. Continue?' : 'இது தற்போதைய தரவு அனைத்தையும் மாற்றும். தொடரவா?')) return;
+                    if (!legacyConfirm(language === 'en' ? 'This will replace ALL current data with the backup. Continue?' : 'இது தற்போதைய தரவு அனைத்தையும் மாற்றும். தொடரவா?')) return;
                     await importBackupJson(file);
                     window.location.reload();
                   } catch (err) {
-                    alert(language === 'en' ? 'Invalid backup file.' : 'தவறான backup கோப்பு.');
+                    legacyNotice(language === 'en' ? 'Invalid backup file.' : 'தவறான backup கோப்பு.');
                   }
                 };
                 reader.readAsText(file);
@@ -272,19 +279,19 @@ export default function Settings() {
             onClick={async () => {
               try {
                 await uploadBackup();
-                alert(language === 'en' ? 'Cloud upload successful.' : 'Cloud upload வெற்றி.');
+                legacyNotice(language === 'en' ? 'Cloud upload successful.' : 'Cloud upload வெற்றி.');
               } catch (err) {
                 if ((err as Error).message === 'EMPTY_OVERWRITE_BLOCKED') {
                   const cloudCounts = await getCloudBackupRecordCounts();
                   const warning = language === 'en'
                     ? `Cloud already has ${getRecordTotal(cloudCounts)} records. Current local data is empty. Uploading now could erase cloud data. Continue only if you are sure.`
                     : 'Cloud-ல் ஏற்கனவே data உள்ளது. இப்போது upload செய்தால் அதை நீக்கலாம். உறுதியாக இருந்தால் மட்டுமே தொடரவும்.';
-                  if (confirm(warning)) {
+                  if (legacyConfirm(warning)) {
                     await uploadBackup(true);
-                    alert(language === 'en' ? 'Cloud upload successful.' : 'Cloud upload வெற்றி.');
+                    legacyNotice(language === 'en' ? 'Cloud upload successful.' : 'Cloud upload வெற்றி.');
                   }
                 } else {
-                  alert(language === 'en' ? 'Upload failed.' : 'Upload தோல்வி.');
+                  legacyNotice(language === 'en' ? 'Upload failed.' : 'Upload தோல்வி.');
                 }
               }
             }}
@@ -298,10 +305,10 @@ export default function Settings() {
             onClick={async () => {
               try {
                 await downloadBackup();
-                alert(language === 'en' ? 'Cloud download successful. Reloading...' : 'Cloud download வெற்றி.');
+                legacyNotice(language === 'en' ? 'Cloud download successful. Reloading...' : 'Cloud download வெற்றி.');
                 window.location.reload();
               } catch (err) {
-                alert(language === 'en' ? 'Download failed.' : 'Download தோல்வி.');
+                legacyNotice(language === 'en' ? 'Download failed.' : 'Download தோல்வி.');
               }
             }}
             className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 font-semibold text-amber-800 hover:bg-amber-100 text-left"
@@ -369,6 +376,7 @@ export default function Settings() {
                 <label className="mb-1 block text-sm font-semibold text-stone-800">{t('address')}</label>
                 <textarea value={state.profile.address} onChange={(event) => updateProfileField('address', event.target.value)} rows={3} title={t('address')} placeholder={t('address')} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
               </div>
+              <div className="md:col-span-2"><PinLookupField value={state.profile.pinCode ?? ''} enabled={availability.postal && state.settings.integrations.pinLookup} onChange={(value) => updateProfileField('pinCode', value)} onApply={(result) => updateProfileField('address', `${result.locality}, ${result.district}, ${result.state}`)} /></div>
               <div className="md:col-span-2">
                 <div className="mb-2 flex items-center justify-between gap-3"><label className="block text-sm font-semibold text-stone-800">Bank details (for print/export)</label><span className={`text-xs ${bankStatus === 'error' ? 'text-rose-700' : 'text-stone-500'}`}>{bankStatus === 'saving' ? 'Saving…' : bankStatus === 'saved' ? 'Saved' : bankStatus === 'error' ? 'Account numbers do not match' : 'Saved only when you choose Save'}</span></div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -472,6 +480,14 @@ export default function Settings() {
             </div>
           </Section>
 
+          <Section title="Authorized Signature Image" subtitle="A visual signature for document output; this is not a certified digital signature.">
+            <div className="space-y-4">{signaturePreview ? <img src={signaturePreview} alt="Authorized signature preview" className="h-24 max-w-full rounded-xl border bg-white object-contain p-2" /> : <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">No signature image uploaded.</p>}<div className="flex flex-wrap gap-2"><label className="inline-flex min-h-12 cursor-pointer items-center rounded-xl bg-emerald-600 px-4 font-semibold text-white">{signaturePreview ? 'Replace' : 'Upload'}<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; try { setSignatureStatus('Processing…'); const dataUrl = await prepareSignatureImage(file); await saveVisualAsset('signature', dataUrl); setSignaturePreview(dataUrl); setSignatureStatus('Saved'); } catch (error) { setSignatureStatus((error as Error).message); } }} /></label>{signaturePreview && <button type="button" onClick={async () => { await removeVisualAsset('signature'); setSignaturePreview(''); setSignatureStatus('Removed'); }} className="min-h-12 rounded-xl border border-rose-200 px-4 font-semibold text-rose-700">Remove</button>}</div>{signatureStatus && <p className="text-sm text-stone-600">{signatureStatus}</p>}<div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{(['invoice', 'quotation', 'deliveryNote'] as const).map((kind) => <Toggle key={kind} checked={state.settings.signatureVisibility[kind]} onChange={(checked) => updateSettings({ signatureVisibility: { ...state.settings.signatureVisibility, [kind]: checked } })} label={`Show on ${kind === 'deliveryNote' ? 'Delivery Note' : kind[0].toUpperCase() + kind.slice(1)}`} tamil="Authorized Signature" />)}</div></div>
+          </Section>
+
+          <Section title="Integrations" subtitle="Unavailable services cannot be enabled. Deferred features remain disabled.">
+            <div className="space-y-3">{([['serverEmail', 'Server Email', availability.email], ['pinLookup', 'PIN Code Lookup', availability.postal], ['authorizedSignature', 'Authorized Signature', true]] as const).map(([key, label, configured]) => <div key={key} className="flex min-h-14 items-center justify-between gap-3 rounded-xl border p-3"><div><p className="font-semibold">{label}</p><p className="text-xs text-stone-500">{integrationStatus === 'error' && key !== 'authorizedSignature' ? 'Error' : configured ? (state.settings.integrations[key] ? 'Configured' : 'Disabled') : 'Not configured'}</p></div><input type="checkbox" disabled={!configured} checked={configured && state.settings.integrations[key]} onChange={(event) => updateSettings({ integrations: { ...state.settings.integrations, [key]: event.target.checked } })} className="h-5 w-5" /></div>)}<label className="flex min-h-14 items-center justify-between rounded-xl border p-3"><span><b>CC business email</b><small className="block text-stone-500">Used by server email when enabled</small></span><input type="checkbox" checked={state.settings.emailCcBusiness} onChange={(event) => updateSettings({ emailCcBusiness: event.target.checked })} className="h-5 w-5" /></label>{['GST Verification', 'Barcode Scanner', 'OCR Import', 'AI Quick Actions', 'Automatic WhatsApp bot'].map((label) => <div key={label} className="flex min-h-14 items-center justify-between rounded-xl border bg-stone-50 p-3 text-stone-500"><span className="font-semibold">{label}</span><span className="text-xs">Future work · Disabled</span></div>)}</div>
+          </Section>
+
           <Section title={language === 'en' ? 'Tax Invoice fields' : 'வரி பில் விவரங்கள்'} subtitle={language === 'en' ? 'BillEase uses one consistent Tax Invoice layout.' : 'BillEase ஒரே Tax Invoice layout-ஐ பயன்படுத்துகிறது.'}>
             <div className="mt-4 grid grid-cols-1 gap-3">
               <Toggle checked={visibility.logo} onChange={(value) => updateTemplateVisibility('logo', value)} label="Logo" tamil="லோகோ" />
@@ -517,3 +533,10 @@ export default function Settings() {
     </div>
   );
 }
+  // Legacy backup callbacks remain inert because their former UI is not rendered.
+  const exportBackupJson = () => undefined;
+  const importBackupJson = async (_file: File) => undefined;
+  const uploadBackup = async (_force?: boolean) => undefined;
+  const downloadBackup = async () => undefined;
+  const legacyConfirm = (_message: string) => false;
+  const legacyNotice = (_message: string) => undefined;

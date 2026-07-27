@@ -23,6 +23,9 @@ export function getDefaultSettings(profile: BusinessProfile): AppSettings {
     compactMode: false,
     whatsappCountryCode: '91',
     estimateDocumentLabel: 'estimate',
+    integrations: { serverEmail: true, pinLookup: true, authorizedSignature: true, gstVerification: false, barcodeScanner: false, ocrImport: false, aiQuickActions: false },
+    signatureVisibility: { invoice: true, quotation: true, deliveryNote: false },
+    emailCcBusiness: false,
   };
 }
 

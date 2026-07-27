@@ -30,9 +30,9 @@ export default function AppLayout() {
   const { firebaseStatus, syncStatus, lastSavedAt } = useData();
 
   return (
-    <div className="min-h-dvh bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_35%),linear-gradient(180deg,_#fffdf9_0%,_#f7f5ef_100%)] flex flex-col md:flex-row text-stone-800 font-sans">
+    <div className="flex min-h-dvh flex-col bg-stone-50 text-stone-800 font-sans lg:flex-row">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 min-h-dvh md:h-screen overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:h-screen lg:overflow-hidden">
         <Navbar />
         <SyncStatusBadge status={syncStatus} />
         {lastSavedAt && (
@@ -45,7 +45,7 @@ export default function AppLayout() {
             Firebase not connected. Running in local mode.
           </div>
         )}
-          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8 w-full max-w-7xl mx-auto pb-8">
+          <main className="mx-auto w-full max-w-7xl flex-1 overflow-x-hidden p-4 pb-10 sm:p-5 md:p-6 lg:overflow-y-auto lg:p-8">
           <Outlet />
         </main>
       </div>

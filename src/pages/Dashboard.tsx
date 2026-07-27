@@ -1,212 +1,159 @@
-import { useData } from '../context/DataContext';
-import { useLanguage } from '../context/LanguageContext';
-import { formatCurrency } from '../lib/utils';
-import { FileText, Users, CreditCard, PiggyBank, ArrowRight } from 'lucide-react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  ArrowRight, FilePlus2, FileText, ReceiptText, Truck, UserPlus, Users,
+  Wifi, WifiOff,
+} from 'lucide-react';
+import { useData } from '../context/DataContext';
+import { formatCurrency } from '../lib/utils';
 
 export default function Dashboard() {
-  const { state } = useData();
-  const { t, language } = useLanguage();
+  const { state, syncStatus, lastSavedAt } = useData();
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const summary = useMemo(() => {
+    const now = new Date();
+    const thisMonth = (value: string) => {
+      const date = new Date(value);
+      return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+    };
+    const invoices = state.invoices.filter((document) => document.type === 'invoice');
+    const quotations = state.invoices.filter((document) => document.type === 'estimate');
+    const monthlyInvoices = invoices.filter((document) => thisMonth(document.date || document.createdAt));
+    const customerName = (id: string) => state.customers.find((customer) => customer.id === id)?.name || 'Unknown customer';
+    const recentDocuments = [
+      ...state.invoices.map((document) => ({
+        id: document.id,
+        label: document.type === 'estimate' ? `Quotation ${document.invoiceNumber}` : `Invoice ${document.invoiceNumber}`,
+        customer: customerName(document.customerId),
+        date: document.date || document.createdAt,
+        total: document.total,
+        to: `/${document.type === 'estimate' ? 'estimates' : 'invoices'}/${document.id}`,
+      })),
+      ...state.deliveryNotes.map((document) => ({
+        id: document.id,
+        label: `Delivery Note ${document.deliveryNoteNumber || document.dnNumber || ''}`,
+        customer: customerName(document.customerId),
+        date: document.date || document.createdAt,
+        total: document.total || document.approximateValue || 0,
+        to: `/delivery-notes/${document.id}`,
+      })),
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 6);
 
-  // Calculate stats
-  const totalInvoices = state.invoices.length;
-  const unpaidInvoices = state.invoices.filter(i => i.status !== 'paid');
-  const unpaidAmount = unpaidInvoices.reduce((sum, inv) => sum + (inv.total - inv.amountPaid), 0);
-  const todaySales = state.invoices
-                       .filter(i => i.createdAt.startsWith(todayStr))
-                       .reduce((sum, inv) => sum + inv.total, 0);
-  const recentAuditLogs = state.auditLogs.slice(-4).reverse();
+    return {
+      revenue: monthlyInvoices.reduce((total, invoice) => total + invoice.total, 0),
+      invoiceCount: monthlyInvoices.length,
+      pendingQuotations: quotations.filter((quotation) => quotation.status !== 'paid').length,
+      outstanding: invoices.reduce((total, invoice) => total + Math.max(0, invoice.total - invoice.amountPaid), 0),
+      recentDocuments,
+      recentCustomers: [...state.customers].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5),
+    };
+  }, [state.customers, state.deliveryNotes, state.invoices]);
 
-  const stats = [
-    {
-      title: t('todaySales'),
-      value: formatCurrency(todaySales),
-      icon: CreditCard,
-      color: 'bg-emerald-100 text-emerald-700',
-    },
-    {
-      title: t('unpaidInvoices'),
-      value: formatCurrency(unpaidAmount),
-      subtitle: `${unpaidInvoices.length} bills pending`,
-      icon: FileText,
-      color: 'bg-rose-100 text-rose-700',
-    },
-    {
-      title: t('totalCustomers'),
-      value: state.customers.length.toString(),
-      icon: Users,
-      color: 'bg-emerald-100 text-emerald-700',
-    }
+  const actions = [
+    { to: '/invoices/new', label: 'New Invoice', hint: 'Create a tax invoice', icon: FilePlus2, tone: 'bg-emerald-600 hover:bg-emerald-700 text-white' },
+    { to: '/estimates/new', label: 'New Quotation', hint: 'Prepare a price quote', icon: ReceiptText, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
+    { to: '/delivery-notes/new', label: 'New Delivery Note', hint: 'Record goods sent', icon: Truck, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
+    { to: '/customers?add=1', label: 'Add Customer', hint: 'Save a customer', icon: UserPlus, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
   ];
 
+  const statusLabel = syncStatus === 'online' ? 'Synced' : syncStatus === 'syncing' ? 'Syncing' : syncStatus === 'failed' ? 'Sync failed' : syncStatus === 'loading' ? 'Loading' : 'Offline';
+
   return (
-    <div className="h-full flex flex-col space-y-6">
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
-          <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest">{language === 'en' ? 'Today / இன்று' : 'இன்றைய விற்பனை'}</p>
-          <h3 className="text-2xl font-black mt-1">{formatCurrency(todaySales)}</h3>
-          <p className="text-xs text-stone-400 mt-2">{state.invoices.filter(i => i.createdAt.startsWith(todayStr)).length} orders today</p>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
-          <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest">{t('unpaidInvoices')}</p>
-          <h3 className="text-2xl font-black mt-1 text-rose-500">{formatCurrency(unpaidAmount)}</h3>
-          <p className="text-xs text-stone-400 mt-2">{unpaidInvoices.length} pending bills</p>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
-          <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest">{t('totalCustomers')}</p>
-          <h3 className="text-2xl font-black mt-1">{state.customers.length}</h3>
-          <p className="text-xs text-stone-400 mt-2">Saved contacts</p>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
-          <p className="text-[11px] font-bold text-stone-400 uppercase tracking-widest">Items Sold / பொருட்கள்</p>
-          <h3 className="text-2xl font-black mt-1">{state.products.length}</h3>
-          <p className="text-xs text-stone-400 mt-2">Products listed</p>
-        </div>
-      </div>
+    <div className="space-y-7">
+      <header>
+        <p className="text-sm font-semibold text-emerald-700">Business command center</p>
+        <h1 className="mt-1 text-2xl font-bold text-stone-900 sm:text-3xl">What would you like to do?</h1>
+        <p className="mt-2 text-stone-600">Choose a task below, or review your latest business activity.</p>
+      </header>
 
-      <div className="grid grid-cols-1 gap-6 flex-1 lg:grid-cols-12">
-        {/* Recent Activity Table */}
-        <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl border border-stone-200 shadow-sm flex flex-col">
-          <div className="p-6 border-b border-stone-100 flex justify-between items-center">
+      <section aria-labelledby="quick-actions-heading">
+        <h2 id="quick-actions-heading" className="sr-only">Quick actions</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {actions.map(({ to, label, hint, icon: Icon, tone }) => (
+            <Link key={to} to={to} className={`flex min-h-16 items-center gap-3 rounded-2xl px-4 py-3 shadow-sm ${tone}`}>
+              <Icon size={25} className="shrink-0" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-base font-bold">{label}</span>
+                <span className="block text-xs opacity-75">{hint}</span>
+              </span>
+              <ArrowRight size={19} className="shrink-0 opacity-60" />
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Business summary">
+        {[
+          ['Revenue this month', formatCurrency(summary.revenue)],
+          ['Invoices this month', summary.invoiceCount.toString()],
+          ['Pending quotations', summary.pendingQuotations.toString()],
+          ['Outstanding amount', formatCurrency(summary.outstanding)],
+        ].map(([label, value]) => (
+          <article key={label} className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
+            <p className="text-xs font-semibold text-stone-500 sm:text-sm">{label}</p>
+            <p className="mt-2 break-words text-xl font-bold text-stone-900 sm:text-2xl">{value}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.8fr)]">
+        <article className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-stone-100 px-4 py-4 sm:px-5">
             <div>
-              <h3 className="font-bold text-stone-800">Recent Invoices</h3>
-              <p className="text-xs text-stone-400 uppercase tracking-wide font-medium">சமீபத்திய பில்கள்</p>
+              <h2 className="font-bold text-stone-900">Recent documents</h2>
+              <p className="text-xs text-stone-500">Invoices, quotations and delivery notes</p>
             </div>
-            <Link to="/invoices" className="text-emerald-600 text-xs font-bold hover:underline">See All / அனைத்தையும் பார்</Link>
+            <Link to="/invoices" className="min-h-12 px-2 py-3 text-sm font-semibold text-emerald-700">View records</Link>
           </div>
-          <div className="flex-1 overflow-x-auto">
-            {state.invoices.length > 0 ? (
-              <table className="w-full min-w-[400px] md:min-w-[500px] text-left">
-                <thead>
-                  <tr className="bg-stone-50 text-[10px] uppercase font-bold text-stone-400 tracking-widest">
-                    <th className="px-6 py-3">Inv # / எண்</th>
-                    <th className="px-6 py-3">Customer / பெயர்</th>
-                    <th className="px-6 py-3 text-right">Amount / தொகை</th>
-                    <th className="px-6 py-3">Status / நிலை</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm">
-                  {state.invoices.slice(-5).reverse().map(inv => (
-                    <tr key={inv.id} className="border-b border-stone-50 last:border-0 hover:bg-stone-50 transition-colors">
-                      <td className="px-6 py-4 font-mono">#{inv.invoiceNumber}</td>
-                      <td className="px-6 py-4 font-medium">
-                        {state.customers.find(c => c.id === inv.customerId)?.name || 'Unknown'}
-                      </td>
-                      <td className="px-6 py-4 text-right font-bold">{formatCurrency(inv.total)}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${
-                          inv.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
-                          inv.status === 'partial' ? 'bg-amber-100 text-amber-700' :
-                          'bg-rose-100 text-rose-700'
-                        }`}>
-                          {t(inv.status)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="p-8 text-center text-stone-500 text-sm">
-                {language === 'en' ? 'No recent bills found.' : 'சமீபத்திய பில்கள் ஏதும் இல்லை.'}
-              </div>
-            )}
-          </div>
-        </div>
+          {summary.recentDocuments.length ? (
+            <div className="divide-y divide-stone-100">
+              {summary.recentDocuments.map((document) => (
+                <Link key={`${document.to}-${document.id}`} to={document.to} className="flex min-h-16 items-center gap-3 px-4 py-3 hover:bg-stone-50 sm:px-5">
+                  <FileText size={20} className="shrink-0 text-stone-400" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-stone-900">{document.label}</span>
+                    <span className="block truncate text-xs text-stone-500">{document.customer} · {new Date(document.date).toLocaleDateString()}</span>
+                  </span>
+                  {document.total > 0 && <span className="text-sm font-bold text-stone-800">{formatCurrency(document.total)}</span>}
+                </Link>
+              ))}
+            </div>
+          ) : <EmptyMessage text="No documents yet. Create your first invoice above." />}
+        </article>
 
-        {/* Quick Actions / Helpers */}
-        <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
-          <div className="bg-emerald-700 rounded-3xl p-6 text-white shadow-xl flex flex-col flex-1 relative overflow-hidden">
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <CreditCard className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-bold leading-tight">Quick Actions</h4>
-                  <p className="text-xs text-white/70">விரைவு செயல்பாடுகள்</p>
-                </div>
-              </div>
-              <div className="mb-4 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white/90">
-                {language === 'en' ? 'Choose one clear next step below.' : 'கீழே இருந்து அடுத்த படியைத் தேர்வு செய்யுங்கள்.'}
-              </div>
-              <div className="space-y-2">
-                <Link to="/invoices/new" className="flex min-h-[56px] items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">INV</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold">New Invoice</p>
-                    <p className="text-[10px] text-white/70 truncate">Create a bill instantly</p>
-                  </div>
-                  <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
-                </Link>
-                <Link to="/estimates/new" className="flex min-h-[56px] items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">EST</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold">New Quotation</p>
-                    <p className="text-[10px] text-white/70 truncate">Send pricing quotes</p>
-                  </div>
-                  <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
-                </Link>
-                <Link to="/delivery-notes/new" className="flex min-h-[56px] items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">DN</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold">New Delivery Note</p>
-                    <p className="text-[10px] text-white/70 truncate">Transport documents</p>
-                  </div>
-                  <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
-                </Link>
-                <div className="border-t border-white/10 pt-2 mt-2">
-                  <Link to="/customers" className="flex min-h-[56px] items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">CU</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold">Customers</p>
-                      <p className="text-[10px] text-white/70 truncate">Manage contacts</p>
-                    </div>
-                    <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
-                  </Link>
-                  <Link to="/products" className="flex min-h-[56px] items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">PR</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold">Products</p>
-                      <p className="text-[10px] text-white/70 truncate">Manage items</p>
-                    </div>
-                    <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
-                  </Link>
-                  <Link to="/payments" className="flex items-center gap-3 bg-white/10 p-4 rounded-xl hover:bg-white/20 transition-colors group">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-xs font-bold">$</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold">Record Payment</p>
-                      <p className="text-[10px] text-white/70 truncate">Update pending bills</p>
-                    </div>
-                    <ArrowRight size={16} className="shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" />
-                  </Link>
-                </div>
+        <div className="space-y-5">
+          <article className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              {syncStatus === 'offline' || syncStatus === 'failed' ? <WifiOff className="text-amber-600" /> : <Wifi className="text-emerald-600" />}
+              <div>
+                <h2 className="font-bold text-stone-900">Sync status: {statusLabel}</h2>
+                <p className="mt-1 text-sm text-stone-500">
+                  Last synced: {lastSavedAt ? new Date(lastSavedAt).toLocaleString() : 'Not available yet'}
+                </p>
               </div>
             </div>
-            
-            {/* Background design elements */}
-            <div className="absolute -bottom-12 -right-12 hidden md:block w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
-            <div className="absolute -top-12 -left-12 hidden md:block w-32 h-32 bg-emerald-500/20 rounded-full blur-2xl"></div>
-          </div>
-
-          <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm">
-            <h4 className="font-bold text-stone-800 mb-2">Recent Activity</h4>
-            <div className="space-y-3 text-sm">
-              {recentAuditLogs.length > 0 ? recentAuditLogs.map((entry) => (
-                <div key={entry.id} className="rounded-2xl bg-stone-50 p-3">
-                  <p className="font-semibold text-stone-800">{entry.message}</p>
-                  <p className="text-xs text-stone-500 mt-1">{new Date(entry.createdAt).toLocaleString()}</p>
-                </div>
-              )) : (
-                <p className="text-stone-500 text-sm">{language === 'en' ? 'No audit activity yet.' : 'இன்னும் activity இல்லை.'}</p>
-              )}
+          </article>
+          <article className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
+              <h2 className="font-bold text-stone-900">Recent customers</h2>
+              <Link to="/customers" className="text-sm font-semibold text-emerald-700">View all</Link>
             </div>
-          </div>
+            {summary.recentCustomers.length ? summary.recentCustomers.map((customer) => (
+              <Link key={customer.id} to={`/customers?customer=${encodeURIComponent(customer.id)}`} className="flex min-h-14 items-center gap-3 border-b border-stone-100 px-5 py-3 last:border-0 hover:bg-stone-50">
+                <Users size={18} className="text-stone-400" />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{customer.name}</span>
+                  <span className="block truncate text-xs text-stone-500">{customer.phone || 'No phone number'}</span>
+                </span>
+              </Link>
+            )) : <EmptyMessage text="No customers saved yet." />}
+          </article>
         </div>
-      </div>
+      </section>
     </div>
   );
+}
+
+function EmptyMessage({ text }: { text: string }) {
+  return <p className="px-5 py-10 text-center text-sm text-stone-500">{text}</p>;
 }

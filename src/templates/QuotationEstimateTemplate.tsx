@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { BusinessProfile, Customer, Invoice, Product, TemplateVisibilitySettings } from '../lib/types';
 import { formatCurrency } from '../lib/utils';
 import { withDefaultCustomerFieldVisibility } from '../lib/invoiceCustomerFields';
+import AuthorizedSignatureImage from '../components/documents/AuthorizedSignatureImage';
 import {
   formatEstimateCopyTypeDisplay,
   getEstimateAmountInWords,
@@ -203,6 +204,7 @@ export default function QuotationEstimateTemplate({
             </div>
             <div className="min-h-24 p-3 text-right">
               <div className="text-[11px] font-black">Authorized Signature</div>
+              <AuthorizedSignatureImage enabled documentType="quotation" className="ml-auto mt-2 h-12 max-w-36" />
               <div className="mt-10 border-t border-black pt-2 text-[9px]">For {company.name}</div>
             </div>
           </div>

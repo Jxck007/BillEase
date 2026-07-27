@@ -2,14 +2,18 @@ import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Search, FileText, Trash2, Edit } from 'lucide-react';
+import { ArrowLeft, Plus, Search, FileText, Trash2, Edit } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { useToast } from '../context/ToastContext';
 
 export default function Invoices() {
   const { state, deleteInvoice } = useData();
   const { t, language } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   const invoices = state.invoices.filter(i => i.type !== 'estimate');
@@ -24,6 +28,7 @@ export default function Invoices() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> Back to Dashboard</Link>
           <h1 className="text-2xl font-bold text-stone-800">{t('invoices')}</h1>
           <p className="text-stone-500 mt-1">
             {language === 'en' ? 'Manage your structured bills.' : 'உங்கள் பில்களை (Bills) நிர்வகிக்கவும்.'}
@@ -84,9 +89,7 @@ export default function Invoices() {
                         <button onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${invoice.id}/edit`); }} className="text-emerald-600 hover:text-emerald-800 p-2 bg-emerald-50 rounded-lg"><Edit size={16} /></button>
                         <button onClick={(e) => {
                           e.stopPropagation();
-                          if(confirm(language === 'en' ? 'Are you sure you want to delete this invoice?' : 'நிச்சயமாக இந்த பில்லை அழிக்க வேண்டுமா?')) {
-                            deleteInvoice(invoice.id);
-                          }
+                          setPendingDeleteId(invoice.id);
                         }} className="text-rose-500 hover:text-rose-700 p-2 bg-rose-50 rounded-lg"><Trash2 size={16} /></button>
                       </td>
                     </tr>
@@ -109,6 +112,7 @@ export default function Invoices() {
           </div>
         )}
       </div>
+      <ConfirmDialog open={Boolean(pendingDeleteId)} title="Delete invoice?" message="This removes the invoice from your records. This action cannot be undone." onCancel={() => setPendingDeleteId(null)} onConfirm={() => { if (pendingDeleteId) { deleteInvoice(pendingDeleteId); showToast('Invoice deleted', 'success'); } setPendingDeleteId(null); }} />
     </div>
   );
 }

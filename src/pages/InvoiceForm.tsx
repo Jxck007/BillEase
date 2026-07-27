@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, ChevronUp, Copy, Plus, Save, Sparkles } from 'lucide-react';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, Eye, Plus, Save, Sparkles } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -12,6 +12,8 @@ import { useAutosaveDraft } from '../hooks/useAutosaveDraft';
 import ItemRow from '../components/invoice/ItemRow';
 import { CUSTOMER_FIELD_OPTIONS, DEFAULT_CUSTOMER_FIELD_VISIBILITY, withDefaultCustomerFieldVisibility } from '../lib/invoiceCustomerFields';
 import { ESTIMATE_COPY_TYPES, getEstimateDocumentName, getEstimateNumberLabel, normalizeEstimateCopyType } from '../lib/estimateUtils';
+import { useToast } from '../context/ToastContext';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 
 function Label({ english, tamil, helper }: { english: string; tamil: string; helper?: string }) {
   return (
@@ -41,8 +43,11 @@ export default function InvoiceForm() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const preselectedCustomerId = searchParams.get('customer') || '';
   const { state, addInvoice, updateInvoice, addCustomer, addAuditLog } = useData();
   const { t, language } = useLanguage();
+  const { showToast } = useToast();
 
   const isEditing = Boolean(id && id !== 'new');
   const isEstimate = location.pathname.includes('/estimates');
@@ -90,6 +95,7 @@ export default function InvoiceForm() {
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(true);
   const [customerDraft, setCustomerDraft] = useState({ name: '', phone: '', email: '', address: '', gstNumber: '', stateCode: '' });
+  const [leaveTarget, setLeaveTarget] = useState<string | null>(null);
 
   const selectedCustomer = useMemo(
     () => state.customers.find((customer) => customer.id === draft.customerId),
@@ -116,10 +122,19 @@ export default function InvoiceForm() {
       setDraft({ ...createInitialDraft(), ...saved, type: invoiceType });
       setCustomerSearch(state.customers.find((customer) => customer.id === saved.customerId)?.name || '');
     } else {
-      setDraft(createInitialDraft());
-      setCustomerSearch('');
+      const customer = state.customers.find((entry) => entry.id === preselectedCustomerId);
+      setDraft({ ...createInitialDraft(), customerId: customer?.id || '' });
+      setCustomerSearch(customer?.name || '');
     }
-  }, [id, isEditing, invoiceType]);
+  }, [id, isEditing, invoiceType, preselectedCustomerId]);
+
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (draft.customerId || (draft.items || []).some((item) => item.name.trim())) event.preventDefault();
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [draft.customerId, draft.items]);
 
   useEffect(() => {
     if (selectedCustomer) {
@@ -151,19 +166,36 @@ export default function InvoiceForm() {
     });
     setActiveItemId(null);
   };
+  const addRecentProduct = (product: Product) => {
+    updateDraft({
+      items: [
+        ...(draft.items || []).filter((item) => item.name.trim()),
+        {
+          ...blankItem(),
+          productId: product.id,
+          name: product.name,
+          description: product.description || '',
+          hsnSac: product.hsnSac || '',
+          unit: product.unit,
+          price: product.price,
+          taxRate: product.taxRate,
+        },
+      ],
+    });
+  };
 
   const addItem = () => updateDraft({ items: [...(draft.items || []), blankItem()] });
   const removeItem = (itemId: string) => updateDraft({ items: (draft.items || []).filter((item) => item.id !== itemId) });
 
   const handleSave = () => {
     if (!draft.customerId) {
-      alert(language === 'en' ? 'Select a customer first.' : 'முதலில் வாடிக்கையாளரைத் தேர்வு செய்யவும்.');
+      showToast(language === 'en' ? 'Select a customer first.' : 'முதலில் வாடிக்கையாளரைத் தேர்வு செய்யவும்.', 'error');
       return;
     }
 
     const validItems = (draft.items || []).filter((item) => item.name.trim().length > 0);
     if (validItems.length === 0) {
-      alert(language === 'en' ? 'Add at least one item.' : 'குறைந்தது ஒரு பொருளை சேர்க்கவும்.');
+      showToast(language === 'en' ? 'Add at least one item.' : 'குறைந்தது ஒரு பொருளை சேர்க்கவும்.', 'error');
       return;
     }
 
@@ -214,6 +246,7 @@ export default function InvoiceForm() {
     }
 
     clearDraft();
+    showToast(isEstimate ? 'Quotation saved' : 'Invoice saved', 'success');
     navigate(isEstimate ? '/estimates' : '/invoices');
   };
 
@@ -225,15 +258,19 @@ export default function InvoiceForm() {
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
       {/* Step indicator for older users */}
       <div className="flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-2 text-xs font-medium text-emerald-800 print:hidden overflow-x-auto">
-        <span className="shrink-0 whitespace-nowrap">Step 1: Select customer</span>
+        <span className="shrink-0 whitespace-nowrap">1. Customer</span>
         <span className="shrink-0 text-emerald-300">→</span>
-        <span className="shrink-0 whitespace-nowrap">Step 2: Add items</span>
+        <span className="shrink-0 whitespace-nowrap">2. Document details</span>
         <span className="shrink-0 text-emerald-300">→</span>
-        <span className="shrink-0 whitespace-nowrap">Step 3: Review &amp; Save</span>
+        <span className="shrink-0 whitespace-nowrap">3. Items</span>
+        <span className="shrink-0 text-emerald-300">→</span>
+        <span className="shrink-0 whitespace-nowrap">4. Review</span>
+        <span className="shrink-0 text-emerald-300">→</span>
+        <span className="shrink-0 whitespace-nowrap">5. Preview and Share</span>
       </div>
 
       <div className="flex items-start gap-3 border-b border-stone-200 pb-4">
-        <button type="button" title="Back" aria-label="Back" onClick={() => navigate(isEstimate ? '/estimates' : '/invoices')} className="shrink-0 inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2 shadow-sm">
+        <button type="button" title="Back" aria-label="Back" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="shrink-0 inline-flex min-h-12 items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2 shadow-sm">
           <ArrowLeft size={24} className="text-stone-600" />
           <span className="text-sm font-semibold text-stone-700">{isEstimate ? 'Back to Quotations' : 'Back to Invoices'}</span>
         </button>
@@ -319,6 +356,18 @@ export default function InvoiceForm() {
             ) : null}
 
             <div className="relative">
+              {state.products.length > 0 && (
+                <div className="mb-4">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-stone-500">Recent products</p>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {state.products.slice(-5).reverse().map((product) => (
+                      <button key={product.id} type="button" onClick={() => addRecentProduct(product)} className="min-h-12 shrink-0 rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold text-stone-700 hover:border-emerald-300 hover:bg-emerald-50">
+                        + {product.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="mb-3 flex items-center gap-3">
                 <h2 className="text-lg font-bold text-stone-800">{language === 'en' ? 'Items' : 'பொருட்கள்'}</h2>
                 <span className="ml-3 text-xs text-stone-500">{language === 'en' ? 'Add and edit invoice line items' : 'பொருள்களைச் சேர்க்கவும் மற்றும் தொகுக்கவும்'}</span>
@@ -405,7 +454,7 @@ export default function InvoiceForm() {
                                 ) : null}
                 <div className="md:col-span-2">
                   <Label english={language === 'en' ? 'Customer details in invoice' : 'Customer details in invoice'} tamil="Customer Fields" />
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 rounded-2xl border border-stone-200 bg-white p-3 text-sm">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 rounded-2xl border border-stone-200 bg-white p-3 text-sm">
                     {CUSTOMER_FIELD_OPTIONS.map((option) => (
                       <label key={option.key} className="flex items-center gap-2">
                         <input
@@ -482,10 +531,11 @@ export default function InvoiceForm() {
 
       <div className="border-t bg-white px-4 py-3 md:border-0 md:bg-transparent md:p-0">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-          <button type="button" onClick={() => navigate(-1)} className="rounded-2xl border border-stone-200 bg-white px-5 py-3 font-semibold text-stone-700 shadow-sm">{t('cancel')}</button>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => { clearDraft(); alert(language === 'en' ? 'Draft cleared.' : 'Draft நீக்கப்பட்டது.'); }} className="hidden sm:inline-flex rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold text-stone-700 shadow-sm" title={t('draft')}>{t('draft')}</button>
-            <button type="button" onClick={handleSave} className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-lg shadow-emerald-200"><Save size={18} />{t('save')}</button>
+          <button type="button" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-5 py-3 font-semibold text-stone-700 shadow-sm">Back</button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button type="button" onClick={() => showToast('Draft saved locally', 'success')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold text-stone-700 shadow-sm">Save Draft</button>
+            <button type="button" onClick={() => isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast('Save the document first to open its full preview.', 'info')} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800"><Eye size={18} /> Preview</button>
+            <button type="button" onClick={handleSave} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-sm"><Save size={18} />Save and Finish</button>
           </div>
         </div>
       </div>
@@ -522,6 +572,7 @@ export default function InvoiceForm() {
           </div>
         </div>
       </Modal>
+      <ConfirmDialog open={Boolean(leaveTarget)} title="Leave this document?" message="Your latest form changes may only be saved as a local draft. Continue?" confirmLabel="Leave" onCancel={() => setLeaveTarget(null)} onConfirm={() => { const target = leaveTarget; setLeaveTarget(null); if (target) navigate(target); }} />
     </div>
   );
 

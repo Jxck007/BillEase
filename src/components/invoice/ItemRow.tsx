@@ -52,7 +52,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
   if (isEstimate) {
     return (
       <div className="group relative w-full overflow-hidden rounded-2xl border border-stone-200 bg-white p-3 shadow-sm transition-all duration-200 hover:border-emerald-200 hover:shadow-md md:p-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-12 md:gap-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-2">
           <div className="relative min-w-0 md:col-span-3">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Description</div>
             <div className="relative">
@@ -153,7 +153,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
 
   return (
     <div className="group relative w-full overflow-hidden rounded-2xl border border-stone-200 bg-white p-3 shadow-sm transition-all duration-200 hover:border-emerald-200 hover:shadow-md md:p-4">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-12 md:gap-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-3">
         <div className="relative min-w-0 md:col-span-4">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Product</div>
           <div className="relative">
