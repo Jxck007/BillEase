@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
 import { format } from 'date-fns';
 import { BusinessProfile, Customer, Invoice } from '../../lib/types';
 import { formatCurrency } from '../../lib/utils';
@@ -35,7 +36,21 @@ type Props = {
   copyLabel?: string;
 };
 
-export default function TraditionalTaxInvoice({ invoice, profile, customer, showQr = true, copyLabel = '' }: Props) {
+function UpiPaymentQr({ invoice, profile }: { invoice: Invoice; profile: BusinessProfile }) {
+  const [image, setImage] = useState('');
+  const amount = Math.max(0, invoice.total - invoice.amountPaid);
+  const enabled = profile.enableUpiQr && profile.upiId?.trim() && profile.upiPayeeName?.trim();
+  useEffect(() => {
+    if (!enabled) { setImage(''); return; }
+    const params = new URLSearchParams({ pa: profile.upiId!.trim(), pn: profile.upiPayeeName!.trim(), cu: 'INR', tn: `${invoice.invoiceNumber} ${profile.upiPaymentNote || ''}`.trim() });
+    if (profile.showUpiAmount) params.set('am', amount.toFixed(2));
+    QRCode.toDataURL(`upi://pay?${params.toString()}`, { width: 180, margin: 1, errorCorrectionLevel: 'M' }).then(setImage).catch(() => setImage(''));
+  }, [enabled, profile.upiId, profile.upiPayeeName, profile.upiPaymentNote, profile.showUpiAmount, invoice.invoiceNumber, amount]);
+  if (!enabled || !image) return null;
+  return <div className="tv-upi"><img src={image} alt="Scan to pay by UPI" className="tv-qr" /><div><strong>Scan to Pay</strong><br />UPI ID: {profile.upiId}<br />Amount: {formatCurrency(amount)}<br />Invoice: {invoice.invoiceNumber}</div></div>;
+}
+
+export function CanonicalInvoiceDocument({ invoice, profile, customer, showQr = true, copyLabel = '' }: Props) {
   const seller = profile || ({
     name: 'My Business', address: '-', gst: '-', email: '-', phone: '-', logo: '', bankDetails: '-',
   } as BusinessProfile);
@@ -71,9 +86,8 @@ export default function TraditionalTaxInvoice({ invoice, profile, customer, show
             <table><tbody>
               <tr><td>Invoice No</td><td>:</td><td>{invoice.invoiceNumber || '-'}</td></tr>
               <tr><td>Date</td><td>:</td><td>{invoice.date ? format(new Date(invoice.date), 'dd/MM/yyyy') : '-'}</td></tr>
-              <tr className="tv-details-gap"><td colSpan={3} /></tr>
-              <tr className="tv-details-gap"><td colSpan={3} /></tr>
-              <tr><td>P.O Mode</td><td>:</td><td>{invoice.poMode || '-'}</td></tr>
+              {invoice.poNumber && <tr><td>P.O Number</td><td>:</td><td>{invoice.poNumber}</td></tr>}
+              {invoice.poMode && <tr><td>P.O Mode</td><td>:</td><td>{invoice.poMode}</td></tr>}
               <tr><td>P.O Date</td><td>:</td><td>{invoice.poDate ? format(new Date(invoice.poDate), 'dd/MM/yyyy') : '-'}</td></tr>
             </tbody></table>
           </div>
@@ -116,6 +130,7 @@ export default function TraditionalTaxInvoice({ invoice, profile, customer, show
             <div className="tv-sub">Bank Details</div>
             <pre className="bank-pre">{seller.bankDetails || '-'}</pre>
             {showQr && seller.qrCodeImage ? <img src={seller.qrCodeImage} alt="payment qr" className="tv-qr" /> : null}
+            <UpiPaymentQr invoice={invoice} profile={seller} />
           </div>
           <div className="tv-right">
             <div className="tv-sub">E. & O.E</div>
@@ -132,3 +147,5 @@ export default function TraditionalTaxInvoice({ invoice, profile, customer, show
     </div>
   );
 }
+
+export default CanonicalInvoiceDocument;

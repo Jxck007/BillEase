@@ -2,7 +2,7 @@ import { createContext, useContext, useState, ReactNode, useEffect, useRef } fro
 import { AppState, AuditLog, AppSettings, BusinessProfile, Customer, Expense, Invoice, Payment, Product, DeliveryNote } from '../lib/types';
 import { generateId } from '../lib/utils';
 import { buildAuditLog, getDefaultSettings } from '../services/invoiceService';
-import { firebaseEnabled, setAppDataBackup, getAppDataBackup, deleteAppDataBackup, useFirestoreSync, getFirebaseStatus, FirebaseStatus, db, getRecordTotal } from '../lib/firebase';
+import { getAppDataBackup, useFirestoreSync, getFirebaseStatus, FirebaseStatus, db } from '../lib/firebase';
 import { normalizeCustomerRecord, normalizeDeliveryNote } from '../lib/deliveryNoteUtils';
 import { useAuth } from './AuthContext';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -10,7 +10,6 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 export type SyncStatus = 'loading' | 'online' | 'syncing' | 'offline' | 'failed';
 type SaveIndicator = 'saving' | 'saved' | 'offline' | 'failed';
-const BACKUP_EXPORTED_AT_KEY = 'billease.lastBackupExportAt';
 
 interface DataContextType {
   state: AppState;
@@ -18,8 +17,6 @@ interface DataContextType {
   syncStatus: SyncStatus;
   saveIndicator: SaveIndicator;
   lastSavedAt: string | null;
-  lastBackupExportAt: string | null;
-  backupReminderNeeded: boolean;
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt'>) => void;
   updateCustomer: (id: string, customer: Partial<Customer>) => void;
   deleteCustomer: (id: string) => void;
@@ -39,13 +36,6 @@ interface DataContextType {
   addDeliveryNote: (note: Omit<DeliveryNote, 'id' | 'createdAt'>) => void;
   updateDeliveryNote: (id: string, note: Partial<DeliveryNote>) => void;
   deleteDeliveryNote: (id: string) => void;
-  // Local / cloud helpers
-  clearLocalData: () => void;
-  exportBackupJson: () => void;
-  importBackupJson: (file: File) => Promise<void>;
-  uploadBackup: (force?: boolean) => Promise<void>;
-  downloadBackup: () => Promise<void>;
-  deleteCloudBackup: () => Promise<void>;
 }
 
 const defaultProfile: BusinessProfile = {
@@ -82,8 +72,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('loading');
   const [saveIndicator, setSaveIndicator] = useState<SaveIndicator>('saving');
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [lastBackupExportAt, setLastBackupExportAt] = useState<string | null>(() => localStorage.getItem(BACKUP_EXPORTED_AT_KEY));
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pendingOperation = useRef<'create' | 'update' | 'delete'>('update');
 
   const hydrateState = (remote: any) => {
     const profile = remote.profile || defaultProfile;
@@ -102,31 +92,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } as AppState;
   };
 
-  const recordBackupExport = () => {
-    const now = new Date().toISOString();
-    localStorage.setItem(BACKUP_EXPORTED_AT_KEY, now);
-    setLastBackupExportAt(now);
-  };
-
-  const backupReminderNeeded = !lastBackupExportAt || (Date.now() - new Date(lastBackupExportAt).getTime()) > 7 * 24 * 60 * 60 * 1000;
-
   useEffect(() => {
     const initData = async () => {
       if (!user) {
         setSyncStatus('offline');
         setSaveIndicator('offline');
         setIsLoaded(true);
-        // Try loading from local cache
-        try {
-          const cached = localStorage.getItem('appData');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (parsed && parsed.customers) {
-              setState(hydrateState(parsed));
-              setLastSavedAt(new Date().toISOString());
-            }
-          }
-        } catch {}
         return;
       }
 
@@ -141,8 +112,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           setSaveIndicator('saved');
           setLastSavedAt(new Date().toISOString());
         } else {
-          // Cloud empty: Create fresh default structure
-          setState(initialState);
+          // Do not write the empty initial state. It may be an offline/cache miss.
           setCloudSyncEnabled(true);
           setSyncStatus('online');
           setSaveIndicator('saved');
@@ -152,17 +122,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setCloudSyncEnabled(false);
         setSyncStatus('offline');
         setSaveIndicator('offline');
-        // Try loading from local cache
-        try {
-          const cached = localStorage.getItem('appData');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (parsed && parsed.customers) {
-              setState(hydrateState(parsed));
-              setLastSavedAt(new Date().toISOString());
-            }
-          }
-        } catch {}
       }
       setIsLoaded(true);
     };
@@ -202,25 +161,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [cloudSyncEnabled, user]);
 
-  // Debounced localStorage write to avoid excessive serialization
+  // Firestore's persistent IndexedDB cache is the offline store. Avoid duplicating full state in localStorage.
   useEffect(() => {
     if (!isLoaded) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
     setSaveIndicator(cloudSyncEnabled ? 'saving' : 'offline');
     if (cloudSyncEnabled) {
       setSyncStatus((current) => (current === 'loading' ? current : 'syncing'));
     }
-    debounceRef.current = setTimeout(() => {
-      try {
-        localStorage.setItem('appData', JSON.stringify(state));
-        setLastSavedAt(new Date().toISOString());
-        if (!cloudSyncEnabled) setSaveIndicator('offline');
-      } catch (error) {
-        console.error('localStorage save failed', error);
-        setSaveIndicator('failed');
-      }
-    }, 1500);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return undefined;
   }, [state, isLoaded]);
 
   // Auto-sync to Firestore if enabled (with empty-data safety guard)
@@ -239,87 +187,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setSyncStatus('failed');
       setSaveIndicator('failed');
     },
+    getOperation: () => { const operation = pendingOperation.current; pendingOperation.current = 'update'; return operation; },
   });
-
-  // Local / cloud helpers
-  const clearLocalData = () => {
-    localStorage.removeItem('appData');
-    localStorage.removeItem('billease.invoiceDraft');
-    setState(initialState);
-  };
-
-  const exportBackupJson = () => {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `billease_backup_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-    recordBackupExport();
-  };
-
-  const importBackupJson = async (file: File) => {
-    const text = await file.text();
-    const importedState = JSON.parse(text);
-    if (!importedState || typeof importedState !== 'object') {
-      throw new Error('INVALID_BACKUP');
-    }
-    const counts = {
-      customers: Array.isArray(importedState.customers) ? importedState.customers.length : 0,
-      products: Array.isArray(importedState.products) ? importedState.products.length : 0,
-      invoices: Array.isArray(importedState.invoices) ? importedState.invoices.length : 0,
-      deliveryNotes: Array.isArray(importedState.deliveryNotes) ? importedState.deliveryNotes.length : 0,
-    };
-    if (getRecordTotal(counts) === 0 && !importedState.profile && !importedState.settings) {
-      throw new Error('INVALID_BACKUP');
-    }
-    const hydrated = hydrateState(importedState);
-    setState(hydrated);
-    localStorage.setItem('appData', JSON.stringify(hydrated));
-    setLastSavedAt(new Date().toISOString());
-  };
-
-  const uploadBackup = async (force = false) => {
-    if (!firebaseEnabled()) throw new Error('Firebase not enabled');
-    try {
-      await setAppDataBackup(state, { force });
-      setSyncStatus('online');
-      setSaveIndicator('saved');
-      setLastSavedAt(new Date().toISOString());
-    } catch (err) {
-      console.error('uploadBackup failed', err);
-      throw err;
-    }
-  };
-
-  const downloadBackup = async () => {
-    if (!firebaseEnabled()) throw new Error('Firebase not enabled');
-    try {
-      const remote = await getAppDataBackup();
-      if (remote && Object.keys(remote).length > 0) {
-        const hydrated = hydrateState(remote);
-        setState(hydrateState(remote));
-        // persist locally
-        localStorage.setItem('appData', JSON.stringify(hydrated));
-        setLastSavedAt(new Date().toISOString());
-        setSaveIndicator('saved');
-        setSyncStatus('online');
-      }
-    } catch (err) {
-      console.error('downloadBackup failed', err);
-      throw err;
-    }
-  };
-
-  const deleteCloudBackup = async () => {
-    if (!firebaseEnabled()) throw new Error('Firebase not enabled');
-    try {
-      await deleteAppDataBackup();
-    } catch (err) {
-      console.error('deleteCloudBackup failed', err);
-      throw err;
-    }
-  };
 
   const addAuditLog = (log: Omit<AuditLog, 'id' | 'createdAt'>) => {
     if (!state.settings.enableAuditLog) return;
@@ -371,6 +240,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteCustomer = (id: string) => {
+    pendingOperation.current = 'delete';
     setState(s => ({
       ...s,
       customers: s.customers.filter(c => c.id !== id)
@@ -394,6 +264,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteProduct = (id: string) => {
+    pendingOperation.current = 'delete';
     setState(s => ({
       ...s,
       products: s.products.filter(p => p.id !== id)
@@ -418,6 +289,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteInvoice = (id: string) => {
+    pendingOperation.current = 'delete';
     setState(s => ({
       ...s,
       invoices: s.invoices.filter(i => i.id !== id)
@@ -463,6 +335,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteExpense = (id: string) => {
+    pendingOperation.current = 'delete';
     setState(s => ({
       ...s,
       expenses: s.expenses.filter(e => e.id !== id)
@@ -509,6 +382,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteDeliveryNote = (id: string) => {
+    pendingOperation.current = 'delete';
     setState(s => ({
       ...s,
       deliveryNotes: s.deliveryNotes.filter(dn => dn.id !== id)
@@ -527,8 +401,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       syncStatus,
       saveIndicator,
       lastSavedAt,
-      lastBackupExportAt,
-      backupReminderNeeded,
       addCustomer, updateCustomer, deleteCustomer,
       addProduct, updateProduct, deleteProduct,
       addInvoice, updateInvoice, deleteInvoice,
@@ -537,13 +409,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       updateProfile,
       updateSettings,
       addAuditLog,
-      // helpers
-      clearLocalData,
-      exportBackupJson,
-      importBackupJson,
-      uploadBackup,
-      downloadBackup,
-      deleteCloudBackup
     }}>
       {children}
     </DataContext.Provider>

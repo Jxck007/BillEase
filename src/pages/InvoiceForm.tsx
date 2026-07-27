@@ -6,8 +6,7 @@ import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Customer, Invoice, InvoiceItem, Product } from '../lib/types';
 import { formatCurrency, generateId, roundMoney } from '../lib/utils';
-import { buildDefaultInvoiceNumber, calculateInvoiceFromDraft, clearDraft, getNextInvoiceNumber, loadDraft, selectTemplate } from '../services/invoiceService';
-import { INVOICE_TEMPLATES } from '../templates/invoiceTemplates';
+import { buildDefaultInvoiceNumber, calculateInvoiceFromDraft, clearDraft, getNextInvoiceNumber, loadDraft } from '../services/invoiceService';
 import { getStateCodeFromGSTIN, getStateNameFromCode, validateGSTIN } from '../gst/gstService';
 import { useAutosaveDraft } from '../hooks/useAutosaveDraft';
 import ItemRow from '../components/invoice/ItemRow';
@@ -54,13 +53,14 @@ export default function InvoiceForm() {
     customerId: '',
     date: new Date().toISOString().split('T')[0],
     dueDate: undefined,
+    poNumber: '',
     poDate: '',
     poMode: '',
     copyType: (invoiceType === 'estimate' ? 'ORIGINAL COPY' : 'DUPLICATE COPY') as Invoice['copyType'],
     placeOfSupply: state.profile.stateCode ? getStateNameFromCode(state.profile.stateCode) : '',
     reverseCharge: false,
     gstMode: state.settings.taxMode,
-    templateId: state.settings.defaultTemplate,
+    templateId: invoiceType === 'invoice' ? 'canonical' : state.settings.defaultTemplate,
     draft: true,
     items: [blankItem()],
     subtotal: 0,
@@ -173,6 +173,7 @@ export default function InvoiceForm() {
       customerId: draft.customerId,
       date: draft.date || new Date().toISOString().split('T')[0],
       dueDate: undefined,
+      poNumber: draft.poNumber || '',
       poDate: draft.poDate || '',
       poMode: draft.poMode || '',
       copyType: isEstimate
@@ -199,7 +200,7 @@ export default function InvoiceForm() {
       placeOfSupply: draft.placeOfSupply,
       reverseCharge: Boolean(draft.reverseCharge),
       gstMode: draft.gstMode || state.settings.taxMode,
-      templateId: draft.templateId || state.settings.defaultTemplate,
+      templateId: isEstimate ? (draft.templateId || state.settings.defaultTemplate) : 'canonical',
       signatureName: draft.signatureName || state.profile.name,
       customerFieldVisibility: withDefaultCustomerFieldVisibility(draft.customerFieldVisibility),
       qrCodeData: draft.qrCodeData || '',
@@ -221,7 +222,7 @@ export default function InvoiceForm() {
   const activeProductMatches = activeItemId ? productMatches(activeProductQuery) : [];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-40 md:pb-12">
+    <div className="max-w-6xl mx-auto space-y-6 pb-12">
       {/* Step indicator for older users */}
       <div className="flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-2 text-xs font-medium text-emerald-800 print:hidden overflow-x-auto">
         <span className="shrink-0 whitespace-nowrap">Step 1: Select customer</span>
@@ -293,6 +294,10 @@ export default function InvoiceForm() {
                 {!isEstimate ? (
                   <>
                     <div>
+                      <Label english="P.O Number" tamil="P.O எண்" />
+                      <input value={draft.poNumber || ''} onChange={(event) => updateDraft({ poNumber: event.target.value })} title="P.O Number" className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+                    </div>
+                    <div>
                       <Label english="P.O Date" tamil="P.O தேதி" />
                       <input type="date" value={draft.poDate || ''} onChange={(event) => updateDraft({ poDate: event.target.value })} title="P.O Date" className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
                     </div>
@@ -305,31 +310,13 @@ export default function InvoiceForm() {
               </div>
             </div>
 
-            {!isEstimate ? (
-              <div>
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-stone-800">{language === 'en' ? 'Invoice Template' : 'டெம்ப்ளேட்'}</h2>
-                  <span className="text-xs text-stone-500">{language === 'en' ? 'Choose a layout and preview in the invoice screen.' : 'Layout தேர்வு செய்து preview screen-ல் பார்க்கலாம்.'}</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                  {INVOICE_TEMPLATES.map((template) => {
-                    const isActive = (draft.templateId || state.settings.defaultTemplate) === template.id;
-                    return (
-                      <button key={template.id} type="button" onClick={() => updateDraft({ templateId: template.id, ...selectTemplate(template.id) })} className={`rounded-2xl border p-4 text-left transition-all ${isActive ? 'border-emerald-500 bg-emerald-50 shadow-sm' : 'border-stone-200 bg-white hover:border-emerald-200'}`}>
-                        <div className="font-semibold text-stone-800">{template.title}</div>
-                        <div className="text-xs text-stone-500 mt-1">{template.tamil}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
+            {isEstimate ? (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                 {language === 'en'
                   ? `${getEstimateDocumentName(state.settings, language)} documents use the quotation layout for preview, print, PDF, PNG, and sharing.`
                   : `${getEstimateDocumentName(state.settings, language)} ஆவணங்கள் quotation layout-ஐ பயன்படுத்தும்.`}
               </div>
-            )}
+            ) : null}
 
             <div className="relative">
               <div className="mb-3 flex items-center gap-3">
@@ -482,7 +469,7 @@ export default function InvoiceForm() {
               <div>{language === 'en' ? 'Business state' : 'வணிக state'}: {state.settings.businessStateCode || state.profile.stateCode || '-'}</div>
               <div>{language === 'en' ? 'Customer state' : 'வாடிக்கையாளர் state'}: {selectedCustomer?.stateCode || getStateCodeFromGSTIN(selectedCustomer?.gstNumber) || '-'}</div>
               <div>{language === 'en' ? 'GSTIN valid' : 'GSTIN valid'}: {selectedCustomer?.gstNumber ? (validateGSTIN(selectedCustomer.gstNumber) ? (language === 'en' ? 'Yes' : 'ஆம்') : (language === 'en' ? 'No' : 'இல்லை')) : '-'}</div>
-              <div>{language === 'en' ? 'Template' : 'டெம்ப்ளேட்'}: {(draft.templateId || state.settings.defaultTemplate).toUpperCase()}</div>
+              <div>{language === 'en' ? 'Document' : 'ஆவணம்'}: {isEstimate ? 'QUOTATION' : 'TAX INVOICE'}</div>
             </div>
           </div>
 
@@ -493,7 +480,7 @@ export default function InvoiceForm() {
         </aside>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-white/95 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur md:static md:border-0 md:bg-transparent md:p-0">
+      <div className="border-t bg-white px-4 py-3 md:border-0 md:bg-transparent md:p-0">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
           <button type="button" onClick={() => navigate(-1)} className="rounded-2xl border border-stone-200 bg-white px-5 py-3 font-semibold text-stone-700 shadow-sm">{t('cancel')}</button>
           <div className="flex items-center gap-2">

@@ -1,320 +1,40 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Printer, FileDown, Image, Smartphone, Mail, Loader2, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
+import { Printer, FileDown, Image, Share2, Smartphone, Mail, Loader2, CheckCircle, AlertCircle, X } from 'lucide-react';
 import type { RefObject } from 'react';
 
-export type ExportState = 'idle' | 'generating' | 'success' | 'failed';
 export type DocumentType = 'invoice' | 'quotation' | 'delivery-note';
+interface ExportPanelProps { isOpen: boolean; onClose: () => void; documentType: DocumentType; documentNumber: string; documentLabel: string; customerName: string; customerPhone?: string; customerWhatsapp?: string; customerEmail?: string; businessName: string; exportRootRef: RefObject<HTMLElement | null>; onPrint: () => void; widthMm?: number; }
 
-interface ExportPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
-  documentType: DocumentType;
-  documentNumber: string;
-  documentLabel: string;
-  customerName: string;
-  customerPhone?: string;
-  customerWhatsapp?: string;
-  customerEmail?: string;
-  businessName: string;
-  exportRootRef: RefObject<HTMLElement | null>;
-  onPrint: () => void;
-  widthMm?: number;
-}
-
-export default function ExportPanel({
-  isOpen,
-  onClose,
-  documentType,
-  documentNumber,
-  documentLabel,
-  customerName,
-  customerPhone,
-  customerWhatsapp,
-  customerEmail,
-  businessName,
-  exportRootRef,
-  onPrint,
-  widthMm = 190,
-}: ExportPanelProps) {
-  const downloadBlob = useCallback((blob: Blob, fileName: string) => {
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = fileName;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }, []);
-
-  const normalizeIndianWhatsAppNumber = useCallback((phone: string) => {
-    const digits = phone.replace(/\D/g, '');
-    if (!digits) return '';
-    if (digits.startsWith('91') && digits.length >= 12) return digits;
-    const tenDigit = digits.slice(-10);
-    return tenDigit ? `91${tenDigit}` : '';
-  }, []);
-
-  const [exportState, setExportState] = useState<ExportState>('idle');
-  const [exportMessage, setExportMessage] = useState('');
-  const [activeAction, setActiveAction] = useState<string | null>(null);
-  const messageTimeout = useRef<ReturnType<typeof setTimeout>>();
-
-  useEffect(() => {
-    if (!isOpen) {
-      setExportState('idle');
-      setExportMessage('');
-      setActiveAction(null);
-    }
-  }, [isOpen]);
-
-  const clearMessage = useCallback(() => {
-    if (messageTimeout.current) clearTimeout(messageTimeout.current);
-    messageTimeout.current = setTimeout(() => {
-      setExportState('idle');
-      setExportMessage('');
-      setActiveAction(null);
-    }, 3000);
-  }, []);
-
-  const showMessage = useCallback((state: ExportState, message: string, action: string) => {
-    setExportState(state);
-    setExportMessage(message);
-    setActiveAction(action);
-    if (state === 'success' || state === 'failed') {
-      clearMessage();
-    }
-  }, [clearMessage]);
-
-  const resolveExportRoot = useCallback(() => {
-    const root = exportRootRef.current;
-    if (!root) {
-      throw new Error('Export failed: export root not found');
-    }
-
-    const exportRoots = root.matches('[data-export-root="true"]')
-      ? [root]
-      : Array.from(root.querySelectorAll<HTMLElement>('[data-export-root="true"]'));
-
-    if (exportRoots.length !== 1) {
-      throw new Error(`Export failed: expected 1 export root, found ${exportRoots.length}`);
-    }
-
-    const exportRoot = exportRoots[0] as HTMLElement;
-    const text = exportRoot.innerText?.trim() || '';
-    const rect = exportRoot.getBoundingClientRect();
-    const width = exportRoot.scrollWidth || rect.width;
-    const height = exportRoot.scrollHeight || rect.height;
-
-    console.log('EXPORT TARGET', {
-      tag: exportRoot.tagName,
-      className: exportRoot.className,
-      text: text.slice(0, 200),
-      htmlLength: exportRoot.innerHTML.length,
-      rootsInside: exportRoot.querySelectorAll('[data-export-root="true"]').length,
-      scrollWidth: exportRoot.scrollWidth,
-      scrollHeight: exportRoot.scrollHeight,
-      rect,
-    });
-
-    if (!text) {
-      throw new Error('Export failed: export document has no text content');
-    }
-
-    if (!width || !height) {
-      throw new Error('Export failed: export document size is zero');
-    }
-
-    return exportRoot;
-  }, [exportRootRef]);
-
-  const handlePrint = () => {
-    showMessage('generating', 'Opening print dialog...', 'print');
-    setTimeout(() => {
-      onPrint();
-      showMessage('success', 'Print dialog opened', 'print');
-    }, 100);
+export default function ExportPanel({ isOpen, onClose, documentNumber, documentLabel, customerName, customerPhone, customerWhatsapp, customerEmail, businessName, exportRootRef, onPrint, widthMm = 190 }: ExportPanelProps) {
+  const [status, setStatus] = useState<{ type: 'idle' | 'generating' | 'success' | 'failed'; text: string }>({ type: 'idle', text: '' });
+  const [active, setActive] = useState<string | null>(null);
+  const cache = useRef<{ name: string; blob: Blob } | null>(null);
+  const [nativeAvailable, setNativeAvailable] = useState(() => typeof navigator !== 'undefined' && Boolean(navigator.share && navigator.canShare));
+  const fileName = `${documentLabel.replace(/[^a-z0-9_-]+/gi, '_')}_${documentNumber.replace(/[^a-z0-9_-]+/gi, '_')}.pdf`;
+  const setMessage = (type: typeof status.type, text: string, action: string | null = null) => { setStatus({ type, text }); setActive(action); };
+  const download = useCallback((blob: Blob, name: string) => { const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }, []);
+  const exportRoot = () => { const root = exportRootRef.current; if (!root || !root.matches('[data-export-root="true"]')) throw new Error('Document is not ready'); return root; };
+  const getFile = async () => {
+    const blob = cache.current?.name === fileName ? cache.current.blob : await (await import('../../services/exportService')).createPdfBlobFromElement(exportRoot(), widthMm);
+    if (!blob?.size) throw new Error('PDF could not be generated');
+    cache.current = { name: fileName, blob };
+    return new File([blob], fileName, { type: 'application/pdf' });
   };
-
-  const handleDownloadPdf = async () => {
-    showMessage('generating', 'Loading export tools...', 'pdf');
-    // Yield briefly so the UI updates before the heavy dynamic import
-    await new Promise(r => setTimeout(r, 50));
-    try {
-      const target = resolveExportRoot();
-      const { createPdfBlobFromElement: generatePdf } = await import('../../services/exportService');
-      showMessage('generating', 'Generating PDF...', 'pdf');
-      await new Promise(r => setTimeout(r, 30));
-      const blob = await generatePdf(target, widthMm);
-      if (blob && blob.size > 0) {
-        downloadBlob(blob, `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}.pdf`);
-        showMessage('success', 'PDF downloaded', 'pdf');
-      } else {
-        throw new Error('Empty PDF');
-      }
-    } catch (err) {
-      console.error('PDF export failed:', err);
-      showMessage('failed', 'PDF failed. Try Image export.', 'pdf');
-    }
-  };
-
-  const handleDownloadImage = async () => {
-    showMessage('generating', 'Loading export tools...', 'image');
-    // Yield briefly so the UI updates before the heavy dynamic import
-    await new Promise(r => setTimeout(r, 50));
-    try {
-      const target = resolveExportRoot();
-      const { exportInvoiceAsImage } = await import('../../services/exportService');
-      showMessage('generating', 'Generating image...', 'image');
-      await new Promise(r => setTimeout(r, 30));
-      await exportInvoiceAsImage(target, `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`, widthMm);
-      showMessage('success', 'Image downloaded', 'image');
-    } catch (err) {
-      console.error('Image export failed:', err);
-      showMessage('failed', 'Image failed. Try Print.', 'image');
-    }
-  };
-
-  const handleWhatsApp = () => {
-    const waPhone = customerWhatsapp || customerPhone;
-    const message = `Please find the ${documentLabel} ${documentNumber} from ${businessName} for ${customerName}.`;
-    const text = encodeURIComponent(message);
-
-    if (!waPhone) {
-      showMessage('failed', 'WhatsApp number missing.', 'whatsapp');
-      return;
-    }
-
-    (async () => {
-      try {
-        showMessage('generating', 'Preparing PDF and opening WhatsApp...', 'whatsapp');
-        const target = resolveExportRoot();
-        const fileBase = `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`;
-        const { createPdfFileFromElement } = await import('../../services/exportService');
-        const file = await createPdfFileFromElement(target, fileBase, widthMm);
-        downloadBlob(file, file.name);
-      } catch (err) {
-        console.error('WhatsApp PDF preparation failed:', err);
-      }
-
-      const waNumber = normalizeIndianWhatsAppNumber(waPhone);
-      window.open(`https://wa.me/${waNumber}?text=${text}`, '_blank', 'noopener,noreferrer');
-      showMessage('success', `WhatsApp opened for ${customerName}. PDF downloaded. Attach the file in chat.`, 'whatsapp');
-    })();
-  };
-
-  const handleEmail = async () => {
-    const recipient = customerEmail || '';
-    const subject = encodeURIComponent(`${documentLabel} ${documentNumber} from ${businessName}`);
-    const body = encodeURIComponent([
-      `Dear ${customerName || 'Customer'},`,
-      '',
-      `Please find the ${documentLabel.toLowerCase()} details from ${businessName}.`,
-      `Document No: ${documentNumber}`,
-      '',
-      'Thank you.',
-    ].join('\n'));
-
-    if (!customerEmail) {
-      showMessage('failed', 'No email saved for this customer.', 'email');
-      return;
-    }
-    showMessage('generating', 'Downloading PDF for email...', 'email');
-    try {
-      const target = resolveExportRoot();
-      const fileBase = `${documentLabel.replace(/\s+/g, '_')}_${documentNumber}`;
-      const { createPdfFileFromElement } = await import('../../services/exportService');
-      const file = await createPdfFileFromElement(target, fileBase, widthMm);
-
-      downloadBlob(file, file.name);
-      window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');
-      showMessage('success', `Email draft opened for ${customerEmail}. PDF downloaded for attachment.`, 'email');
-    } catch (err) {
-      console.error('Email PDF preparation failed:', err);
-      window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');
-      showMessage('failed', 'PDF could not be generated. Email draft opened. Attach file manually if needed.', 'email');
-    }
-  };
-
-  const isLoading = exportState === 'generating';
-
-  const actions = [
-    { id: 'print', label: 'Print', icon: Printer, onClick: handlePrint, description: 'Browser print dialog' },
-    { id: 'pdf', label: 'Download PDF', icon: FileDown, onClick: handleDownloadPdf, description: 'A4 PDF file' },
-    { id: 'image', label: 'Download Image', icon: Image, onClick: handleDownloadImage, description: 'PNG image' },
-    // Share PDF and Share Image hidden — unreliable on mobile/Poco
-    // Can be restored once native file sharing is verified stable
-    { id: 'whatsapp', label: 'WhatsApp', icon: Smartphone, onClick: handleWhatsApp, description: (customerWhatsapp || customerPhone) ? `Send to ${customerName}` : 'Open WhatsApp' },
-    { id: 'email', label: 'Email', icon: Mail, onClick: handleEmail, description: customerEmail ? `Send to ${customerEmail}` : 'Open email draft' },
-  ];
-
-  return (
-    <>
-      {isOpen && (
-        <>
-          <div
-            onClick={onClose}
-            className="fixed inset-0 bg-black/30 z-40"
-          />
-          <div
-            className="fixed bottom-0 left-0 right-0 z-50 mx-auto max-w-lg rounded-t-3xl bg-white p-6 shadow-2xl pb-[calc(env(safe-area-inset-bottom)+1rem)]"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-bold text-stone-800">Export & Share</h3>
-                <p className="text-xs text-stone-500 mt-1">{documentLabel} #{documentNumber}</p>
-              </div>
-              <button onClick={onClose} className="p-2 text-stone-400 hover:text-stone-600 rounded-full hover:bg-stone-100" aria-label="Close">
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Status message */}
-            {exportMessage && (
-              <div className={`mb-4 rounded-2xl p-3 text-sm flex items-center gap-2 ${
-                exportState === 'generating' ? 'export-generating-bg text-blue-700 border border-blue-200' :
-                exportState === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                exportState === 'failed' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                'bg-stone-50 text-stone-600 border border-stone-200'
-              }`}>
-                {exportState === 'generating' ? <Loader2 size={16} className="animate-spin" /> :
-                 exportState === 'success' ? <CheckCircle size={16} /> :
-                 exportState === 'failed' ? <AlertCircle size={16} /> : null}
-                <span className="flex-1">{exportMessage}</span>
-              </div>
-            )}
-
-            {/* Action buttons */}
-            <div className="grid grid-cols-2 gap-3">
-              {actions.map((action) => {
-                const Icon = action.icon;
-                const isActionLoading = isLoading && activeAction === action.id;
-                return (
-                  <button
-                    key={action.id}
-                    onClick={action.onClick}
-                    disabled={isLoading && !isActionLoading}
-                    className={`flex flex-col items-center gap-2 rounded-2xl border min-h-[60px] p-3 sm:p-4 text-sm font-semibold transition-all ${
-                      isActionLoading
-                        ? 'border-blue-200 bg-blue-50 text-blue-700'
-                        : 'border-stone-200 bg-white text-stone-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 active:scale-[0.98]'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    {isActionLoading ? (
-                      <Loader2 size={22} className="animate-spin text-blue-500" />
-                    ) : (
-                      <Icon size={22} className={action.id === 'whatsapp' ? 'text-[#25D366]' : ''} />
-                    )}
-                    <span>{action.label}</span>
-                    <span className="text-[10px] font-normal text-stone-400">{action.description}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <p className="mt-4 text-center text-[10px] text-stone-400">
-              {documentType === 'delivery-note' ? 'DN' : documentLabel} exports use A4 format. Print uses your browser print dialog.
-            </p>
-          </div>
-        </>
-      )}
-    </>
-  );
+  const run = async (name: string, work: () => Promise<void>) => { setMessage('generating', 'Preparing document...', name); try { await work(); } catch (error) { console.error(error); setMessage('failed', 'Could not prepare the document. Please try again.', name); } finally { setActive(null); } };
+  const share = () => run('share', async () => {
+    // The PDF work and navigator.share start from this click handler; no automatic download occurs.
+    const file = await getFile();
+    if (!navigator.share || !navigator.canShare || !navigator.canShare({ files: [file] })) { setNativeAvailable(false); setMessage('failed', 'File sharing is unavailable. Use the fallback options below.', 'share'); return; }
+    try { await navigator.share({ title: `${documentLabel} ${documentNumber}`, text: `Please find the ${documentLabel} ${documentNumber} from ${businessName}.`, files: [file] }); setMessage('success', 'Document shared with the PDF attached.', 'share'); }
+    catch (error) { if (error instanceof DOMException && error.name === 'AbortError') setMessage('idle', 'Sharing cancelled.'); else throw error; }
+  });
+  const pdf = () => run('pdf', async () => { const file = await getFile(); download(file, file.name); setMessage('success', 'PDF downloaded.', 'pdf'); });
+  const image = () => run('image', async () => { await (await import('../../services/exportService')).exportInvoiceAsImage(exportRoot(), fileName.replace(/\.pdf$/, ''), widthMm); setMessage('success', 'Image downloaded.', 'image'); });
+  const print = () => { setMessage('generating', 'Opening print dialog...', 'print'); onPrint(); setMessage('success', 'Print dialog opened.', 'print'); };
+  const wa = () => run('whatsapp', async () => { const phone = customerWhatsapp || customerPhone; if (!phone) throw new Error('Missing WhatsApp number'); const file = await getFile(); download(file, file.name); const digits = phone.replace(/\D/g, ''); const number = digits.startsWith('91') ? digits : `91${digits.slice(-10)}`; window.open(`https://wa.me/${number}?text=${encodeURIComponent(`Please find the ${documentLabel} ${documentNumber} from ${businessName}.`)}`, '_blank', 'noopener,noreferrer'); setMessage('success', 'WhatsApp opened. Attach the downloaded PDF manually.', 'whatsapp'); });
+  const email = () => run('email', async () => { if (!customerEmail) throw new Error('Missing customer email'); const file = await getFile(); download(file, file.name); const subject = encodeURIComponent(`${documentLabel} ${documentNumber} from ${businessName}`); const body = encodeURIComponent(`Dear ${customerName || 'Customer'},\n\nPlease find the ${documentLabel.toLowerCase()} ${documentNumber} from ${businessName}.\n\nThank you.`); window.location.href = `mailto:${customerEmail}?subject=${subject}&body=${body}`; setMessage('success', `Email draft opened for ${customerEmail}. Attach the downloaded PDF manually.`, 'email'); });
+  if (!isOpen) return null;
+  const actions = [ ...(nativeAvailable ? [{ id: 'share', label: 'Share Document', text: 'Share PDF attachment', icon: Share2, run: share, primary: true }] : []), { id: 'print', label: 'Print', text: 'Browser print dialog', icon: Printer, run: print }, { id: 'pdf', label: 'Download PDF', text: 'A4 PDF file', icon: FileDown, run: pdf }, { id: 'image', label: 'Download Image', text: 'PNG image', icon: Image, run: image }, ...(!nativeAvailable ? [{ id: 'whatsapp', label: 'Open WhatsApp', text: 'Attach PDF manually', icon: Smartphone, run: wa }, { id: 'email', label: 'Open Email', text: 'Attach PDF manually', icon: Mail, run: email }] : []) ];
+  const StatusIcon = status.type === 'generating' ? Loader2 : status.type === 'success' ? CheckCircle : AlertCircle;
+  return <><div onClick={onClose} className="fixed inset-0 z-40 bg-black/30" /><div className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-lg rounded-t-3xl bg-white p-5 shadow-2xl pb-[calc(env(safe-area-inset-bottom)+1rem)]"><div className="mb-5 flex items-center justify-between"><div><h3 className="text-lg font-bold text-stone-800">Export & Share</h3><p className="text-xs text-stone-500">{documentLabel} #{documentNumber}</p></div><button onClick={onClose} className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl text-stone-600 hover:bg-stone-100" aria-label="Close"><X /></button></div>{status.text && <div className={`mb-4 flex items-center gap-2 rounded-xl border p-3 text-sm ${status.type === 'failed' ? 'border-rose-200 bg-rose-50 text-rose-800' : status.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-blue-200 bg-blue-50 text-blue-800'}`}><StatusIcon size={18} className={status.type === 'generating' ? 'animate-spin' : ''} />{status.text}</div>}<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{actions.map((action) => { const Icon = action.icon; const loading = active === action.id; return <button key={action.id} onClick={action.run} disabled={Boolean(active)} className={`flex min-h-[56px] items-center gap-3 rounded-2xl border p-3 text-left font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${action.primary ? 'sm:col-span-2 border-emerald-600 bg-emerald-600 text-white' : 'border-stone-200 bg-white text-stone-700 hover:border-emerald-300 hover:bg-emerald-50'}`}>{loading ? <Loader2 className="animate-spin" /> : <Icon size={22} />}<span>{action.label}</span><span className={`ml-auto text-[10px] font-normal ${action.primary ? 'text-emerald-50' : 'text-stone-500'}`}>{action.text}</span></button>; })}</div>{!nativeAvailable && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Your browser cannot attach files to the share sheet. The PDF downloads first, then attach it manually in WhatsApp or email.</p>}</div></>;
 }

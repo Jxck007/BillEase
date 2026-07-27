@@ -2,7 +2,9 @@ export type Language = 'en' | 'ta';
 export type TaxMode = 'exclusive' | 'inclusive';
 export type InvoiceType = 'invoice' | 'estimate';
 export type PaymentStatus = 'paid' | 'unpaid' | 'partial';
-export type InvoiceTemplateId = 'classic' | 'modern' | 'thermal' | 'wholesale' | 'minimal';
+// Legacy values are retained only so existing saved invoices/settings continue to load.
+// New invoices always use the single canonical document.
+export type InvoiceTemplateId = 'canonical' | 'classic' | 'modern' | 'thermal' | 'wholesale' | 'minimal';
 export type DiscountType = 'flat' | 'percent';
 export type PaymentMethod = 'Cash' | 'UPI' | 'Card' | 'Bank' | 'Cheque' | 'Wallet' | 'Other';
 
@@ -70,6 +72,7 @@ export interface Invoice {
   customerId: string;
   date: string;
   dueDate?: string;
+  poNumber?: string;
   poDate?: string;
   poMode?: string;
   copyType?: 'ORIGINAL COPY' | 'DUPLICATE COPY' | 'TRANSPORT COPY' | 'EXTRA COPY' | 'CUSTOMER COPY' | 'OFFICE COPY';
@@ -134,6 +137,11 @@ export interface BusinessProfile {
   bankDetails?: string;
   msmeNumber?: string;
   upiId?: string;
+  upiPayeeName?: string;
+  upiPaymentNote?: string;
+  enableUpiQr?: boolean;
+  showUpiAmount?: boolean;
+  paymentQrImage?: string;
   tagline?: string;
 }
 

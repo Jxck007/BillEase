@@ -35,6 +35,20 @@
     transform-origin: top center;
   }
 
+  .canonical-preview-viewport {
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    position: relative;
+  }
+  .canonical-preview-transform {
+    flex: 0 0 auto;
+    transform-origin: top center;
+    will-change: transform;
+  }
+  .canonical-preview-document { width: 190mm; min-width: 190mm; }
+
   /* Responsive document preview container */
   .doc-preview-container {
     width: 100%;
@@ -71,6 +85,9 @@
       background: white;
       box-sizing: border-box;
     }
+    .canonical-preview-viewport { height: auto !important; overflow: visible !important; display: block !important; }
+    .canonical-preview-transform { width: auto !important; transform: none !important; }
+    .canonical-preview-document { width: 190mm !important; min-width: 190mm !important; margin: 0 auto; }
     .dn-print-page { display: block !important; }
     .delivery-note-preview { padding: 0 !important; margin: 0 !important; }
     .delivery-note-preview .dn-export-root { width: 210mm !important; max-width: 210mm !important; margin: 0 auto !important; padding: 0 !important; overflow: visible !important; }
@@ -106,6 +123,7 @@
   .invoice-print-page .bank-pre { white-space:pre-wrap; font-size:12px; }
   .invoice-print-page .tv-qr-wrap { margin-top: 12px; }
   .invoice-print-page .tv-qr { width: 88px; height: 88px; object-fit: contain; border: 1px solid #d1d5db; padding: 4px; border-radius: 6px; background: #fff; }
+  .invoice-print-page .tv-upi { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:11px; }
   .invoice-print-page .amount-words-label { margin-top: 12px; font-weight: 600; }
   .invoice-print-page .amount-words { margin-top: 8px; line-height: 1.5; }
   .invoice-print-page .signature { margin-top:34px; text-align:right; }
@@ -150,6 +168,11 @@
         justify-content: flex-start;
       }
     }
+  }
+
+  @media (max-width: 1023px) {
+    * { scroll-behavior: auto; }
+    .shadow-2xl, .shadow-xl { box-shadow: 0 2px 8px rgba(28, 25, 23, 0.12); }
   }
   .dn-container { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; width: 100%; max-width: 190mm; margin: 0 auto; padding: 0 1mm; box-sizing: border-box; }
   .dn-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:2px solid #111; padding-bottom:6px; }

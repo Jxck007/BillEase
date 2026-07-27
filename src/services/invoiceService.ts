@@ -1,6 +1,6 @@
-import { AuditLog, AppSettings, BusinessProfile, Customer, Invoice, InvoiceItem, InvoiceTemplateId } from '../lib/types';
+import { AuditLog, AppSettings, BusinessProfile, Customer, Invoice, InvoiceItem } from '../lib/types';
 import { buildQrPlaceholder, calculateTaxBreakdown, getStateCodeFromGSTIN } from '../gst/gstService';
-import { DEFAULT_TEMPLATE_VISIBILITY, TEMPLATE_PRESETS } from '../templates/invoiceTemplates';
+import { CANONICAL_TEMPLATE_PRESET } from '../templates/invoiceTemplates';
 import { digitsOnly, generateId, roundMoney, safeParseJson } from '../lib/utils';
 
 const DRAFT_STORAGE_KEY = 'billease.invoiceDraft';
@@ -11,10 +11,10 @@ export function getDefaultSettings(profile: BusinessProfile): AppSettings {
     taxMode: 'exclusive',
     invoicePrefix: '',
     invoiceStartingNumber: 1,
-    defaultTemplate: 'classic',
+    defaultTemplate: 'canonical',
     template: {
-      templateId: 'classic',
-      ...TEMPLATE_PRESETS.classic,
+      templateId: 'canonical',
+      ...CANONICAL_TEMPLATE_PRESET,
     },
     businessStateCode: profile.stateCode || getStateCodeFromGSTIN(profile.gst),
     enableDrafts: true,
@@ -119,12 +119,4 @@ export function clearDraft() {
 
 export function sanitizePhone(phone: string) {
   return digitsOnly(phone);
-}
-
-export function selectTemplate(templateId: InvoiceTemplateId) {
-  return {
-    templateId,
-    ...TEMPLATE_PRESETS[templateId],
-    visibility: { ...DEFAULT_TEMPLATE_VISIBILITY, ...TEMPLATE_PRESETS[templateId].visibility },
-  };
 }

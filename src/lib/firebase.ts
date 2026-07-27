@@ -2,7 +2,7 @@
 /// <reference types="vite/client" />
 import { useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 const enabled = import.meta.env.VITE_FIREBASE_ENABLED === 'true';
@@ -24,7 +24,7 @@ export type FirebaseStatus = {
   missingVariables: string[];
 };
 
-export let db: ReturnType<typeof getFirestore> | null = null;
+export let db: ReturnType<typeof initializeFirestore> | null = null;
 export let auth: ReturnType<typeof getAuth> | null = null;
 
 export type RecordCounts = {
@@ -86,7 +86,14 @@ if (enabled && startupStatus.missingVariables.length === 0) {
 
   try {
     const app = initializeApp(config as any);
-    db = getFirestore(app);
+    // One Firestore initialization path. IndexedDB cache makes reads and queued writes
+    // available on unreliable connections; Firestore falls back to memory if unavailable.
+    try {
+      db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+    } catch (cacheError) {
+      console.warn('[Firebase] Persistent cache unavailable; using memory cache.', cacheError);
+      db = initializeFirestore(app, {});
+    }
     auth = getAuth(app);
     console.log('[Firebase Developer Info] Firebase Services initialized successfully.');
   } catch (err) {
@@ -148,23 +155,43 @@ function sanitizeForFirestore(value: unknown, seen = new WeakSet<object>()): unk
   return value;
 }
 
-export async function setAppDataBackup(data: unknown, options?: { force?: boolean }) {
+type WriteOperation = 'create' | 'update' | 'delete' | 'initial-hydration' | 'offline-replay';
+
+async function saveRecoverySnapshot(current: unknown) {
+  if (!db) return;
+  const day = new Date().toISOString().slice(0, 10);
+  const recovery = collection(db as any, 'billease', 'appData', 'recovery');
+  const snapshotRef = doc(recovery, day);
+  const existing = await getDoc(snapshotRef);
+  if (!existing.exists()) await setDoc(snapshotRef, { data: sanitizeForFirestore(current), createdAt: new Date().toISOString() });
+  const snapshots = await getDocs(recovery);
+  const old = snapshots.docs.sort((a, b) => String(a.id).localeCompare(String(b.id))).slice(0, Math.max(0, snapshots.size - 7));
+  if (old.length) { const batch = writeBatch(db as any); old.forEach((entry) => batch.delete(entry.ref)); await batch.commit(); }
+}
+
+export async function setAppDataBackup(data: unknown, options?: { operation?: WriteOperation }) {
   if (!firebaseEnabled()) throw new Error('Firebase not enabled');
   console.log('[Firestore] Operation: WRITE | Collection: billease | Path: billease/appData');
   try {
     const d = doc(db as any, 'billease', 'appData');
     const outboundCounts = getRecordCounts(data);
     const outboundTotal = getRecordTotal(outboundCounts);
-    if (!options?.force && outboundTotal === 0) {
-      const existing = await getDoc(d);
-      const existingData = existing.data()?.data;
-      const existingCounts = getRecordCounts(existingData);
-      if (getRecordTotal(existingCounts) > 0) {
+    const existing = await getDoc(d);
+    const existingData = existing.data()?.data;
+    const existingTotal = getRecordTotal(getRecordCounts(existingData));
+    const isIntentionalDelete = options?.operation === 'delete';
+    if (existingTotal > 0 && outboundTotal === 0) {
         const err = new Error('EMPTY_OVERWRITE_BLOCKED');
         (err as Error & { name: string }).name = 'EmptyOverwriteBlockedError';
-        throw err;
-      }
+      throw err;
     }
+    // Never silently replace a populated cloud document with a materially smaller state.
+    if (!isIntentionalDelete && existingTotal > 0 && outboundTotal < existingTotal) {
+      const err = new Error('DESTRUCTIVE_OVERWRITE_BLOCKED');
+      err.name = 'DestructiveOverwriteBlockedError';
+      throw err;
+    }
+    if (isIntentionalDelete && outboundTotal < existingTotal) await saveRecoverySnapshot(existingData);
     const safeData = sanitizeForFirestore(data);
     await setDoc(d, { data: safeData, updatedAt: new Date().toISOString() });
     console.log('[Firestore] WRITE SUCCESS | Path: billease/appData');
@@ -218,6 +245,7 @@ export function useFirestoreSync(
   callbacks?: {
     onSuccess?: () => void;
     onError?: (error: Error) => void;
+    getOperation?: () => WriteOperation;
   },
 ) {
   useEffect(() => {
@@ -243,7 +271,7 @@ export function useFirestoreSync(
       }
 
       try {
-        await setAppDataBackup(state);
+        await setAppDataBackup(state, { operation: callbacks?.getOperation?.() || 'update' });
         callbacks?.onSuccess?.();
       } catch (err) {
         const errMsg = (err as Error).message;

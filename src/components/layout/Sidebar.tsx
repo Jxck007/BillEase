@@ -31,23 +31,24 @@ export default function Sidebar() {
 
   return (
     <>
-      <div className="print:hidden lg:hidden flex items-center justify-between bg-white border-b px-4 py-3">
+      <div className="print:hidden lg:hidden flex min-h-[64px] items-center justify-between bg-white border-b px-4 py-3">
         <span className="font-bold text-lg text-primary-600">BillEase (பில்-ஈஸ்)</span>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 -mr-2">
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl p-2 -mr-2" aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}>
           {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
       
       <div className={cn(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-white border-r shadow-sm transform transition-transform duration-200 ease-in-out lg:relative lg:translate-x-0 flex flex-col",
+        "fixed inset-y-0 left-0 z-40 w-[min(19rem,88vw)] bg-white border-r shadow-sm transform transition-transform duration-200 ease-in-out lg:relative lg:w-60 lg:translate-x-0 flex flex-col",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       ) + " print:hidden"}>
-        <div className="p-6 hidden md:flex items-center gap-3 border-b border-stone-100">
+        <div className="min-h-[64px] p-4 flex items-center justify-between gap-3 border-b border-stone-100">
           <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">B</div>
           <div>
             <h1 className="font-bold text-sm leading-tight uppercase tracking-wider text-stone-800">BillEase</h1>
             <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">பில்ease</p>
           </div>
+          <button type="button" onClick={closeMenu} className="lg:hidden inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl text-stone-600 hover:bg-stone-100" aria-label="Close menu"><X size={24} /></button>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
@@ -60,7 +61,7 @@ export default function Sidebar() {
                 to={link.to}
                 onClick={closeMenu}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl transition-colors",
+                  "flex min-h-[48px] items-center gap-3 px-4 py-3 rounded-xl transition-colors",
                   isActive 
                     ? "bg-emerald-50 text-emerald-700 font-semibold" 
                     : "text-stone-500 hover:bg-stone-50 font-medium"

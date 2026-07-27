@@ -2,7 +2,6 @@ import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import FloatingHelp from './FloatingHelp';
-import BottomNav from './BottomNav';
 import { useData } from '../../context/DataContext';
 
 function SyncStatusBadge({ status }: { status: string }) {
@@ -46,11 +45,10 @@ export default function AppLayout() {
             Firebase not connected. Running in local mode.
           </div>
         )}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 w-full max-w-7xl mx-auto pb-28 lg:pb-8">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8 w-full max-w-7xl mx-auto pb-8">
           <Outlet />
         </main>
       </div>
-      <BottomNav />
       <FloatingHelp />
     </div>
   );

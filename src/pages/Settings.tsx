@@ -1,16 +1,19 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
-import { InvoiceTemplateId, TemplateVisibilitySettings } from '../lib/types';
-import { INVOICE_TEMPLATES, TEMPLATE_PRESETS } from '../templates/invoiceTemplates';
-import { Trash2 } from 'lucide-react';
+import { TemplateVisibilitySettings } from '../lib/types';
+import { Eye, EyeOff, Save, Trash2 } from 'lucide-react';
 import { getCloudBackupRecordCounts, getRecordTotal } from '../lib/firebase';
 
 type BankDetailsForm = {
   bankName: string;
+  accountHolderName: string;
   accountNumber: string;
+  confirmAccountNumber: string;
   ifscCode: string;
   branch: string;
+  accountType: string;
+  swiftCode: string;
 };
 
 function parseBankDetails(raw?: string): BankDetailsForm {
@@ -21,18 +24,25 @@ function parseBankDetails(raw?: string): BankDetailsForm {
   };
   return {
     bankName: pick('Bank Name:') || lines[0] || '',
+    accountHolderName: pick('Account Holder:') || '',
     accountNumber: pick('A/C No:') || '',
+    confirmAccountNumber: pick('A/C No:') || '',
     ifscCode: pick('IFSC Code:') || '',
     branch: pick('Branch:') || '',
+    accountType: pick('Account Type:') || '',
+    swiftCode: pick('SWIFT Code:') || '',
   };
 }
 
 function formatBankDetails(details: BankDetailsForm) {
   return [
     details.bankName ? `Bank Name: ${details.bankName}` : '',
+    details.accountHolderName ? `Account Holder: ${details.accountHolderName}` : '',
     details.accountNumber ? `A/C No: ${details.accountNumber}` : '',
     details.ifscCode ? `IFSC Code: ${details.ifscCode}` : '',
     details.branch ? `Branch: ${details.branch}` : '',
+    details.accountType ? `Account Type: ${details.accountType}` : '',
+    details.swiftCode ? `SWIFT Code: ${details.swiftCode}` : '',
   ].filter(Boolean).join('\n');
 }
 
@@ -61,7 +71,16 @@ function Toggle({ checked, onChange, label, tamil }: { checked: boolean; onChang
 }
 
 export default function Settings() {
-  const { state, updateProfile, updateSettings, firebaseStatus, uploadBackup, downloadBackup, exportBackupJson, importBackupJson, backupReminderNeeded, lastBackupExportAt, syncStatus, lastSavedAt } = useData();
+  const { state, updateProfile, updateSettings } = useData();
+  // Kept only while legacy settings markup is compiled; it is never rendered.
+  const backupReminderNeeded = false;
+  const lastBackupExportAt: string | null = null;
+  const lastSavedAt: string | null = null;
+  const syncStatus = (false ? 'online' : 'offline') as 'online' | 'syncing' | 'offline' | 'failed' | 'loading';
+  const exportBackupJson = () => undefined;
+  const importBackupJson = async (_file: File) => undefined;
+  const uploadBackup = async (_force?: boolean) => undefined;
+  const downloadBackup = async () => undefined;
   const { t, language, setLanguage } = useLanguage();
   const [logoPreview, setLogoPreview] = useState(state.profile.logo);
   const [logoError, setLogoError] = useState('');
@@ -69,14 +88,22 @@ export default function Settings() {
   const [qrError, setQrError] = useState('');
 
   const visibility = state.settings.template.visibility;
-  const selectedTemplateName = useMemo(() => INVOICE_TEMPLATES.find((item) => item.id === (state.settings.defaultTemplate as InvoiceTemplateId)), [state.settings.defaultTemplate]);
-  const bankDetails = useMemo(() => parseBankDetails(state.profile.bankDetails), [state.profile.bankDetails]);
+  const [bankDraft, setBankDraft] = useState<BankDetailsForm>(() => parseBankDetails(state.profile.bankDetails));
+  const [bankStatus, setBankStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [showAccount, setShowAccount] = useState(false);
 
-  const updateProfileField = (field: 'name' | 'address' | 'phone' | 'email' | 'gst' | 'logo' | 'qrCodeImage' | 'stateCode' | 'tagline' | 'bankDetails' | 'msmeNumber', value: string) => {
+  useEffect(() => { setBankDraft(parseBankDetails(state.profile.bankDetails)); }, [state.profile.bankDetails]);
+
+  const updateProfileField = (field: 'name' | 'address' | 'phone' | 'email' | 'gst' | 'logo' | 'qrCodeImage' | 'stateCode' | 'tagline' | 'bankDetails' | 'msmeNumber' | 'upiId' | 'upiPayeeName' | 'upiPaymentNote' | 'paymentQrImage', value: string) => {
     updateProfile({ ...state.profile, [field]: value });
   };
-  const updateBankDetailsField = (field: keyof BankDetailsForm, value: string) => {
-    updateProfileField('bankDetails', formatBankDetails({ ...bankDetails, [field]: value }));
+  const saveBankDetails = () => {
+    if (bankDraft.accountNumber && bankDraft.accountNumber !== bankDraft.confirmAccountNumber) { setBankStatus('error'); return; }
+    setBankStatus('saving');
+    const normalized = Object.fromEntries(Object.entries(bankDraft).map(([key, value]) => [key, key === 'ifscCode' ? value.trim().toUpperCase() : value.trim()])) as BankDetailsForm;
+    updateProfileField('bankDetails', formatBankDetails(normalized));
+    setBankDraft(normalized);
+    setBankStatus('saved');
   };
 
   const handleLogoUpload = (file: File | null) => {
@@ -166,16 +193,6 @@ export default function Settings() {
     });
   };
 
-  const selectTemplate = (templateId: InvoiceTemplateId) => {
-    updateSettings({
-      defaultTemplate: templateId,
-      template: {
-        templateId,
-        ...TEMPLATE_PRESETS[templateId],
-      } as never,
-    });
-  };
-
   return (
     <div className="space-y-6 pb-12">
       <div>
@@ -183,26 +200,8 @@ export default function Settings() {
         <p className="mt-1 text-stone-500">{language === 'en' ? 'Manage your business profile, GST defaults, templates, and app language.' : 'வணிக விவரங்கள், GST defaults, டெம்ப்ளேட், மொழி ஆகியவற்றை மாற்றவும்.'}</p>
       </div>
 
-      <Section title={language === 'en' ? 'Firebase Status' : 'Firebase நிலை'} subtitle={language === 'en' ? 'Deployment and local-mode connectivity overview.' : 'டிப்ளாய்மென்ட் மற்றும் local-mode இணைப்பு நிலை.'}>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className={`rounded-2xl border px-4 py-3 ${firebaseStatus.appConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-            <div className="text-xs font-bold uppercase tracking-widest">App</div>
-            <div className="mt-1 font-semibold">{firebaseStatus.appConnected ? 'Connected' : 'Not connected'}</div>
-          </div>
-          <div className={`rounded-2xl border px-4 py-3 ${firebaseStatus.firestoreConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-            <div className="text-xs font-bold uppercase tracking-widest">Firestore</div>
-            <div className="mt-1 font-semibold">{firebaseStatus.firestoreConnected ? 'Connected' : 'Not connected'}</div>
-          </div>
-        </div>
-        <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-700">
-          <div className="font-semibold text-stone-800">{language === 'en' ? 'Missing variables' : 'Missing variables'}</div>
-          <div className="mt-1 break-words">
-            {firebaseStatus.missingVariables.length > 0 ? firebaseStatus.missingVariables.join(', ') : (language === 'en' ? 'None' : 'None')}
-          </div>
-        </div>
-      </Section>
-
-      <Section title="Data Management" subtitle="Backup, restore, and sync your business data.">
+      {/* Sync safety runs automatically in the background; no cloud overwrite controls are exposed here. */}
+      {false && <Section title="Data Management" subtitle="Backup, restore, and sync your business data.">
         {/* Backup reminder */}
         <div className={`mb-4 rounded-2xl p-4 text-sm ${backupReminderNeeded ? 'border border-amber-200 bg-amber-50 text-amber-800' : 'border border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
           <div className="font-bold">💾 Backup Reminder</div>
@@ -310,7 +309,7 @@ export default function Settings() {
             ☁️ Force Download From Cloud
           </button>
         </div>
-      </Section>          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
+      </Section>}          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
         <div className="space-y-6">
           <Section title={language === 'en' ? 'App Preferences' : 'செயலி விருப்பங்கள்'} subtitle={language === 'en' ? 'Switch the app language instantly.' : 'மொழியை உடனே மாற்றலாம்.'}>
             <div className="grid grid-cols-2 gap-3">
@@ -345,6 +344,17 @@ export default function Settings() {
             </div>
           </Section>
 
+          <Section title="Payment Details" subtitle="Optional UPI payment information for invoices and quotations.">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div><label className="mb-1 block text-sm font-semibold text-stone-800">UPI ID</label><input value={state.profile.upiId ?? ''} onChange={(event) => updateProfileField('upiId', event.target.value.trim().toLowerCase())} placeholder="business@bank" className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" /></div>
+              <div><label className="mb-1 block text-sm font-semibold text-stone-800">UPI payee / business name</label><input value={state.profile.upiPayeeName ?? ''} onChange={(event) => updateProfileField('upiPayeeName', event.target.value)} placeholder="Business name" className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" /></div>
+              <div className="md:col-span-2"><label className="mb-1 block text-sm font-semibold text-stone-800">Default payment note</label><input value={state.profile.upiPaymentNote ?? ''} onChange={(event) => updateProfileField('upiPaymentNote', event.target.value)} placeholder="Thank you for your payment" className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" /></div>
+              <Toggle checked={Boolean(state.profile.enableUpiQr)} onChange={(value) => { if (value && !state.profile.upiPayeeName?.trim()) return; updateProfile({ ...state.profile, enableUpiQr: value }); }} label="Enable UPI QR on documents" tamil="UPI QR" />
+              <Toggle checked={Boolean(state.profile.showUpiAmount)} onChange={(value) => updateProfile({ ...state.profile, showUpiAmount: value })} label="Show payment amount in QR" tamil="தொகை" />
+            </div>
+            {state.profile.enableUpiQr && !state.profile.upiPayeeName?.trim() && <p className="mt-3 text-sm text-rose-700">Enter a payee name before enabling a UPI QR.</p>}
+          </Section>
+
           <Section title={language === 'en' ? 'Business Profile' : 'வணிக விவரங்கள்'} subtitle={language === 'en' ? 'These details appear on invoices and exports.' : 'இந்த விவரங்கள் invoice-ல் காட்டப்படும்.'}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
@@ -360,37 +370,48 @@ export default function Settings() {
                 <textarea value={state.profile.address} onChange={(event) => updateProfileField('address', event.target.value)} rows={3} title={t('address')} placeholder={t('address')} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
               </div>
               <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-semibold text-stone-800">{language === 'en' ? 'Bank details (for print/export)' : '????? ????????? (print/export)'}</label>
+                <div className="mb-2 flex items-center justify-between gap-3"><label className="block text-sm font-semibold text-stone-800">Bank details (for print/export)</label><span className={`text-xs ${bankStatus === 'error' ? 'text-rose-700' : 'text-stone-500'}`}>{bankStatus === 'saving' ? 'Saving…' : bankStatus === 'saved' ? 'Saved' : bankStatus === 'error' ? 'Account numbers do not match' : 'Saved only when you choose Save'}</span></div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <input
-                    value={bankDetails.bankName}
-                    onChange={(event) => updateBankDetailsField('bankName', event.target.value)}
+                    value={bankDraft.bankName ?? ''}
+                    onChange={(event) => setBankDraft((draft) => ({ ...draft, bankName: event.target.value }))}
                     title={language === 'en' ? 'Bank name' : '????? ?????'}
                     placeholder={language === 'en' ? 'Bank name' : '????? ?????'}
                     className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <input
-                    value={bankDetails.accountNumber}
-                    onChange={(event) => updateBankDetailsField('accountNumber', event.target.value)}
+                    value={bankDraft.accountHolderName ?? ''}
+                    onChange={(event) => setBankDraft((draft) => ({ ...draft, accountHolderName: event.target.value }))}
+                    placeholder="Account holder name"
+                    className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <div className="relative"><input
+                    value={bankDraft.accountNumber ?? ''}
+                    onChange={(event) => setBankDraft((draft) => ({ ...draft, accountNumber: event.target.value }))}
+                    type={showAccount ? 'text' : 'password'}
                     title={language === 'en' ? 'Account number' : '?????? ???'}
                     placeholder={language === 'en' ? 'A/C No' : '?????? ???'}
                     className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
+                  /><button type="button" onClick={() => setShowAccount((show) => !show)} className="absolute inset-y-0 right-2 px-3 text-stone-500" aria-label={showAccount ? 'Hide account number' : 'Reveal account number'}>{showAccount ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>
+                  <input value={bankDraft.confirmAccountNumber ?? ''} onChange={(event) => setBankDraft((draft) => ({ ...draft, confirmAccountNumber: event.target.value }))} type={showAccount ? 'text' : 'password'} placeholder="Confirm account number" className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
                   <input
-                    value={bankDetails.ifscCode}
-                    onChange={(event) => updateBankDetailsField('ifscCode', event.target.value.toUpperCase())}
+                    value={bankDraft.ifscCode ?? ''}
+                    onChange={(event) => setBankDraft((draft) => ({ ...draft, ifscCode: event.target.value.toUpperCase() }))}
                     title="IFSC Code"
                     placeholder="IFSC Code"
                     className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 uppercase outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <input
-                    value={bankDetails.branch}
-                    onChange={(event) => updateBankDetailsField('branch', event.target.value)}
+                    value={bankDraft.branch ?? ''}
+                    onChange={(event) => setBankDraft((draft) => ({ ...draft, branch: event.target.value }))}
                     title={language === 'en' ? 'Branch' : '????'}
                     placeholder={language === 'en' ? 'Branch' : '????'}
                     className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500"
                   />
+                  <input value={bankDraft.accountType ?? ''} onChange={(event) => setBankDraft((draft) => ({ ...draft, accountType: event.target.value }))} placeholder="Account type (optional)" className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+                  <input value={bankDraft.swiftCode ?? ''} onChange={(event) => setBankDraft((draft) => ({ ...draft, swiftCode: event.target.value }))} placeholder="SWIFT code (optional)" className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
                 </div>
+                <button type="button" onClick={saveBankDetails} className="mt-3 inline-flex min-h-[48px] items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 font-semibold text-white"><Save size={18} />Save bank details</button>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-stone-800">{t('phone')}</label>
@@ -451,19 +472,7 @@ export default function Settings() {
             </div>
           </Section>
 
-          <Section title={language === 'en' ? 'Template Engine' : 'டெம்ப்ளேட் அமைப்பு'} subtitle={language === 'en' ? 'Choose the default invoice layout and field visibility.' : 'Default layout மற்றும் எந்த field காட்டவேண்டும் என்பதை தேர்வு செய்யவும்.'}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              {INVOICE_TEMPLATES.map((templateOption) => {
-                const isActive = state.settings.defaultTemplate === templateOption.id;
-                return (
-                  <button key={templateOption.id} type="button" onClick={() => selectTemplate(templateOption.id)} className={`rounded-2xl border p-4 text-left ${isActive ? 'border-emerald-500 bg-emerald-50' : 'border-stone-200 bg-white'}`}>
-                    <div className="font-semibold text-stone-800">{templateOption.title}</div>
-                    <div className="text-xs text-stone-500 mt-1">{templateOption.tamil}</div>
-                  </button>
-                );
-              })}
-            </div>
-
+          <Section title={language === 'en' ? 'Tax Invoice fields' : 'வரி பில் விவரங்கள்'} subtitle={language === 'en' ? 'BillEase uses one consistent Tax Invoice layout.' : 'BillEase ஒரே Tax Invoice layout-ஐ பயன்படுத்துகிறது.'}>
             <div className="mt-4 grid grid-cols-1 gap-3">
               <Toggle checked={visibility.logo} onChange={(value) => updateTemplateVisibility('logo', value)} label="Logo" tamil="லோகோ" />
               <Toggle checked={visibility.gstNumber} onChange={(value) => updateTemplateVisibility('gstNumber', value)} label={t('gstNumber')} tamil="GST எண்" />
@@ -487,7 +496,7 @@ export default function Settings() {
               {qrPreview ? <img src={qrPreview} alt="qr preview" className="mx-auto h-20 w-20 rounded-xl border border-stone-200 bg-white object-contain p-1" /> : null}
               <div className="text-center">
                 <div className="font-bold text-stone-800">{state.profile.name || 'Your Business'}</div>
-                <div className="text-xs text-stone-500">{selectedTemplateName?.title || state.settings.defaultTemplate}</div>
+                <div className="text-xs text-stone-500">Tax Invoice</div>
               </div>
               <div className="rounded-2xl border border-dashed border-stone-300 bg-white p-3 text-xs text-stone-500">
                 {language === 'en' ? 'This screen updates the billing defaults immediately.' : 'இந்த screen billing defaults-ஐ உடனே மாற்றும்.'}
