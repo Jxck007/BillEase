@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Search, FileText, Trash2, Edit } from 'lucide-react';
+import { ArrowLeft, Plus, FileText, Trash2, Edit, Eye } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
@@ -11,18 +11,13 @@ import { useToast } from '../context/ToastContext';
 export default function Invoices() {
   const { state, deleteInvoice } = useData();
   const { t, language } = useLanguage();
-  const [searchTerm, setSearchTerm] = useState('');
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const { showToast } = useToast();
   const navigate = useNavigate();
 
   const invoices = state.invoices.filter(i => i.type !== 'estimate');
 
-  const filteredInvoices = invoices.filter(i => {
-    const customer = state.customers.find(c => c.id === i.customerId);
-    return i.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (customer && customer.name.toLowerCase().includes(searchTerm.toLowerCase()));
-  });
+  const filteredInvoices = invoices;
 
   return (
     <div className="space-y-6">
@@ -41,22 +36,37 @@ export default function Invoices() {
       </div>
 
       <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
-        <div className="p-4 border-b">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
-            <input 
-              type="text" 
-              placeholder={t('search')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-            />
-          </div>
-        </div>
-
         {filteredInvoices.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[550px] md:min-w-[700px] text-left text-sm">
+          <>
+            <div className="divide-y divide-stone-100 sm:hidden">
+              {filteredInvoices.map((invoice) => {
+                const customer = state.customers.find((entry) => entry.id === invoice.customerId);
+                return (
+                  <article key={invoice.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-bold text-stone-900">#{invoice.invoiceNumber}</p>
+                        <p className="mt-1 truncate text-sm font-medium text-stone-700">{customer?.name || 'Unknown customer'}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+                        invoice.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
+                        invoice.status === 'partial' ? 'bg-amber-100 text-amber-700' :
+                        'bg-rose-100 text-rose-700'
+                      }`}>{t(invoice.status)}</span>
+                    </div>
+                    <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                      <div><dt className="text-xs text-stone-500">{t('date')}</dt><dd className="mt-1 font-medium text-stone-800">{format(new Date(invoice.date), 'dd MMM yyyy')}</dd></div>
+                      <div className="text-right"><dt className="text-xs text-stone-500">{t('total')}</dt><dd className="mt-1 font-bold text-stone-900">{formatCurrency(invoice.total)}</dd></div>
+                    </dl>
+                    <button type="button" onClick={() => navigate(`/invoices/${invoice.id}`)} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">
+                      <Eye size={18} />Open invoice
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto sm:block">
+            <table className="w-full min-w-[700px] text-left text-sm">
               <thead className="bg-stone-50 text-stone-600 border-b border-stone-200">
                 <tr>
                   <th className="px-6 py-3 font-bold uppercase tracking-wider text-xs">{t('invoiceNumber')}</th>
@@ -97,7 +107,8 @@ export default function Invoices() {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         ) : (
           <div className="text-center py-16 px-4">
             <div className="bg-stone-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600 border border-emerald-100">

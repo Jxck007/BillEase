@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { InvoiceItem, Product, TaxMode } from '../../lib/types';
-import { Trash2 } from 'lucide-react';
+import { Minus, Plus, Trash2 } from 'lucide-react';
 import { formatCurrency, roundMoney } from '../../lib/utils';
 
 interface Props {
@@ -52,8 +52,8 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
   if (isEstimate) {
     return (
       <div className="group relative w-full overflow-hidden rounded-2xl border border-stone-200 bg-white p-3 shadow-sm transition-all duration-200 hover:border-emerald-200 hover:shadow-md md:p-4">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-2">
-          <div className="relative min-w-0 md:col-span-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 min-[1180px]:grid-cols-12 min-[1180px]:gap-2">
+          <div className="relative min-w-0 md:col-span-2 min-[1180px]:col-span-3">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Description</div>
             <div className="relative">
               <input
@@ -61,7 +61,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
                 onFocus={() => { onFocus(); }}
                 onChange={(e) => { setQuery(e.target.value); onChange({ name: e.target.value, description: e.target.value }); }}
                 placeholder="Enter description"
-                className="h-11 w-full min-w-0 rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm font-medium text-stone-800 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
+                className="min-h-12 w-full min-w-0 rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm font-medium text-stone-800 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
               />
             </div>
             {isActive && matches.length > 0 && (
@@ -76,43 +76,43 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
             )}
           </div>
 
-          <div className="min-w-0 md:col-span-2">
+          <div className="min-w-0 min-[1180px]:col-span-2">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">HSN/SAC</div>
             <input
               value={item.hsnSac || ''}
               onChange={(e) => onChange({ hsnSac: e.target.value })}
               placeholder="HSN/SAC"
-              className="h-11 w-full rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
+              className="min-h-12 w-full rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
             />
           </div>
 
-          <div className="min-w-0 md:col-span-1">
+          <div className="min-w-0 min-[1180px]:col-span-1">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Unit</div>
             <input
               value={item.unit || 'Nos'}
               onChange={(e) => onChange({ unit: e.target.value })}
               placeholder="Nos"
-              className="h-11 w-full rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
+              className="min-h-12 w-full rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
             />
           </div>
 
-          <div className="min-w-0 md:col-span-2">
+          <div className="min-w-0 min-[1180px]:col-span-2">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Quantity</div>
-            <div className="flex h-11 items-center rounded-xl bg-stone-50 px-2 py-1">
-              <button type="button" onClick={() => handleQty(-1)} aria-label="Decrease quantity" className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold text-stone-600 transition-colors hover:bg-white hover:text-stone-900">-</button>
+            <div className="flex min-h-12 items-center rounded-xl bg-stone-50">
+              <button type="button" onClick={() => handleQty(-1)} aria-label="Decrease quantity" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-stone-600 hover:bg-white"><Minus size={17} /></button>
               <input
                 value={String(item.quantity)}
                 onChange={(e) => onChange({ quantity: Math.max(0, Number(e.target.value) || 0) })}
-                className="h-8 w-full min-w-0 border-0 bg-transparent text-center text-sm font-semibold text-stone-800 outline-none"
+                className="h-12 w-full min-w-0 border-0 bg-transparent text-center text-sm font-semibold text-stone-800 outline-none"
                 inputMode="numeric"
               />
-              <button type="button" onClick={() => handleQty(1)} aria-label="Increase quantity" className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold text-stone-600 transition-colors hover:bg-white hover:text-stone-900">+</button>
+              <button type="button" onClick={() => handleQty(1)} aria-label="Increase quantity" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-stone-600 hover:bg-white"><Plus size={17} /></button>
             </div>
           </div>
 
-          <div className="min-w-0 md:col-span-2">
+          <div className="min-w-0 min-[1180px]:col-span-2">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Price</div>
-            <div className="flex h-11 items-center rounded-xl bg-stone-50 px-3 py-1">
+            <div className="flex min-h-12 items-center rounded-xl bg-stone-50 px-3">
               <span className="mr-2 shrink-0 text-sm text-stone-400">₹</span>
               <input
                 value={Number(item.price) ? String(item.price) : ''}
@@ -124,9 +124,9 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
             </div>
           </div>
 
-          <div className="min-w-0 md:col-span-1">
+          <div className="min-w-0 min-[1180px]:col-span-1">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">GST %</div>
-            <div className="flex h-11 items-center rounded-xl bg-stone-50 px-3 py-1">
+            <div className="flex min-h-12 items-center rounded-xl bg-stone-50 px-3">
               <input
                 value={String(item.taxRate || 0)}
                 onChange={(e) => onChange({ taxRate: Number(e.target.value) || 0 })}
@@ -137,9 +137,9 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
             </div>
           </div>
 
-          <div className="min-w-0 md:col-span-1">
+          <div className="min-w-0 min-[1180px]:col-span-1">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Amount</div>
-            <div className="flex h-11 items-center justify-between rounded-xl bg-stone-50 px-3 py-2">
+            <div className="flex min-h-12 items-center justify-between rounded-xl bg-stone-50 px-3 py-2">
               <div className="text-sm font-bold text-stone-900">{formatCurrency(lineTotal)}</div>
               <button type="button" onClick={onRemove} aria-label="Delete item" className="opacity-70 transition-all duration-200 hover:text-rose-600 md:opacity-100 p-2 -mr-2 text-stone-500 hover:bg-stone-100 rounded-lg flex items-center justify-center">
                 <Trash2 size={16} />
@@ -153,8 +153,8 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
 
   return (
     <div className="group relative w-full overflow-hidden rounded-2xl border border-stone-200 bg-white p-3 shadow-sm transition-all duration-200 hover:border-emerald-200 hover:shadow-md md:p-4">
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-3">
-        <div className="relative min-w-0 md:col-span-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 min-[1180px]:grid-cols-12 min-[1180px]:gap-3">
+        <div className="relative min-w-0 md:col-span-2 min-[1180px]:col-span-4">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Product</div>
           <div className="relative">
             <input
@@ -162,7 +162,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
               onFocus={() => { onFocus(); }}
               onChange={(e) => { setQuery(e.target.value); onChange({ name: e.target.value }); }}
               placeholder="Search product or enter name"
-              className="h-11 w-full min-w-0 rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm font-medium text-stone-800 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
+              className="min-h-12 w-full min-w-0 rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm font-medium text-stone-800 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
             />
           </div>
 
@@ -178,23 +178,23 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
           )}
         </div>
 
-        <div className="min-w-0 md:col-span-2">
+        <div className="min-w-0 min-[1180px]:col-span-2">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Qty</div>
-          <div className="flex h-11 items-center rounded-xl bg-stone-50 px-2 py-1">
-            <button type="button" onClick={() => handleQty(-1)} aria-label="Decrease quantity" className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold text-stone-600 transition-colors hover:bg-white hover:text-stone-900">-</button>
+          <div className="flex min-h-12 items-center rounded-xl bg-stone-50">
+            <button type="button" onClick={() => handleQty(-1)} aria-label="Decrease quantity" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-stone-600 hover:bg-white"><Minus size={17} /></button>
             <input
               value={String(item.quantity)}
               onChange={(e) => onChange({ quantity: Math.max(0, Number(e.target.value) || 0) })}
-              className="h-8 w-full min-w-0 border-0 bg-transparent text-center text-sm font-semibold text-stone-800 outline-none"
+              className="h-12 w-full min-w-0 border-0 bg-transparent text-center text-sm font-semibold text-stone-800 outline-none"
               inputMode="numeric"
             />
-            <button type="button" onClick={() => handleQty(1)} aria-label="Increase quantity" className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold text-stone-600 transition-colors hover:bg-white hover:text-stone-900">+</button>
+            <button type="button" onClick={() => handleQty(1)} aria-label="Increase quantity" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-stone-600 hover:bg-white"><Plus size={17} /></button>
           </div>
         </div>
 
-        <div className="min-w-0 md:col-span-2">
+        <div className="min-w-0 min-[1180px]:col-span-2">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Unit Price</div>
-          <div className="flex h-11 items-center rounded-xl bg-stone-50 px-3 py-1">
+          <div className="flex min-h-12 items-center rounded-xl bg-stone-50 px-3">
             <span className="mr-2 shrink-0 text-sm text-stone-400">₹</span>
             <input
               value={Number(item.price) ? String(item.price) : ''}
@@ -206,9 +206,9 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
           </div>
         </div>
 
-        <div className="min-w-0 md:col-span-1">
+        <div className="min-w-0 min-[1180px]:col-span-1">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">GST</div>
-          <div className="flex h-11 items-center rounded-xl bg-stone-50 px-3 py-1">
+          <div className="flex min-h-12 items-center rounded-xl bg-stone-50 px-3">
             <input
               value={String(item.taxRate || 0)}
               onChange={(e) => onChange({ taxRate: Number(e.target.value) || 0 })}
@@ -219,9 +219,9 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
           </div>
         </div>
 
-        <div className="min-w-0 md:col-span-1">
+        <div className="min-w-0 min-[1180px]:col-span-1">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Disc</div>
-          <div className="flex h-11 items-center rounded-xl bg-stone-50 px-3 py-1">
+          <div className="flex min-h-12 items-center rounded-xl bg-stone-50 px-3">
             <input
               value={String(item.discount || 0)}
               onChange={(e) => onChange({ discount: Number(e.target.value) || 0 })}
@@ -232,9 +232,9 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
           </div>
         </div>
 
-        <div className="min-w-0 md:col-span-2">
+        <div className="min-w-0 min-[1180px]:col-span-2">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Total</div>
-          <div className="flex h-11 items-center justify-between rounded-xl bg-stone-50 px-3 py-2">
+          <div className="flex min-h-12 items-center justify-between rounded-xl bg-stone-50 px-3 py-2">
             <div className="min-w-0">
               <div className="text-sm font-bold text-stone-900">{formatCurrency(lineTotal)}</div>
             </div>
@@ -244,7 +244,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
           </div>
         </div>
 
-        <div className="md:col-span-12">
+        <div className="md:col-span-2 min-[1180px]:col-span-12">
           <button type="button" onClick={() => setExpanded((value) => !value)} className="text-xs font-medium text-stone-500 hover:text-stone-700">
             {expanded ? 'Hide details' : 'Details'}
           </button>
@@ -255,7 +255,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
                 value={item.hsnSac || ''}
                 onChange={(e) => onChange({ hsnSac: e.target.value })}
                 placeholder="Enter HSN or SAC code"
-                className="mt-1 h-11 w-full rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
+                className="mt-1 min-h-12 w-full rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
               />
             </div>
             <div>
@@ -264,7 +264,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
                 value={item.description || ''}
                 onChange={(e) => onChange({ description: e.target.value })}
                 placeholder="Optional description"
-                className="mt-1 h-11 w-full rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
+                className="mt-1 min-h-12 w-full rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
               />
             </div>
           </div>

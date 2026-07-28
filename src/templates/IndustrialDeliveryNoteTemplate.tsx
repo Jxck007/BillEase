@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import AuthorizedSignatureImage from '../components/documents/AuthorizedSignatureImage';
+import InvoiceAuthorizationAssets from '../components/documents/InvoiceAuthorizationAssets';
 import { BusinessProfile, Customer, DeliveryNote } from '../lib/types';
 import { formatDeliveryNoteCopyTypeDisplay, getCustomerGstin, normalizeTransportPurpose } from '../lib/deliveryNoteUtils';
 
@@ -161,9 +161,8 @@ export default function IndustrialDeliveryNoteTemplate({ note, profile, customer
             <div className="mt-8 text-[11px]">Name and Signature of the person to whom goods are delivered</div>
           </div>
           <div className="min-h-24 p-3 text-right">
-            <div className="text-[12px] font-black">Authorized Signatory</div>
-            <AuthorizedSignatureImage enabled documentType="deliveryNote" className="ml-auto mt-2 h-12 max-w-36" />
-            <div className="mt-8 text-[11px]">For {company.name}</div>
+            <div className="text-[12px] font-black">For {company.name}</div>
+            <InvoiceAuthorizationAssets documentType="deliveryNote" />
           </div>
         </div>
       </div>

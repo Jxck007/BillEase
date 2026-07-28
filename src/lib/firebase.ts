@@ -107,22 +107,57 @@ export function firebaseEnabled() {
   return enabled && !!db;
 }
 
-export type VisualAssetName = 'signature';
+export type VisualAssetName = 'signature' | 'seal';
+export const DEFAULT_VISUAL_ASSETS: Record<VisualAssetName, string> = {
+  signature: '/assets/company-signature.png',
+  seal: '/assets/company-seal.png',
+};
+
 export async function saveVisualAsset(name: VisualAssetName, dataUrl: string) {
   if (!db) throw new Error('Firebase not enabled');
-  await setDoc(doc(db as any, 'billeaseAssets', name), { dataUrl, updatedAt: new Date().toISOString() });
+  await setDoc(doc(db as any, 'billeaseAssets', name), {
+    dataUrl,
+    removed: false,
+    useDefault: false,
+    updatedAt: new Date().toISOString(),
+  });
 }
 export async function removeVisualAsset(name: VisualAssetName) {
   if (!db) throw new Error('Firebase not enabled');
-  await deleteDoc(doc(db as any, 'billeaseAssets', name));
+  await setDoc(doc(db as any, 'billeaseAssets', name), {
+    dataUrl: '',
+    removed: true,
+    useDefault: false,
+    updatedAt: new Date().toISOString(),
+  });
+}
+export async function restoreDefaultVisualAsset(name: VisualAssetName) {
+  if (!db) throw new Error('Firebase not enabled');
+  await setDoc(doc(db as any, 'billeaseAssets', name), {
+    dataUrl: '',
+    removed: false,
+    useDefault: true,
+    updatedAt: new Date().toISOString(),
+  });
 }
 export function useVisualAsset(name: VisualAssetName) {
-  const [dataUrl, setDataUrl] = useState('');
+  const [dataUrl, setDataUrl] = useState(DEFAULT_VISUAL_ASSETS[name]);
   useEffect(() => {
+    setDataUrl(DEFAULT_VISUAL_ASSETS[name]);
     if (!db) return;
     let active = true;
     getDoc(doc(db as any, 'billeaseAssets', name)).then((snapshot) => {
-      if (active && snapshot.exists()) setDataUrl(String(snapshot.data()?.dataUrl || ''));
+      if (!active) return;
+      if (!snapshot.exists()) {
+        setDataUrl(DEFAULT_VISUAL_ASSETS[name]);
+        return;
+      }
+      const asset = snapshot.data();
+      if (asset?.removed === true) {
+        setDataUrl('');
+      } else {
+        setDataUrl(String(asset?.dataUrl || DEFAULT_VISUAL_ASSETS[name]));
+      }
     }).catch(() => undefined);
     return () => { active = false; };
   }, [name]);

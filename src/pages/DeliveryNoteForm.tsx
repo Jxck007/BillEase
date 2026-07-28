@@ -29,6 +29,7 @@ export default function DeliveryNoteForm() {
   const { language } = useLanguage();
   const { showToast } = useToast();
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(1);
 
   const existingNote = state.deliveryNotes.find((note) => note.id === id);
 
@@ -177,14 +178,14 @@ export default function DeliveryNoteForm() {
   const displayCopyType = normalizeDeliveryNoteCopyType(String(formData.copyType || 'Original for Consignee'));
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-12">
+    <div className="document-form mx-auto max-w-6xl space-y-6 pb-48 sm:pb-12">
       <div className="flex items-center gap-3 border-b border-stone-200 pb-4">
         <button
           type="button"
           onClick={() => setLeaveTarget('/delivery-notes')}
           title={language === 'en' ? 'Back to delivery notes' : 'டெலிவரி நோட்ஸ்க்கு திரும்பு'}
           aria-label={language === 'en' ? 'Back to delivery notes' : 'டெலிவரி நோட்ஸ்க்கு திரும்பு'}
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2 shadow-sm"
+          className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2 shadow-sm"
         >
           <ArrowLeft size={22} className="text-stone-600" />
           <span className="text-sm font-semibold text-stone-700">{language === 'en' ? 'Back to Delivery Notes' : 'டெலிவரி நோட்ஸ்'}</span>
@@ -197,16 +198,11 @@ export default function DeliveryNoteForm() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-800">
-        <span>1. Customer</span>
-        <span className="text-emerald-300">→</span>
-        <span>2. Document details</span>
-        <span className="text-emerald-300">→</span>
-        <span>3. Items</span>
-        <span className="text-emerald-300">→</span>
-        <span>4. Review</span>
-        <span className="text-emerald-300">→</span>
-        <span>5. Preview and Share</span>
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
+        <div className="text-sm font-bold">Step {currentStep} of 5 — {['Customer', 'Document details', 'Items', 'Review', 'Preview and Share'][currentStep - 1]}</div>
+        <div className="mt-2 grid grid-cols-5 gap-1" aria-hidden="true">
+          {[1, 2, 3, 4, 5].map((step) => <span key={step} className={`h-1.5 rounded-full ${step <= currentStep ? 'bg-emerald-600' : 'bg-emerald-200'}`} />)}
+        </div>
       </div>
 
       <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
@@ -238,7 +234,7 @@ export default function DeliveryNoteForm() {
       </div>
 
       <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="block text-sm font-semibold text-stone-700">{language === 'en' ? 'Delivery Note Number' : 'டெலிவரி நோட் எண்'}</label>
             <input
@@ -319,12 +315,12 @@ export default function DeliveryNoteForm() {
           </button>
         </div>
 
-        <div className="mt-5 space-y-4">
+        <div className="mt-5 space-y-4" onFocus={() => setCurrentStep(3)}>
           {(formData.items || []).map((item, index) => {
             const normalizedItem = normalizeDeliveryNoteItem(item as Partial<DeliveryNoteItem>);
             return (
               <div key={normalizedItem.id || index} className="rounded-2xl border border-stone-200 p-4">
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[2fr_160px_140px_120px_2fr_auto]">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 min-[1180px]:grid-cols-[2fr_150px_130px_120px_2fr_auto]">
                   <div>
                     <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-stone-600">{language === 'en' ? 'Description of Goods' : 'பொருள் விளக்கம்'}</label>
                     <input
@@ -475,7 +471,7 @@ export default function DeliveryNoteForm() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="hidden flex-wrap gap-3 sm:flex">
         <button
           type="button"
           onClick={() => setLeaveTarget('/delivery-notes')}
@@ -492,6 +488,17 @@ export default function DeliveryNoteForm() {
         >
           <Save size={18} /> Save and Finish
         </button>
+      </div>
+      <div className="fixed inset-x-0 z-30 border-t border-stone-200 bg-white px-3 py-2 shadow-[0_-3px_12px_rgba(28,25,23,0.08)] sm:hidden print:hidden bottom-[calc(72px+env(safe-area-inset-bottom))]">
+        <div className="mb-2 flex items-center justify-between px-1 text-sm">
+          <span className="font-medium text-stone-600">Approximate total</span>
+          <span className="font-black text-emerald-700">{formatCurrency(Number(formData.approximateValue || 0))}</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <button type="button" onClick={() => setLeaveTarget('/delivery-notes')} className="min-h-12 rounded-xl border border-stone-200 font-semibold text-stone-700">Back</button>
+          <button type="button" onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 font-semibold text-white">Save</button>
+          <button type="button" onClick={() => { setCurrentStep(5); id ? navigate(`/delivery-notes/${id}`) : showToast('Save the document first to open its full preview.', 'info'); }} className="min-h-12 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">Preview</button>
+        </div>
       </div>
       <ConfirmDialog open={Boolean(leaveTarget)} title="Leave this delivery note?" message="Your latest changes may only be saved locally. Continue?" confirmLabel="Leave" onCancel={() => setLeaveTarget(null)} onConfirm={() => { const target = leaveTarget; setLeaveTarget(null); if (target) navigate(target); }} />
     </div>

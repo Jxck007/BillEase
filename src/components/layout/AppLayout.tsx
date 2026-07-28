@@ -3,6 +3,8 @@ import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import FloatingHelp from './FloatingHelp';
 import { useData } from '../../context/DataContext';
+import MobileBottomNavigation from './MobileBottomNavigation';
+import { useCallback, useState } from 'react';
 
 function SyncStatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -28,10 +30,13 @@ function SyncStatusBadge({ status }: { status: string }) {
 
 export default function AppLayout() {
   const { firebaseStatus, syncStatus, lastSavedAt } = useData();
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const openMobileDrawer = useCallback(() => setMobileDrawerOpen(true), []);
+  const closeMobileDrawer = useCallback(() => setMobileDrawerOpen(false), []);
 
   return (
     <div className="flex min-h-dvh flex-col bg-stone-50 text-stone-800 font-sans lg:flex-row">
-      <Sidebar />
+      <Sidebar mobileOpen={mobileDrawerOpen} onOpenMobile={openMobileDrawer} onCloseMobile={closeMobileDrawer} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:h-screen lg:overflow-hidden">
         <Navbar />
         <SyncStatusBadge status={syncStatus} />
@@ -45,11 +50,12 @@ export default function AppLayout() {
             Firebase not connected. Running in local mode.
           </div>
         )}
-          <main className="mx-auto w-full max-w-7xl flex-1 overflow-x-hidden p-4 pb-10 sm:p-5 md:p-6 lg:overflow-y-auto lg:p-8">
+          <main className="mx-auto w-full max-w-7xl flex-1 overflow-x-hidden p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:p-5 sm:pb-[calc(7rem+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(7rem+env(safe-area-inset-bottom))] lg:overflow-y-auto lg:p-8">
           <Outlet />
         </main>
       </div>
       <FloatingHelp />
+      <MobileBottomNavigation onOpenMore={openMobileDrawer} />
     </div>
   );
 }

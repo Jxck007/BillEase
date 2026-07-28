@@ -25,6 +25,7 @@ export function getDefaultSettings(profile: BusinessProfile): AppSettings {
     estimateDocumentLabel: 'estimate',
     integrations: { serverEmail: true, pinLookup: true, authorizedSignature: true, gstVerification: false, barcodeScanner: false, ocrImport: false, aiQuickActions: false },
     signatureVisibility: { invoice: true, quotation: true, deliveryNote: false },
+    sealVisibility: { invoice: true, quotation: true, deliveryNote: true },
     emailCcBusiness: false,
   };
 }

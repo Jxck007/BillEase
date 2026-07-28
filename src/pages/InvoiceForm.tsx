@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, ChevronUp, Copy, Eye, Plus, Save, Sparkles } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import { useData } from '../context/DataContext';
@@ -94,6 +94,7 @@ export default function InvoiceForm() {
   const [customerSearch, setCustomerSearch] = useState('');
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(true);
+  const [currentStep, setCurrentStep] = useState(1);
   const [customerDraft, setCustomerDraft] = useState({ name: '', phone: '', email: '', address: '', gstNumber: '', stateCode: '' });
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null);
 
@@ -255,18 +256,13 @@ export default function InvoiceForm() {
   const activeProductMatches = activeItemId ? productMatches(activeProductQuery) : [];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="mx-auto max-w-6xl space-y-6 pb-48 sm:pb-12">
       {/* Step indicator for older users */}
-      <div className="flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-2 text-xs font-medium text-emerald-800 print:hidden overflow-x-auto">
-        <span className="shrink-0 whitespace-nowrap">1. Customer</span>
-        <span className="shrink-0 text-emerald-300">→</span>
-        <span className="shrink-0 whitespace-nowrap">2. Document details</span>
-        <span className="shrink-0 text-emerald-300">→</span>
-        <span className="shrink-0 whitespace-nowrap">3. Items</span>
-        <span className="shrink-0 text-emerald-300">→</span>
-        <span className="shrink-0 whitespace-nowrap">4. Review</span>
-        <span className="shrink-0 text-emerald-300">→</span>
-        <span className="shrink-0 whitespace-nowrap">5. Preview and Share</span>
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 print:hidden">
+        <div className="text-sm font-bold">Step {currentStep} of 5 — {['Customer', 'Document details', 'Items', 'Review', 'Preview and Share'][currentStep - 1]}</div>
+        <div className="mt-2 grid grid-cols-5 gap-1" aria-hidden="true">
+          {[1, 2, 3, 4, 5].map((step) => <span key={step} className={`h-1.5 rounded-full ${step <= currentStep ? 'bg-emerald-600' : 'bg-emerald-200'}`} />)}
+        </div>
       </div>
 
       <div className="flex items-start gap-3 border-b border-stone-200 pb-4">
@@ -281,11 +277,13 @@ export default function InvoiceForm() {
           </div>
           <p className="mt-1 text-sm text-stone-500">{language === 'en' ? 'Mobile-first GST invoice wizard with draft autosave' : 'Draft autosave உடன் mobile-first GST wizard'}</p>
         </div>
-      </div>          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
+      </div>
+      <div className="grid grid-cols-1 items-start gap-6 min-[1180px]:grid-cols-[minmax(0,1fr)_280px]">
         <section className="space-y-6">
           <div className="rounded-3xl border bg-white p-4 md:p-6 shadow-sm space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div>
+            <details open className="form-section">
+              <summary onClick={() => setCurrentStep(1)}>1. Customer</summary>
+              <div className="pt-4">
                 <Label english={t('customerName')} tamil="வாடிக்கையாளர் பெயர்" helper={language === 'en' ? 'Search or create a customer quickly.' : 'வாடிக்கையாளரை தேடவும் அல்லது புதிதாக சேர்க்கவும்.'} />
                 <div className="relative">
                   <input value={customerSearch} onChange={(event) => { setCustomerSearch(event.target.value); const match = state.customers.find((customer) => customer.name.toLowerCase() === event.target.value.trim().toLowerCase()); updateDraft({ customerId: match?.id || '' }); }} placeholder={language === 'en' ? 'Type name or phone' : 'பெயர் அல்லது போன்'} className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
@@ -303,8 +301,11 @@ export default function InvoiceForm() {
                 </div>
                 {selectedCustomer && <div className="mt-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-stone-700">{selectedCustomer.name}{selectedCustomer.gstNumber ? ` • ${selectedCustomer.gstNumber}` : ''}{selectedCustomer.stateCode ? ` • ${selectedCustomer.stateCode}` : ''}</div>}
               </div>
+            </details>
 
-              <div className={`grid grid-cols-1 gap-4 ${isEstimate ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2'}`}>
+            <details open className="form-section">
+              <summary onClick={() => setCurrentStep(2)}>2. Document details</summary>
+              <div className="grid grid-cols-1 gap-4 pt-4 md:grid-cols-2">
                 <div>
                   <Label english={isEstimate ? getEstimateNumberLabel(state.settings) : t('invoiceNumber')} tamil="பில் எண்" />
                   <input value={draft.invoiceNumber || ''} onChange={(event) => updateDraft({ invoiceNumber: event.target.value.toUpperCase() })} placeholder={isEstimate ? getEstimateNumberLabel(state.settings) : (language === 'en' ? 'Invoice number' : 'பில் எண்')} title={isEstimate ? getEstimateNumberLabel(state.settings) : (language === 'en' ? 'Invoice number' : 'பில் எண்')} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold uppercase outline-none focus:ring-2 focus:ring-emerald-500" />
@@ -345,7 +346,7 @@ export default function InvoiceForm() {
                   </>
                 ) : null}
               </div>
-            </div>
+            </details>
 
             {isEstimate ? (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -355,7 +356,9 @@ export default function InvoiceForm() {
               </div>
             ) : null}
 
-            <div className="relative">
+            <details open className="form-section">
+              <summary onClick={() => setCurrentStep(3)}>3. Items</summary>
+              <div className="relative pt-4">
               {state.products.length > 0 && (
                 <div className="mb-4">
                   <p className="mb-2 text-xs font-bold uppercase tracking-wide text-stone-500">Recent products</p>
@@ -390,10 +393,11 @@ export default function InvoiceForm() {
                   />
                 ))}
               </div>
-            </div>
+              </div>
+            </details>
 
-            <button type="button" onClick={() => setIsAdvancedOpen((current) => !current)} className="flex w-full items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 font-semibold text-stone-800">
-              <span>{language === 'en' ? 'Advanced options' : 'மேம்பட்ட விருப்பங்கள்'}</span>
+            <button type="button" onClick={() => { setCurrentStep(4); setIsAdvancedOpen((current) => !current); }} className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 font-semibold text-stone-800">
+              <span>{language === 'en' ? '4. Review & advanced options' : '4. Review & advanced options'}</span>
               {isAdvancedOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
             </button>
 
@@ -492,9 +496,13 @@ export default function InvoiceForm() {
           </div>
         </section>
 
-        <aside className="space-y-4 xl:sticky xl:top-24">
-          <div className="rounded-3xl border bg-white p-5 shadow-sm space-y-3">
-            <div className="flex items-center gap-2 text-stone-800 font-bold"><Sparkles size={18} className="text-emerald-600" />{language === 'en' ? 'Live Summary' : 'Live சுருக்கம்'}</div>
+        <aside className="space-y-4 min-[1180px]:sticky min-[1180px]:top-24">
+          <details open className="rounded-3xl border bg-white p-5 shadow-sm">
+            <summary className="flex min-h-12 cursor-pointer items-center gap-2 font-bold text-stone-800 min-[1180px]:hidden">
+              <Sparkles size={18} className="text-emerald-600" />{language === 'en' ? 'Live Summary' : 'Live சுருக்கம்'}
+            </summary>
+            <div className="space-y-3">
+            <div className="hidden items-center gap-2 text-stone-800 font-bold min-[1180px]:flex"><Sparkles size={18} className="text-emerald-600" />{language === 'en' ? 'Live Summary' : 'Live சுருக்கம்'}</div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span>{t('subtotal')}</span><span>{formatCurrency(viewDraft.subtotal || 0)}</span></div>
               <div className="flex justify-between"><span>{t('taxableAmount')}</span><span>{formatCurrency(viewDraft.taxableAmount || 0)}</span></div>
@@ -509,27 +517,21 @@ export default function InvoiceForm() {
                 <span className="text-2xl font-black text-emerald-600">{formatCurrency(viewDraft.total || 0)}</span>
               </div>
               {!isEstimate && <div className="flex justify-between text-stone-500"><span>{t('balanceDue')}</span><span>{formatCurrency(Math.max(0, (viewDraft.total || 0) - (draft.amountPaid || 0)))}</span></div>}
+              <details className="border-t border-stone-100 pt-2">
+                <summary className="cursor-pointer font-semibold text-stone-700">GST check</summary>
+                <div className="mt-2 space-y-1 text-xs text-stone-500">
+                  <div>Business state: {state.settings.businessStateCode || state.profile.stateCode || '-'}</div>
+                  <div>Customer state: {selectedCustomer?.stateCode || getStateCodeFromGSTIN(selectedCustomer?.gstNumber) || '-'}</div>
+                  <div>GSTIN valid: {selectedCustomer?.gstNumber ? (validateGSTIN(selectedCustomer.gstNumber) ? 'Yes' : 'No') : '-'}</div>
+                </div>
+              </details>
             </div>
-          </div>
-
-          <div className="rounded-3xl border bg-white p-5 shadow-sm space-y-3">
-            <div className="font-bold text-stone-800">{language === 'en' ? 'GST check' : 'GST சரிபார்ப்பு'}</div>
-            <div className="space-y-2 text-sm text-stone-600">
-              <div>{language === 'en' ? 'Business state' : 'வணிக state'}: {state.settings.businessStateCode || state.profile.stateCode || '-'}</div>
-              <div>{language === 'en' ? 'Customer state' : 'வாடிக்கையாளர் state'}: {selectedCustomer?.stateCode || getStateCodeFromGSTIN(selectedCustomer?.gstNumber) || '-'}</div>
-              <div>{language === 'en' ? 'GSTIN valid' : 'GSTIN valid'}: {selectedCustomer?.gstNumber ? (validateGSTIN(selectedCustomer.gstNumber) ? (language === 'en' ? 'Yes' : 'ஆம்') : (language === 'en' ? 'No' : 'இல்லை')) : '-'}</div>
-              <div>{language === 'en' ? 'Document' : 'ஆவணம்'}: {isEstimate ? 'QUOTATION' : 'TAX INVOICE'}</div>
             </div>
-          </div>
-
-          <Link to={isEstimate ? '/estimates' : '/invoices'} className="block rounded-3xl border border-stone-200 bg-stone-50 p-5 text-sm text-stone-700 shadow-sm">
-            <div className="font-semibold text-stone-800 mb-1">{language === 'en' ? 'Need to review an existing bill?' : 'ஏற்கனவே உள்ள பில்லை பார்க்க?'}</div>
-            <div>{language === 'en' ? 'Open invoice list and duplicate or edit any bill.' : 'Invoice list-ஐ திறந்து duplicate அல்லது edit செய்யலாம்.'}</div>
-          </Link>
+          </details>
         </aside>
       </div>
 
-      <div className="border-t bg-white px-4 py-3 md:border-0 md:bg-transparent md:p-0">
+      <div className="hidden border-t bg-white px-4 py-3 sm:block sm:border-0 sm:bg-transparent sm:p-0">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
           <button type="button" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-5 py-3 font-semibold text-stone-700 shadow-sm">Back</button>
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -537,6 +539,18 @@ export default function InvoiceForm() {
             <button type="button" onClick={() => isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast('Save the document first to open its full preview.', 'info')} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800"><Eye size={18} /> Preview</button>
             <button type="button" onClick={handleSave} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-sm"><Save size={18} />Save and Finish</button>
           </div>
+        </div>
+      </div>
+
+      <div className="fixed inset-x-0 z-30 border-t border-stone-200 bg-white px-3 py-2 shadow-[0_-3px_12px_rgba(28,25,23,0.08)] sm:hidden print:hidden bottom-[calc(72px+env(safe-area-inset-bottom))]">
+        <div className="mb-2 flex items-center justify-between px-1 text-sm">
+          <span className="font-medium text-stone-600">Total</span>
+          <span className="font-black text-emerald-700">{formatCurrency(viewDraft.total || 0)}</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <button type="button" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="min-h-12 rounded-xl border border-stone-200 font-semibold text-stone-700">Back</button>
+          <button type="button" onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 font-semibold text-white">Save</button>
+          <button type="button" onClick={() => { setCurrentStep(5); isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast('Save the document first to open its full preview.', 'info'); }} className="min-h-12 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">Preview</button>
         </div>
       </div>
 

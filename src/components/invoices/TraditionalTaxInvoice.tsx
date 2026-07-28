@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { BusinessProfile, Customer, Invoice } from '../../lib/types';
 import { formatCurrency } from '../../lib/utils';
 import { withDefaultCustomerFieldVisibility } from '../../lib/invoiceCustomerFields';
-import AuthorizedSignatureImage from '../documents/AuthorizedSignatureImage';
+import InvoiceAuthorizationAssets from '../documents/InvoiceAuthorizationAssets';
 
 function numberToWordsIndian(num: number) {
   if (num === 0) return 'zero';
@@ -137,10 +137,9 @@ export function CanonicalInvoiceDocument({ invoice, profile, customer, showQr = 
             <div className="tv-sub">E. & O.E</div>
             <div className="amount-words-label">Amount chargeable (in words)</div>
             <div className="amount-words">{amountInWords}</div>
-            <div className="signature">
-              <div>For {seller.name.toUpperCase()}</div>
-              <AuthorizedSignatureImage enabled documentType="invoice" className="ml-auto mt-2 h-14 max-w-40" />
-              <div className="sig-space">{invoice.signatureName || 'Authorized Signatory'}</div>
+            <div className="signature authorization-block">
+              <div className="authorization-for">For {seller.name}</div>
+              <InvoiceAuthorizationAssets />
             </div>
           </div>
         </section>

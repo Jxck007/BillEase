@@ -9,6 +9,7 @@
 - **Invoice & Estimate Generation**: Create professional invoices and estimates, apply taxes (Inclusive/Exclusive), discounts, and automatically calculate line totals.
 - **Multiple Document Templates**: Choose between multiple modern invoice templates optimized for A4 print and digital sharing.
 - **Instant PDF & PNG Export**: Completely local, client-side generation of PDFs and PNGs using `html2canvas` and `jspdf`, ensuring your documents look crisp and accurate without server reliance.
+- **Secure document delivery**: Authenticated Vercel functions verify Firebase admins and send email through Resend, with a disabled backend scaffold ready for a separately hosted Evolution Go integration.
 - **Multi-Language Support**: Seamlessly toggle between English and Tamil.
 - **Fully Responsive**: Designed with Tailwind CSS for perfect rendering on desktop, tablet, and mobile devices.
 
@@ -35,7 +36,7 @@
    ```
 
 3. **Configure Environment Variables:**
-   Create a `.env` file in the root directory (see *Environment Variables* section below).
+   Create a `.env.local` file in the root directory (see *Environment Variables* section below).
 
 4. **Start the development server:**
    ```bash
@@ -49,7 +50,7 @@
 
 ## 🔐 Environment Variables
 
-Create a `.env` file at the root of your project and populate it with your Firebase configuration.
+Create a `.env.local` file at the root of your project and populate it with your Firebase configuration.
 
 ```env
 VITE_FIREBASE_API_KEY=your_api_key
@@ -61,6 +62,20 @@ VITE_FIREBASE_APP_ID=your_app_id
 ```
 
 > **Note:** BillEase has been streamlined to not require Firebase Storage for document generation. It relies solely on Firebase Auth and Firestore.
+
+Server delivery variables are listed in `.env.example`. They belong in Vercel only and must never use a `VITE_` prefix:
+
+```env
+FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON=
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=
+APP_URL=
+EVOLUTION_API_URL=
+EVOLUTION_API_KEY=
+EVOLUTION_INSTANCE_NAME=
+```
+
+Firebase web-app variables above are public client configuration. The Firebase Admin service account, Resend key, and Evolution credentials are server secrets.
 
 ## 🔥 Firebase Setup
 
@@ -78,9 +93,18 @@ BillEase is optimized for deployment on modern edge networks like **Vercel** or 
 
 ### Deploying to Vercel
 1. Install the Vercel CLI: `npm i -g vercel`
-2. Run `vercel` from the root directory.
-3. Ensure your Firebase environment variables are added to the Vercel dashboard.
-4. The included `vercel.json` ensures that Single Page Application (SPA) routing functions correctly by rewriting all paths to `index.html`.
+2. Test the functions locally with `npx vercel dev`.
+3. Add the Firebase client variables plus the server delivery variables from `.env.example` to the Vercel dashboard.
+4. Deploy production with `npx vercel --prod`.
+
+### Delivery deployment order
+
+1. Configure Firebase Admin JSON and Resend, deploy Vercel, and test email.
+2. Select an Evolution Go version, deploy it separately, pair its WhatsApp instance, and verify that version's API contract.
+3. After implementing the verified provider contract, add the Evolution API URL, key, and instance name to Vercel, then redeploy.
+4. Check integration health, send one test PDF, and only then enable WhatsApp for production.
+
+See [INTEGRATIONS.md](INTEGRATIONS.md) for endpoint contracts, limits, authentication, fallback behavior, and verification details.
 
 ## 📸 Screenshots
 

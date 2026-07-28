@@ -104,6 +104,7 @@ export interface Invoice {
   customerFieldVisibility?: CustomerFieldVisibility;
   qrCodeData?: string;
   createdAt: string;
+  updatedAt?: string;
   type: InvoiceType;
 }
 
@@ -198,6 +199,7 @@ export interface AppSettings {
     aiQuickActions: false;
   };
   signatureVisibility: { invoice: boolean; quotation: boolean; deliveryNote: boolean };
+  sealVisibility: { invoice: boolean; quotation: boolean; deliveryNote: boolean };
   emailCcBusiness: boolean;
 }
 
@@ -266,6 +268,7 @@ export interface DeliveryNote {
   remarks?: string;
   draft?: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface AppState {

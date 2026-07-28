@@ -7,6 +7,7 @@ import { normalizeCustomerRecord, normalizeDeliveryNote } from '../lib/deliveryN
 import { useAuth } from './AuthContext';
 import { doc, onSnapshot } from 'firebase/firestore';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import { invalidateDocumentPdf } from '../services/documentPdfCache';
 
 export type SyncStatus = 'loading' | 'online' | 'syncing' | 'offline' | 'failed';
 type SaveIndicator = 'saving' | 'saved' | 'offline' | 'failed';
@@ -281,9 +282,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const updateInvoice = (id: string, invoice: Partial<Invoice>) => {
+    invalidateDocumentPdf('invoice', id);
+    invalidateDocumentPdf('quotation', id);
     setState(s => ({
       ...s,
-      invoices: s.invoices.map(i => i.id === id ? { ...i, ...invoice } : i)
+      invoices: s.invoices.map(i => i.id === id ? { ...i, ...invoice, updatedAt: new Date().toISOString() } : i)
     }));
     addAuditLog(buildAuditLog('invoice', id, 'updated', `Updated invoice ${id}`));
   };
@@ -374,9 +377,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const updateDeliveryNote = (id: string, note: Partial<DeliveryNote>) => {
+    invalidateDocumentPdf('delivery-note', id);
     setState(s => ({
       ...s,
-      deliveryNotes: s.deliveryNotes.map(dn => dn.id === id ? normalizeDeliveryNote({ ...dn, ...note } as Partial<DeliveryNote> & Record<string, unknown>) : dn)
+      deliveryNotes: s.deliveryNotes.map(dn => dn.id === id ? normalizeDeliveryNote({ ...dn, ...note, updatedAt: new Date().toISOString() } as Partial<DeliveryNote> & Record<string, unknown>) : dn)
     }));
     addAuditLog(buildAuditLog('deliveryNote', id, 'updated', `Updated delivery note ${id}`));
   };

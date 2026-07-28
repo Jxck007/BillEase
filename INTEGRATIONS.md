@@ -1,32 +1,48 @@
-# BillEase server integrations
+# BillEase delivery integrations
 
-Configure all secret values in **Vercel Project Settings → Environment Variables**. Apply them to Production and the Preview environments used for testing. Never prefix server secrets with `VITE_`.
+All credentials are server-only Vercel environment variables. Never add a `VITE_` prefix to them and never place them in React code.
 
-## Required server variables
+## Authentication boundary
 
-- `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON` — complete Firebase Admin service-account JSON. It verifies Firebase ID tokens and checks the existing `admins/{uid}` authorization document.
-- `RESEND_API_KEY` — Resend server API key.
-- `RESEND_FROM_EMAIL` — a verified Resend sender, for example `billing@example.com`.
-- `POSTAL_LOOKUP_URL` — postal-provider URL template containing `{pin}`. Its response must expose India Post-style `PostOffice` entries or `results` containing locality, district, and state.
+Every API function verifies `Authorization: Bearer <Firebase ID token>` with Firebase Admin, then checks `admins/{uid}` for `active === true` and `role === "admin"`. A frontend UID or email is never accepted as identity.
 
-Server Email is configured only when both Resend variables are present. PIN lookup is configured only when `POSTAL_LOOKUP_URL` is present. The authenticated `/api/integrations/status` function controls whether the frontend exposes either integration.
+`FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON` contains the complete service-account JSON. Escaped newlines in `private_key` are normalized only in server code.
 
-## Email behavior
+`firebase-admin` is pinned to the latest compatible 13.x release. Version 14.2.0 installs CommonJS `jwks-rsa@4`, which loads ESM-only `jose@6` and crashes the selected Vercel Node runtime before the handler runs. The application does not import or perform authentication with `jwks-rsa`, `jose`, `jsonwebtoken`, or custom JWKS code.
 
-- `POST /api/email/send-document` requires a valid Firebase ID token and an active `role: "admin"` document.
-- The PDF limit is 3 MB after Base64 decoding so the Base64 JSON request remains below Vercel's request-body limit.
-- A Firestore delivery record stores only document ID, recipient, time, provider message ID, and delivery status.
-- The email body and PDF content are not written to Firestore or application logs.
-- A request idempotency key is reserved transactionally before Resend is called and is also sent to Resend.
+## Email
 
-## Deployment verification
+`POST /api/email/send-document` accepts the existing multipart form-data request used by the export panel. It also accepts an authenticated JSON compatibility payload containing `to`, `subject`, `message`, `fileName`, and `pdfBase64`. Both paths enforce a 3 MB decoded PDF limit, validate the PDF signature, reject header injection, and send through `RESEND_API_KEY` and `RESEND_FROM_EMAIL`.
 
-1. Deploy to a Vercel preview with the variables above.
-2. Sign in as an active BillEase admin.
-3. Confirm Settings reports Server Email and PIN Code Lookup as `Configured`.
-4. Open an invoice or quotation, confirm the customer email is prefilled, and send to a controlled recipient.
-5. Verify the received message contains the PDF attachment.
-6. Confirm a repeated click does not create a second delivery.
-7. Review Vercel and Resend delivery status without logging document content.
+Use `npx vercel dev` when testing `.env.local`; Vercel loads the same unprefixed variables used by Preview and Production. `APP_URL` is available for deployment-specific absolute URLs but is not exposed to React.
 
-GST verification, barcode scanning, OCR, AI quick actions, and automatic WhatsApp sending remain disabled.
+Delivery records contain only document ID, channel, recipient, status, timestamp, and provider message ID. A Firestore transaction reserves each idempotency key before sending. Resend also receives that key.
+
+## Evolution Go WhatsApp
+
+Evolution Go must run on a separate persistent server. BillEase currently includes an authenticated `POST /api/whatsapp/send-document` scaffold and the server-only configuration variables:
+
+- `EVOLUTION_API_URL`
+- `EVOLUTION_API_KEY`
+- `EVOLUTION_INSTANCE_NAME`
+
+The scaffold returns `503` and does not call Evolution Go. Provider availability also remains false, so the export panel keeps the existing PDF-download plus `wa.me` fallback active.
+
+Before enabling server-side WhatsApp delivery, select the deployed Evolution Go version and inspect that version's Swagger/API documentation. Only then add its verified document-upload and instance-health routes, request fields, response mapping, and session-state handling. The future provider call must use an `AbortController` timeout and must never expose the API key to browser code.
+
+## Status
+
+`GET /api/integrations/status` is authenticated. The response never contains credentials. The frontend caches it briefly and disables provider sends when a provider is absent or unavailable. Native Share, PDF download plus `wa.me`, and PDF download plus `mailto` stay available.
+
+## Deployment order
+
+1. Configure `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`, `RESEND_API_KEY`, and `RESEND_FROM_EMAIL` in Vercel.
+2. Deploy Vercel and test one controlled email with a PDF attachment.
+3. Select and deploy a specific Evolution Go version separately.
+4. Create and pair the WhatsApp instance.
+5. Inspect that deployment's API documentation for document sending, instance health, authentication, errors, and response shapes.
+6. Implement and test the verified contract in the Vercel provider.
+7. Copy the API URL, API key, and instance name into Vercel.
+8. Redeploy Vercel and confirm the instance reports connected.
+9. Send one controlled PDF to the selected customer.
+10. Enable WhatsApp for production use only after that test succeeds.

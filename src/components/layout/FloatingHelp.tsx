@@ -1,12 +1,12 @@
 import { useHelp } from '../../context/HelpContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { X, HelpCircle, Info, MessageSquareQuote, ShieldQuestion, FileText, Smartphone, CreditCard } from 'lucide-react';
+import { X, Info, MessageSquareQuote, ShieldQuestion, FileText, Smartphone, CreditCard } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 
 export default function FloatingHelp() {
-  const { isOpen, closeHelp, openHelp } = useHelp();
+  const { isOpen, closeHelp } = useHelp();
   const { language } = useLanguage();
   const location = useLocation();
   const reduceMotion = useMemo(
@@ -170,22 +170,6 @@ export default function FloatingHelp() {
 
   return (
     <>
-      <div className="print:hidden fixed bottom-4 right-4 z-30 hidden items-center gap-3 lg:flex">
-        {!isOpen && (
-          <div className="bg-white border border-emerald-100 px-4 py-2 rounded-2xl shadow-lg flex-col items-end hidden sm:flex">
-            <p className="text-[10px] font-bold text-emerald-600">{language === 'en' ? 'Need help?' : 'உதவி வேண்டுமா?'}</p>
-            <p className="text-[10px] text-stone-400">{language === 'en' ? 'Open the guide' : 'வழிகாட்டியைத் திறக்கவும்'}</p>
-          </div>
-        )}
-        <button
-          onClick={() => isOpen ? closeHelp() : openHelp()}
-          className="w-14 h-14 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-2xl md:hover:scale-110 transition-transform cursor-pointer ring-4 ring-emerald-50 group"
-          aria-label="Help"
-        >
-          <HelpCircle size={28} className="md:group-hover:scale-110 transition-transform" />
-        </button>
-      </div>
-
       <AnimatePresence>
         {isOpen && (
           <>

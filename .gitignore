@@ -4,6 +4,11 @@ dist/
 coverage/
 .DS_Store
 *.log
-.env*
+.env
+.env.local
+.env.*
 !.env.example
 .git_disabled
+.vercel
+.playwright-cli
+output
