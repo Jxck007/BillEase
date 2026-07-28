@@ -31,8 +31,11 @@ function sendEmailError(response: any, error: unknown) {
     if (error.status === 400) return response.status(400).json({ ok: false, error: 'Invalid request.' });
     if (error.status === 401) return response.status(401).json({ ok: false, error: 'Unauthorized.' });
     if (error.status === 403) return response.status(403).json({ ok: false, error: 'Admin access denied.' });
+    if (error.status === 409) return response.status(409).json({ ok: false, error: 'This document is already being sent.' });
     if (error.status === 413) return response.status(413).json({ ok: false, error: 'Attachment is too large.' });
     if (error.status === 429) return response.status(429).json({ ok: false, error: 'Too many requests.' });
+    if (error.status === 502) return response.status(502).json({ ok: false, error: 'Email provider is unavailable.' });
+    if (error.status === 503) return response.status(503).json({ ok: false, error: 'Email provider is not configured.' });
   }
   return response.status(500).json({ ok: false, error: 'Unable to send the email.' });
 }
@@ -54,7 +57,7 @@ export default async function handler(request: any, response: any) {
       resend: resendConfiguration.configured,
     });
     if (!resendConfiguration.configured) {
-      throw new HttpError(500, 'PROVIDER_NOT_CONFIGURED', 'Email provider is not configured');
+      throw new HttpError(503, 'PROVIDER_NOT_CONFIGURED', 'Email provider is not configured');
     }
 
     const isMultipart = String(request.headers?.['content-type'] || '').toLowerCase().startsWith('multipart/form-data');
@@ -128,7 +131,10 @@ export default async function handler(request: any, response: any) {
     });
     return response.json({
       ok: true,
+      status: 'sent',
       messageId: result.messageId || undefined,
+      providerMessageId: result.messageId || undefined,
+      sentAt,
     });
   } catch (error) {
     if (deliveryReference && !(error instanceof HttpError && error.code === 'DELIVERY_IN_PROGRESS')) {

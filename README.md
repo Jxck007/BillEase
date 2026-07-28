@@ -69,9 +69,9 @@ Server delivery variables are listed in `.env.example`. They belong in Vercel on
 FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON=
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=
-APP_URL=
 EVOLUTION_API_URL=
 EVOLUTION_API_KEY=
+EVOLUTION_INSTANCE_ID=
 EVOLUTION_INSTANCE_NAME=
 ```
 
@@ -100,9 +100,10 @@ BillEase is optimized for deployment on modern edge networks like **Vercel** or 
 ### Delivery deployment order
 
 1. Configure Firebase Admin JSON and Resend, deploy Vercel, and test email.
-2. Select an Evolution Go version, deploy it separately, pair its WhatsApp instance, and verify that version's API contract.
-3. After implementing the verified provider contract, add the Evolution API URL, key, and instance name to Vercel, then redeploy.
-4. Check integration health, send one test PDF, and only then enable WhatsApp for production.
+2. Deploy an Evolution Go `0.7.2`-compatible version separately and pair its WhatsApp instance.
+3. Confirm its Swagger supports direct multipart `POST /send/media` and `GET /instance/status`.
+4. Add the Evolution API URL, key, instance ID, and instance name to Vercel, then redeploy.
+5. Check integration health, send one test PDF, and only then enable WhatsApp for production.
 
 See [INTEGRATIONS.md](INTEGRATIONS.md) for endpoint contracts, limits, authentication, fallback behavior, and verification details.
 

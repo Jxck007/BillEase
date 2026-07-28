@@ -25,14 +25,6 @@ export type ShareResult = {
   downloaded?: boolean;
 };
 
-function normalizeIndianWhatsAppNumber(phone: string) {
-  const digits = phone.replace(/\D/g, '');
-  if (!digits) return '';
-  if (digits.startsWith('91') && digits.length >= 12) return digits;
-  const tenDigit = digits.slice(-10);
-  return `91${tenDigit}`;
-}
-
 function mmToPx(mm: number) {
   return Math.round(mm * MM_TO_PX);
 }
@@ -427,26 +419,6 @@ export async function shareElementAsPdf(
   }
 }
 
-export function shareInvoiceOnWhatsApp(
-  invoice: Invoice,
-  customerName: string,
-  phone: string,
-  businessName: string,
-  documentLabel = 'Invoice',
-) {
-  const text = encodeURIComponent([
-    `Hello ${customerName || 'Customer'},`,
-    '',
-    `Please find your ${documentLabel.toLowerCase()} ${invoice.invoiceNumber} from ${businessName}.`,
-    `Total: ${formatCurrency(invoice.total)}`,
-    `Paid: ${formatCurrency(invoice.amountPaid)}`,
-    `Balance: ${formatCurrency(Math.max(0, invoice.total - invoice.amountPaid))}`,
-    '',
-    'Thank you.',
-  ].join('\n'));
-  window.open(`https://wa.me/${normalizeIndianWhatsAppNumber(phone)}?text=${text}`, '_blank', 'noopener,noreferrer');
-}
-
 export function shareInvoice(invoice: Invoice, businessName: string, documentLabel = 'Invoice'): ShareResult {
   if (!canUseNativeShare()) {
     return { shared: false, reason: 'unsupported' };
@@ -459,21 +431,6 @@ export function shareInvoice(invoice: Invoice, businessName: string, documentLab
     if (err.name !== 'AbortError') console.error('Share failed:', err);
   });
   return { shared: true };
-}
-
-export function shareDeliveryNoteOnWhatsApp(note: DeliveryNote, customerName: string, phone: string, businessName: string) {
-  const text = encodeURIComponent([
-    `Hello ${customerName || 'Customer'},`,
-    '',
-    `Please find your delivery note ${note.deliveryNoteNumber} from ${businessName}.`,
-    `Date: ${note.date}`,
-    note.transportPurpose ? `Transport Purpose: ${note.transportPurpose}` : '',
-    note.vehicleNumber ? `Vehicle No: ${note.vehicleNumber}` : '',
-    note.approximateValue ? `Approximate Value: ${formatCurrency(note.approximateValue)}` : '',
-    '',
-    'Thank you.',
-  ].join('\n'));
-  window.open(`https://wa.me/${normalizeIndianWhatsAppNumber(phone)}?text=${text}`, '_blank', 'noopener,noreferrer');
 }
 
 export function shareDeliveryNote(note: DeliveryNote, businessName: string): ShareResult {
