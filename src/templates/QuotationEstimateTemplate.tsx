@@ -3,6 +3,7 @@ import { BusinessProfile, Customer, Invoice, Product, TemplateVisibilitySettings
 import { formatCurrency } from '../lib/utils';
 import { withDefaultCustomerFieldVisibility } from '../lib/invoiceCustomerFields';
 import InvoiceAuthorizationAssets from '../components/documents/InvoiceAuthorizationAssets';
+import ComputerGeneratedFooter from '../components/documents/ComputerGeneratedFooter';
 import { useLanguage } from '../context/LanguageContext';
 import {
   formatEstimateCopyTypeDisplay,
@@ -200,17 +201,20 @@ export default function QuotationEstimateTemplate({
           </div>
         ) : null}
 
-        {visibility.signature ? (
-          <div className="grid grid-cols-2">
-            <div className="min-h-24 border-r-2 border-black p-3">
-              <div className="text-[10px] font-semibold">{t('customerSignature')}</div>
-              <div className="mt-10 border-t border-black pt-2 text-[9px]"></div>
+        <div className="document-final-section">
+          {visibility.signature ? (
+            <div className="grid grid-cols-2">
+              <div className="min-h-24 border-r-2 border-black p-3">
+                <div className="text-[10px] font-semibold">{t('customerSignature')}</div>
+                <div className="mt-10 border-t border-black pt-2 text-[9px]"></div>
+              </div>
+              <div className="min-h-24 p-3 text-right">
+                <InvoiceAuthorizationAssets documentType="quotation" />
+              </div>
             </div>
-            <div className="min-h-24 p-3 text-right">
-              <InvoiceAuthorizationAssets documentType="quotation" />
-            </div>
-          </div>
-        ) : null}
+          ) : null}
+          <ComputerGeneratedFooter />
+        </div>
       </div>
     </div>
   );

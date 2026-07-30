@@ -7,14 +7,11 @@ const MM_TO_PX = 96 / 25.4;
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 const PDF_MARGIN_MM = 0;
+const PAGE_ROUNDING_TOLERANCE_CSS_PX = 2;
+const KEEP_TOGETHER_SELECTOR = 'tr, .document-final-section, .authorization-assets';
 
-/** Use lower scale on mobile/tablet to avoid memory crashes on older devices */
+/** Scale 2 keeps text and image assets sharp while remaining practical on older tablets. */
 export function getSafeExportScale(): number {
-  if (typeof window === 'undefined') return 1;
-  // Check if screen is small (mobile/tablet) or device has limited memory
-  const isMobile = window.innerWidth < 768;
-  const isTablet = window.innerWidth >= 768 && window.innerWidth <= 1024;
-  if (isMobile || isTablet) return 1;
   return 2;
 }
 
@@ -26,10 +23,6 @@ export type ShareResult = {
 
 function mmToPx(mm: number) {
   return Math.round(mm * MM_TO_PX);
-}
-
-function pxToMm(px: number) {
-  return px / MM_TO_PX;
 }
 
 export function canUseNativeShare() {
@@ -116,6 +109,24 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   return { sandbox, clone, targetWidthPx };
 }
 
+type KeepTogetherRange = {
+  startPx: number;
+  endPx: number;
+};
+
+function measureKeepTogetherRanges(element: HTMLElement): KeepTogetherRange[] {
+  const rootRect = element.getBoundingClientRect();
+  return Array.from(element.querySelectorAll<HTMLElement>(KEEP_TOGETHER_SELECTOR))
+    .map((node) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        startPx: Math.max(0, rect.top - rootRect.top),
+        endPx: Math.max(0, rect.bottom - rootRect.top),
+      };
+    })
+    .filter(({ startPx, endPx }) => endPx > startPx);
+}
+
 async function waitForExportAssets(clone: HTMLElement) {
   if (typeof document !== 'undefined' && 'fonts' in document) {
     try {
@@ -158,6 +169,7 @@ export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDT
     clone.style.transform = 'none';
 
     const { width, height } = measureExportRootSize(clone, targetWidthPx);
+    const measuredKeepTogetherRanges = measureKeepTogetherRanges(clone);
     const text = (clone.innerText || '').trim();
     if (!width || !height) {
       throw new Error('Export failed: document size is zero');
@@ -203,7 +215,12 @@ export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDT
     if (!canvas.width || !canvas.height) {
       throw new Error('Export failed: document size is zero');
     }
-    return { canvas, scale: safeScale };
+    const canvasScaleY = canvas.height / height;
+    const keepTogetherRanges = measuredKeepTogetherRanges.map(({ startPx, endPx }) => ({
+      startPx: Math.round(startPx * canvasScaleY),
+      endPx: Math.round(endPx * canvasScaleY),
+    }));
+    return { canvas, scale: safeScale, keepTogetherRanges };
   } catch (error) {
     throw new Error(`Export rendering failed: ${(error as Error).message}`);
   } finally {
@@ -218,17 +235,66 @@ export async function createPngBlobFromElement(element: HTMLElement, widthMm = A
   });
 }
 
+function pageHasMeaningfulPixels(canvas: HTMLCanvasElement, startPx: number) {
+  const startY = Math.max(0, Math.floor(startPx));
+  const height = canvas.height - startY;
+  if (height <= 0) return false;
+
+  const sampleStep = Math.max(1, Math.floor(canvas.width / 800));
+  const scanCanvas = document.createElement('canvas');
+  scanCanvas.width = Math.ceil(canvas.width / sampleStep);
+  scanCanvas.height = Math.min(64, height);
+  const context = scanCanvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return true;
+
+  for (let y = startY; y < canvas.height; y += scanCanvas.height) {
+    const scanHeight = Math.min(scanCanvas.height, canvas.height - y);
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, scanCanvas.width, scanCanvas.height);
+    context.drawImage(canvas, 0, y, canvas.width, scanHeight, 0, 0, scanCanvas.width, scanHeight);
+    const pixels = context.getImageData(0, 0, scanCanvas.width, scanHeight).data;
+    let visiblePixels = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      const alpha = pixels[index + 3];
+      const red = pixels[index];
+      const green = pixels[index + 1];
+      const blue = pixels[index + 2];
+      if (alpha > 16 && (red < 245 || green < 245 || blue < 245)) {
+        visiblePixels += 1;
+        if (visiblePixels >= 12) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function choosePageSliceHeight(
+  offsetPx: number,
+  pageContentHeightPx: number,
+  canvasHeight: number,
+  keepTogetherRanges: KeepTogetherRange[],
+  tolerancePx: number,
+) {
+  const remainingPx = canvasHeight - offsetPx;
+  if (remainingPx <= pageContentHeightPx + tolerancePx) return remainingPx;
+
+  const nominalEndPx = offsetPx + pageContentHeightPx;
+  const crossingRanges = keepTogetherRanges
+    .filter(({ startPx, endPx }) => startPx > offsetPx && startPx < nominalEndPx && endPx > nominalEndPx)
+    .sort((a, b) => a.startPx - b.startPx);
+  const safeEndPx = crossingRanges[0]?.startPx ?? nominalEndPx;
+
+  // Never create an extremely short page for an unusually tall unbreakable block.
+  if (safeEndPx - offsetPx < pageContentHeightPx * 0.35) return pageContentHeightPx;
+  return Math.max(1, Math.floor(safeEndPx - offsetPx));
+}
+
 export async function createPdfBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   const { jsPDF } = await import('jspdf');
-  const { canvas, scale } = await renderExportCanvas(element, widthMm);
+  const { canvas, scale, keepTogetherRanges } = await renderExportCanvas(element, widthMm);
   if (!canvas.width || !canvas.height) {
     throw new Error('Export failed: document size is zero');
   }
-  const dataUrl = canvas.toDataURL('image/png', 1.0);
-  const imageWidthPx = canvas.width / scale;
-  const imageHeightPx = canvas.height / scale;
-  const imgWidthMm = pxToMm(imageWidthPx);
-  const imgHeightMm = pxToMm(imageHeightPx);
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -241,18 +307,33 @@ export async function createPdfBlobFromElement(element: HTMLElement, widthMm = A
   const contentWidth = pageWidth - PDF_MARGIN_MM * 2;
   const contentHeight = pageHeight - PDF_MARGIN_MM * 2;
   const renderWidth = contentWidth;
-  const renderHeight = (imgHeightMm * renderWidth) / imgWidthMm;
-  const pageContentHeightPx = Math.max(1, Math.floor((contentHeight / renderHeight) * canvas.height));
+  // Derive page capacity directly from the captured width and the A4 aspect ratio.
+  // Converting a rounded CSS height back through 96-DPI millimetres can lose one pixel.
+  const pageContentHeightPx = Math.max(1, Math.floor(canvas.width * (contentHeight / contentWidth)));
+  const tolerancePx = Math.max(1, Math.ceil(PAGE_ROUNDING_TOLERANCE_CSS_PX * scale));
 
   let offsetPx = 0;
   let pageIndex = 0;
 
   while (offsetPx < canvas.height) {
+    if (pageIndex > 0 && !pageHasMeaningfulPixels(canvas, offsetPx)) break;
+
+    let sliceHeightPx = choosePageSliceHeight(
+      offsetPx,
+      pageContentHeightPx,
+      canvas.height,
+      keepTogetherRanges,
+      tolerancePx,
+    );
+    const trailingPx = canvas.height - (offsetPx + sliceHeightPx);
+    if (trailingPx > 0 && trailingPx <= tolerancePx) {
+      sliceHeightPx += trailingPx;
+    }
+
     if (pageIndex > 0) {
       pdf.addPage();
     }
 
-    const sliceHeightPx = Math.min(pageContentHeightPx, canvas.height - offsetPx);
     const pageCanvas = document.createElement('canvas');
     pageCanvas.width = canvas.width;
     pageCanvas.height = sliceHeightPx;
@@ -276,7 +357,7 @@ export async function createPdfBlobFromElement(element: HTMLElement, widthMm = A
       pageCanvas.height,
     );
 
-    const sliceHeightMm = (sliceHeightPx / canvas.height) * renderHeight;
+    const sliceHeightMm = Math.min(contentHeight, (sliceHeightPx / canvas.width) * renderWidth);
     const pageDataUrl = pageCanvas.toDataURL('image/png', 1.0);
 
     pdf.addImage(

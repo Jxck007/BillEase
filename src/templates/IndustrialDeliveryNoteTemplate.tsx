@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import InvoiceAuthorizationAssets from '../components/documents/InvoiceAuthorizationAssets';
+import ComputerGeneratedFooter from '../components/documents/ComputerGeneratedFooter';
 import { BusinessProfile, Customer, DeliveryNote } from '../lib/types';
 import { formatDeliveryNoteCopyTypeDisplay, getCustomerGstin, normalizeTransportPurpose } from '../lib/deliveryNoteUtils';
 import { useLanguage } from '../context/LanguageContext';
@@ -176,14 +177,17 @@ export default function IndustrialDeliveryNoteTemplate({ note, profile, customer
           <div className="mt-2 text-[12px]">{language === 'ta' ? 'வாகன எண்' : 'Vehicle Number'}: <span className="font-bold uppercase">{note.vehicleNumber || '-'}</span></div>
         </div>
 
-        <div className="grid grid-cols-2">
-          <div className="min-h-24 border-r-2 border-black p-3">
-            <div className="text-[11px] font-semibold">{language === 'ta' ? 'மேலுள்ள பொருட்கள் சரியான நிலையில் பெறப்பட்டன' : 'Received the above goods in order and condition'}</div>
-            <div className="mt-8 text-[11px]">{language === 'ta' ? 'பொருட்களைப் பெற்றவரின் பெயர் மற்றும் கையொப்பம்' : 'Name and Signature of the person to whom goods are delivered'}</div>
+        <div className="document-final-section">
+          <div className="grid grid-cols-2">
+            <div className="min-h-24 border-r-2 border-black p-3">
+              <div className="text-[11px] font-semibold">{language === 'ta' ? 'மேலுள்ள பொருட்கள் சரியான நிலையில் பெறப்பட்டன' : 'Received the above goods in order and condition'}</div>
+              <div className="mt-8 text-[11px]">{language === 'ta' ? 'பொருட்களைப் பெற்றவரின் பெயர் மற்றும் கையொப்பம்' : 'Name and Signature of the person to whom goods are delivered'}</div>
+            </div>
+            <div className="min-h-24 p-3 text-right">
+              <InvoiceAuthorizationAssets documentType="deliveryNote" />
+            </div>
           </div>
-          <div className="min-h-24 p-3 text-right">
-            <InvoiceAuthorizationAssets documentType="deliveryNote" />
-          </div>
+          <ComputerGeneratedFooter />
         </div>
       </div>
     </div>

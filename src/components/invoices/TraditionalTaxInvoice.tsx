@@ -4,6 +4,7 @@ import { BusinessProfile, Customer, Invoice } from '../../lib/types';
 import { formatCurrency } from '../../lib/utils';
 import { withDefaultCustomerFieldVisibility } from '../../lib/invoiceCustomerFields';
 import InvoiceAuthorizationAssets from '../documents/InvoiceAuthorizationAssets';
+import ComputerGeneratedFooter from '../documents/ComputerGeneratedFooter';
 import { useLanguage } from '../../context/LanguageContext';
 
 function numberToWordsIndian(num: number) {
@@ -157,22 +158,25 @@ export function CanonicalInvoiceDocument({ invoice, profile, customer, showQr = 
           </table>
         </section>
 
-        <section className="tv-bottom">
-          <div className="tv-bank">
-            <div className="tv-sub">{t('bankDetails')}</div>
-            <pre className="bank-pre">{seller.bankDetails || '-'}</pre>
-            {showQr && seller.qrCodeImage ? <img src={seller.qrCodeImage} alt="payment qr" className="tv-qr" /> : null}
-            <UpiPaymentQr invoice={invoice} profile={seller} />
-          </div>
-          <div className="tv-right">
-            <div className="tv-sub">E. & O.E</div>
-            <div className="amount-words-label">{t('amountInWords')}</div>
-            <div className="amount-words">{amountInWords}</div>
-            <div className="signature authorization-block">
-              <InvoiceAuthorizationAssets />
+        <div className="document-final-section">
+          <section className="tv-bottom">
+            <div className="tv-bank">
+              <div className="tv-sub">{t('bankDetails')}</div>
+              <pre className="bank-pre">{seller.bankDetails || '-'}</pre>
+              {showQr && seller.qrCodeImage ? <img src={seller.qrCodeImage} alt="payment qr" className="tv-qr" /> : null}
+              <UpiPaymentQr invoice={invoice} profile={seller} />
             </div>
-          </div>
-        </section>
+            <div className="tv-right">
+              <div className="tv-sub">E. & O.E</div>
+              <div className="amount-words-label">{t('amountInWords')}</div>
+              <div className="amount-words">{amountInWords}</div>
+              <div className="signature authorization-block">
+                <InvoiceAuthorizationAssets />
+              </div>
+            </div>
+          </section>
+          <ComputerGeneratedFooter />
+        </div>
 
       </div>
     </div>

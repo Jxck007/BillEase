@@ -1,13 +1,22 @@
 import { HttpError } from '../http/errors.js';
 
+const EMAIL_ADDRESS_PATTERN = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/;
+
 export function getResendConfiguration() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.RESEND_FROM_EMAIL?.trim();
+  const replyToCandidate = process.env.RESEND_REPLY_TO_EMAIL?.trim();
   const validApiKey = Boolean(apiKey && apiKey.length <= 500 && !/[\r\n]/.test(apiKey));
   const validFrom = Boolean(from
     && from.length <= 320
     && /^(?:[^<>\r\n]+\s+<)?[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+>?$/.test(from));
-  return { configured: validApiKey && validFrom, apiKey, from };
+  const replyTo = replyToCandidate
+    && replyToCandidate.length <= 254
+    && EMAIL_ADDRESS_PATTERN.test(replyToCandidate)
+    && !/[\r\n]/.test(replyToCandidate)
+    ? replyToCandidate
+    : undefined;
+  return { configured: validApiKey && validFrom, apiKey, from, replyTo };
 }
 
 type ProviderEvents = {
@@ -36,6 +45,7 @@ export async function sendEmailWithResend(input: {
       from: config.from,
       to: [input.recipientEmail],
       ...(input.ccEmail ? { cc: [input.ccEmail] } : {}),
+      ...(config.replyTo ? { reply_to: config.replyTo } : {}),
       subject: input.subject,
       text: input.message,
       attachments: [{ filename: input.filename, content: input.attachment.toString('base64') }],

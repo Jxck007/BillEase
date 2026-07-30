@@ -165,6 +165,7 @@ export const TRANSLATIONS: Record<string, Record<Language, string>> = {
   forCompany: { en: 'For {company}', ta: '{company} நிறுவனத்திற்காக' },
   yourBusiness: { en: 'Your Business', ta: 'உங்கள் நிறுவனம்' },
   authorizedSignature: { en: 'Authorized Signature', ta: 'அங்கீகரிக்கப்பட்ட கையொப்பம்' },
+  computerGeneratedDocument: { en: 'This is a computer generated document.', ta: 'இது கணினி மூலம் உருவாக்கப்பட்ட ஆவணம்.' },
   taxInvoice: { en: 'TAX INVOICE', ta: 'வரி விலைப்பட்டியல்' },
   invoiceNo: { en: 'Invoice No', ta: 'விலைப்பட்டியல் எண்' },
   buyer: { en: 'Buyer', ta: 'வாங்குபவர்' },

@@ -14,6 +14,8 @@ Every API function verifies `Authorization: Bearer <Firebase ID token>` with Fir
 
 `POST /api/email/send-document` accepts the multipart form-data request used by the export panel. It also accepts an authenticated JSON compatibility payload containing `to`, `subject`, `message`, `fileName`, and Base64 attachment content. Both paths enforce a 2 MB decoded PDF/PNG limit and a 3 MB request limit, validate the file signature, reject header injection, and send through `RESEND_API_KEY` and `RESEND_FROM_EMAIL`.
 
+`RESEND_REPLY_TO_EMAIL` is an optional server-only reply-to address for the business owner. When it contains a valid email address, the provider sends it to Resend as `reply_to`. When it is absent or invalid, delivery continues without a reply-to value. The frontend cannot supply or override it. Keep `RESEND_FROM_EMAIL` on a verified Resend domain; do not use an arbitrary Gmail address as the sender.
+
 Use `npx vercel dev` when testing `.env.local`; Vercel loads the same unprefixed variables used by Preview and Production.
 
 Delivery records contain only document ID, channel, recipient, status, timestamp, and provider message ID. A Firestore transaction reserves each idempotency key before sending. Resend also receives that key.
@@ -28,7 +30,7 @@ BillEase does not use a server-side WhatsApp provider. Native Share sends the ge
 
 ## Deployment order
 
-1. Configure `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `APP_URL` in Vercel.
+1. Configure `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, optional `RESEND_REPLY_TO_EMAIL`, and `APP_URL` in Vercel.
 2. Deploy Vercel without the previous build cache.
 3. Confirm GET on the email endpoint returns 405.
 4. Test one controlled authenticated email with a PDF attachment.

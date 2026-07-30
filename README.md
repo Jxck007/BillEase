@@ -69,6 +69,7 @@ Server delivery variables are listed in `.env.example`. They belong in Vercel on
 FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON=
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=
+RESEND_REPLY_TO_EMAIL=
 APP_URL=
 ```
 
