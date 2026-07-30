@@ -1,5 +1,3 @@
-import { DeliveryNote, Invoice } from '../lib/types';
-import { formatCurrency } from '../lib/utils';
 import { sanitizeForHtml2Canvas } from '../utils/sanitizeForHtml2Canvas';
 
 
@@ -15,28 +13,8 @@ export function getSafeExportScale(): number {
   return 2;
 }
 
-export type ShareResult = {
-  shared: boolean;
-  reason?: 'unsupported' | 'files_not_supported' | 'cancelled' | 'generation_failed';
-  downloaded?: boolean;
-};
-
 function mmToPx(mm: number) {
   return Math.round(mm * MM_TO_PX);
-}
-
-export function canUseNativeShare() {
-  return typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-}
-
-export function canShareFiles(files: File[]) {
-  if (!canUseNativeShare()) return false;
-  if (typeof navigator.canShare !== 'function') return false;
-  try {
-    return navigator.canShare({ files });
-  } catch {
-    return false;
-  }
 }
 
 export function downloadBlob(blob: Blob, fileName: string) {
@@ -419,110 +397,6 @@ export async function exportDeliveryNoteAsImage(element: HTMLElement, fileName: 
   }
 }
 
-export async function createPdfFileFromElement(element: HTMLElement, fileName: string, widthMm = A4_WIDTH_MM) {
-  const blob = await createPdfBlobFromElement(element, widthMm);
-  if (!blob.size) throw new Error('Empty PDF');
-  return new File([blob], `${fileName}.pdf`, { type: 'application/pdf' });
-}
-
-export async function createImageFileFromElement(element: HTMLElement, fileName: string, widthMm = A4_WIDTH_MM) {
-  const { canvas } = await renderExportCanvas(element, widthMm);
-  const pngBlob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, 'image/png', 1.0);
-  });
-  if (pngBlob && pngBlob.size > 0) {
-    return new File([pngBlob], `${fileName}.png`, { type: 'image/png' });
-  }
-  const jpegBlob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, 'image/jpeg', 0.9);
-  });
-  if (jpegBlob && jpegBlob.size > 0) {
-    return new File([jpegBlob], `${fileName}.jpg`, { type: 'image/jpeg' });
-  }
-  throw new Error('Unable to generate image file');
-}
-
-export async function shareElementAsImage(
-  element: HTMLElement,
-  fileName: string,
-  title: string,
-  text: string,
-  widthMm = A4_WIDTH_MM,
-): Promise<ShareResult> {
-  try {
-    const file = await createImageFileFromElement(element, fileName, widthMm);
-    if (!canShareFiles([file])) {
-      downloadBlob(file, file.name);
-      return { shared: false, reason: 'files_not_supported', downloaded: true };
-    }
-
-    await navigator.share({ title, text, files: [file] });
-    return { shared: true };
-  } catch (err) {
-    if ((err as Error).name === 'AbortError') {
-      return { shared: false, reason: 'cancelled' };
-    }
-    throw err;
-  }
-}
-
-export async function shareElementAsPdf(
-  element: HTMLElement,
-  fileName: string,
-  title: string,
-  text: string,
-  widthMm = A4_WIDTH_MM,
-): Promise<ShareResult> {
-  try {
-    const file = await createPdfFileFromElement(element, fileName, widthMm);
-    if (!canShareFiles([file])) {
-      downloadBlob(file, file.name);
-      return { shared: false, reason: 'files_not_supported', downloaded: true };
-    }
-
-    await navigator.share({ title, text, files: [file] });
-    return { shared: true };
-  } catch (err) {
-    if ((err as Error).name === 'AbortError') {
-      return { shared: false, reason: 'cancelled' };
-    }
-    throw err;
-  }
-}
-
-export function shareInvoice(invoice: Invoice, businessName: string, documentLabel = 'Invoice'): ShareResult {
-  if (!canUseNativeShare()) {
-    return { shared: false, reason: 'unsupported' };
-  }
-
-  navigator.share({
-    title: `${documentLabel} ${invoice.invoiceNumber}`,
-    text: `${businessName} - ${documentLabel} #${invoice.invoiceNumber}\nAmount: ${formatCurrency(invoice.total)}\nStatus: ${invoice.status}`,
-  }).catch((err) => {
-    if (err.name !== 'AbortError') console.error('Share failed:', err);
-  });
-  return { shared: true };
-}
-
-export function shareDeliveryNote(note: DeliveryNote, businessName: string): ShareResult {
-  if (!canUseNativeShare()) {
-    return { shared: false, reason: 'unsupported' };
-  }
-
-  navigator.share({
-    title: `Delivery Note ${note.deliveryNoteNumber}`,
-    text: [
-      `${businessName} - Delivery Note #${note.deliveryNoteNumber}`,
-      note.transportPurpose ? `Purpose: ${note.transportPurpose}` : '',
-      note.vehicleNumber ? `Vehicle: ${note.vehicleNumber}` : '',
-      note.approximateValue ? `Approximate Value: ${formatCurrency(note.approximateValue)}` : '',
-    ].filter(Boolean).join('\n'),
-  }).catch((err) => {
-    if (err.name !== 'AbortError') console.error('Share failed:', err);
-  });
-  return { shared: true };
-}
-
 export function openPrintDialog(title: string, html: string) {
   const win = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1200');
   if (!win) return;
@@ -543,23 +417,4 @@ export function openPrintDialog(title: string, html: string) {
   win.document.close();
   win.focus();
   win.print();
-}
-
-export function getShareResultMessage(result: ShareResult, language: 'en' | 'ta' = 'en') {
-  if (result.shared) {
-    return language === 'en' ? 'Shared successfully' : 'வெற்றிகரமாக பகிரப்பட்டது';
-  }
-  if (result.reason === 'cancelled') return '';
-  if (result.reason === 'unsupported') {
-    return language === 'en' ? 'Sharing is not supported on this device' : 'இந்த சாதனத்தில் Share ஆதரவு கிடையாது';
-  }
-  if (result.reason === 'generation_failed') {
-    return language === 'en' ? 'Unable to generate file' : 'கோப்பை உருவாக்க முடியவில்லை';
-  }
-  if (result.reason === 'files_not_supported' && result.downloaded) {
-    return language === 'en'
-      ? 'File sharing is not supported on this device. The file has been downloaded instead.'
-      : 'இந்த சாதனத்தில் கோப்பு பகிர்வு ஆதரிக்கப்படவில்லை. கோப்பு பதிவிறக்கம் செய்யப்பட்டது.';
-  }
-  return language === 'en' ? 'Unable to share file' : 'கோப்பை பகிர முடியவில்லை';
 }

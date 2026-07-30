@@ -1,31 +1,80 @@
 export type NativeShareResult =
   | { status: 'shared' }
-  | { status: 'unsupported' }
-  | { status: 'cancelled' };
+  | { status: 'unsupported'; reason: 'insecure-context' | 'share-unavailable' | 'can-share-unavailable' | 'file-unsupported' }
+  | { status: 'cancelled' }
+  | { status: 'not-allowed' }
+  | { status: 'failed' };
 
-type NativeShareApi = {
+export type NativeShareApi = {
   canShare?: (data: ShareData) => boolean;
   share?: (data: ShareData) => Promise<void>;
 };
+
+export type NativeShareEnvironment = {
+  isSecureContext: boolean;
+  shareApi: NativeShareApi;
+};
+
+function browserShareEnvironment(): NativeShareEnvironment {
+  return {
+    isSecureContext: typeof window !== 'undefined' && window.isSecureContext,
+    shareApi: typeof navigator === 'undefined' ? {} : navigator,
+  };
+}
+
+export function validatePdfFile(file: File) {
+  return file.size > 0
+    && file.type === 'application/pdf'
+    && file.name.toLowerCase().endsWith('.pdf');
+}
+
+export function getPdfFileShareSupport(
+  file: File,
+  environment: NativeShareEnvironment = browserShareEnvironment(),
+): { supported: true } | { supported: false; reason: Extract<NativeShareResult, { status: 'unsupported' }>['reason'] } {
+  if (!environment.isSecureContext) return { supported: false, reason: 'insecure-context' };
+  if (typeof environment.shareApi.share !== 'function') return { supported: false, reason: 'share-unavailable' };
+  if (typeof environment.shareApi.canShare !== 'function') return { supported: false, reason: 'can-share-unavailable' };
+  try {
+    return environment.shareApi.canShare.call(environment.shareApi, { files: [file] })
+      ? { supported: true }
+      : { supported: false, reason: 'file-unsupported' };
+  } catch {
+    return { supported: false, reason: 'file-unsupported' };
+  }
+}
 
 export async function sharePdfFile(
   file: File,
   title: string,
   text: string,
-  shareApi: NativeShareApi = navigator,
+  environment: NativeShareEnvironment = browserShareEnvironment(),
 ): Promise<NativeShareResult> {
-  if (file.type !== 'application/pdf' || !file.name.toLowerCase().endsWith('.pdf')) {
-    throw new Error('A PDF file is required');
-  }
-  const shareData: ShareData = { files: [file], title, text };
-  if (!shareApi.share || !shareApi.canShare || !shareApi.canShare(shareData)) return { status: 'unsupported' };
+  if (!validatePdfFile(file)) throw new Error('INVALID_PDF_FILE');
+  const support = getPdfFileShareSupport(file, environment);
+  if ('reason' in support) return { status: 'unsupported', reason: support.reason };
+
   try {
-    await shareApi.share(shareData);
+    await environment.shareApi.share!.call(environment.shareApi, { files: [file], title, text });
     return { status: 'shared' };
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') return { status: 'cancelled' };
-    throw error;
+    if (error instanceof Error && error.name === 'NotAllowedError') return { status: 'not-allowed' };
+    return { status: 'failed' };
   }
+}
+
+export async function sharePdfWithDownloadFallback(input: {
+  file: File;
+  title: string;
+  text: string;
+  download: (file: File) => void;
+  environment?: NativeShareEnvironment;
+}) {
+  const result = await sharePdfFile(input.file, input.title, input.text, input.environment);
+  if (result.status !== 'unsupported') return result;
+  input.download(input.file);
+  return { ...result, downloaded: true as const };
 }
 
 export function sanitizeWhatsAppNumber(number: string) {
@@ -63,6 +112,8 @@ export function createDocumentExportFile(
   extension: 'pdf' | 'png',
 ) {
   const mimeType = extension === 'pdf' ? 'application/pdf' : 'image/png';
+  if (blob.size <= 0) throw new Error('EMPTY_DOCUMENT_FILE');
+  if (extension === 'pdf' && blob.type && blob.type !== mimeType) throw new Error('INVALID_PDF_BLOB');
   return new File(
     [blob],
     documentExportFilename(documentType, documentNumber, extension),
@@ -70,23 +121,11 @@ export function createDocumentExportFile(
   );
 }
 
-export async function sharePdfWithWhatsAppFallback(input: {
-  file: File;
-  title: string;
-  text: string;
-  phoneNumber?: string;
-  download: (file: File) => void;
-  openChat: (url: string) => boolean;
-  shareApi?: NativeShareApi;
-}) {
-  const result = await sharePdfFile(input.file, input.title, input.text, input.shareApi);
-  if (result.status !== 'unsupported') return result;
-
-  input.download(input.file);
-  if (!input.phoneNumber || !isValidWhatsAppNumber(input.phoneNumber)) {
-    return { status: 'downloaded' as const };
-  }
-  const url = whatsappChatUrl(input.phoneNumber, input.text);
-  const popupOpened = input.openChat(url);
-  return { status: popupOpened ? 'fallback' as const : 'fallback-blocked' as const, url };
+export async function preparePdfShareFile(
+  generatePdf: () => Promise<Blob>,
+  documentType: 'invoice' | 'quotation' | 'delivery-note',
+  documentNumber: string,
+) {
+  const blob = await generatePdf();
+  return createDocumentExportFile(blob, documentType, documentNumber, 'pdf');
 }

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle, FileDown, Image, Loader2, Mail, MessageCircle, Printer, Share2, X } from 'lucide-react';
+import { AlertCircle, CheckCircle, FileDown, Image, Info, Loader2, Mail, MessageCircle, Printer, Share2, X } from 'lucide-react';
 import type { RefObject } from 'react';
 import { useIntegrationAvailability } from '../../hooks/useIntegrationAvailability';
 import { documentPdfCacheKey, getCachedDocumentPdf } from '../../services/documentPdfCache';
 import {
   createDocumentExportFile,
+  getPdfFileShareSupport,
   isValidWhatsAppNumber,
-  sharePdfWithWhatsAppFallback,
+  preparePdfShareFile,
+  sharePdfWithDownloadFallback,
   whatsappChatUrl,
 } from '../../services/documentShareService';
 import DocumentDeliveryModal from './DocumentDeliveryModal';
@@ -55,12 +57,13 @@ export default function ExportPanel({
   widthMm = 190,
 }: ExportPanelProps) {
   const { language, t } = useLanguage();
-  const [status, setStatus] = useState<{ type: 'idle' | 'generating' | 'success' | 'failed'; text: string }>({ type: 'idle', text: '' });
+  const [status, setStatus] = useState<{ type: 'idle' | 'generating' | 'success' | 'info' | 'failed'; text: string }>({ type: 'idle', text: '' });
   const [active, setActive] = useState<string | null>(null);
   const [emailComposerOpen, setEmailComposerOpen] = useState(false);
   const [blockedWhatsAppUrl, setBlockedWhatsAppUrl] = useState('');
+  const [preparedPdf, setPreparedPdf] = useState<File | null>(null);
+  const [pdfPreparation, setPdfPreparation] = useState<'idle' | 'preparing' | 'ready' | 'failed'>('idle');
   const { availability, status: availabilityStatus } = useIntegrationAvailability();
-  const [nativeAvailable, setNativeAvailable] = useState(() => typeof navigator !== 'undefined' && Boolean(navigator.share && navigator.canShare));
   const cacheKey = documentPdfCacheKey(documentType, documentId, updatedAt);
   const customerNumber = customerWhatsapp || customerPhone || '';
   const validCustomerNumber = isValidWhatsAppNumber(customerNumber);
@@ -96,12 +99,32 @@ export default function ExportPanel({
       const blob = await service.createPngBlobFromElement(exportRoot(), widthMm);
       return createDocumentExportFile(blob, documentType, documentNumber, 'png');
     }
-    const blob = await getCachedDocumentPdf(cacheKey, async () => {
-      const service = await import('../../services/exportService');
-      return service.createPdfBlobFromElement(exportRoot(), widthMm);
-    });
-    return createDocumentExportFile(blob, documentType, documentNumber, 'pdf');
+    return preparePdfShareFile(
+      () => getCachedDocumentPdf(cacheKey, async () => {
+        const service = await import('../../services/exportService');
+        return service.createPdfBlobFromElement(exportRoot(), widthMm);
+      }),
+      documentType,
+      documentNumber,
+    );
   }, [cacheKey, documentNumber, documentType, exportRoot, widthMm]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setPreparedPdf(null);
+    setPdfPreparation('preparing');
+    getFile('pdf').then((file) => {
+      if (cancelled) return;
+      setPreparedPdf(file);
+      setPdfPreparation('ready');
+    }).catch(() => {
+      if (cancelled) return;
+      setPdfPreparation('failed');
+      setMessage('failed', language === 'ta' ? 'PDF ஆவணத்தைத் தயாரிக்க முடியவில்லை.' : 'The PDF could not be prepared.');
+    });
+    return () => { cancelled = true; };
+  }, [getFile, isOpen, language]);
   const run = async (name: string, work: () => Promise<void>) => {
     if (active) return;
     setMessage('generating', t('preparingDocument'), name);
@@ -113,35 +136,37 @@ export default function ExportPanel({
       setActive(null);
     }
   };
-  const share = () => run('share', async () => {
+  const share = () => {
+    if (active || !preparedPdf) {
+      if (pdfPreparation === 'failed') setMessage('failed', language === 'ta' ? 'PDF ஆவணத்தைத் தயாரிக்க முடியவில்லை.' : 'The PDF could not be prepared.');
+      return;
+    }
     setBlockedWhatsAppUrl('');
-    const file = await getFile('pdf');
-    const result = await sharePdfWithWhatsAppFallback({
-      file,
+    setMessage('generating', language === 'ta' ? 'பகிர்வு சாளரம் திறக்கப்படுகிறது…' : 'Opening system share sheet…', 'share');
+    const resultPromise = sharePdfWithDownloadFallback({
+      file: preparedPdf,
       title: `${documentLabel} ${documentNumber}`,
       text: `Please find the ${documentLabel} ${documentNumber} from ${businessName}.`,
-      phoneNumber: validCustomerNumber ? customerNumber : undefined,
       download: (pdfFile) => download(pdfFile, pdfFile.name),
-      openChat: (url) => {
-        const popup = window.open(url, '_blank');
-        if (popup) popup.opener = null;
-        return Boolean(popup);
-      },
     });
-    if (result.status === 'downloaded' || result.status === 'fallback' || result.status === 'fallback-blocked') {
-      setNativeAvailable(false);
-      if (result.status === 'fallback-blocked') setBlockedWhatsAppUrl(result.url);
-      setMessage('success', language === 'ta'
-        ? 'PDF பதிவிறக்கம் செய்யப்பட்டது. பதிவிறக்கம் செய்யப்பட்ட ஆவணத்தை WhatsApp-ல் இணைக்கவும்.'
-        : 'PDF downloaded. Please attach the downloaded document in WhatsApp.');
-      return;
-    }
-    if (result.status === 'cancelled') {
-      setMessage('idle', '');
-      return;
-    }
-    setMessage('success', `${file.name} shared through the system share sheet.`);
-  });
+    void resultPromise.then((result) => {
+      if (result.status === 'unsupported') {
+        setMessage('info', language === 'ta'
+          ? 'PDF பதிவிறக்கம் செய்யப்பட்டது. WhatsApp-ஐ திறந்து பதிவிறக்கம் செய்யப்பட்ட ஆவணத்தை இணைக்கவும்.'
+          : 'PDF downloaded. Open WhatsApp and attach the downloaded document.');
+      } else if (result.status === 'cancelled') {
+        setMessage('info', language === 'ta' ? 'பகிர்வு ரத்து செய்யப்பட்டது.' : 'Sharing cancelled.');
+      } else if (result.status === 'not-allowed') {
+        setMessage('failed', language === 'ta' ? 'பகிர்வைத் தொடங்க உலாவி அனுமதிக்கவில்லை. மீண்டும் தட்டவும்.' : 'The browser did not allow sharing. Please tap Share PDF again.');
+      } else if (result.status === 'failed') {
+        setMessage('failed', language === 'ta' ? 'PDF-ஐ நேரடியாக பகிர முடியவில்லை. மீண்டும் முயலவும் அல்லது பதிவிறக்கவும்.' : 'The PDF could not be shared directly. Try again or download it.');
+      } else {
+        setMessage('success', language === 'ta' ? 'ஆவணம் தேர்ந்தெடுக்கப்பட்ட செயலிக்கு பகிரப்பட்டது.' : 'Document passed to the selected app.');
+      }
+    }).catch(() => {
+      setMessage('failed', language === 'ta' ? 'PDF-ஐ பகிர முடியவில்லை. மீண்டும் முயலவும்.' : 'The PDF could not be shared. Please try again.');
+    }).finally(() => setActive(null));
+  };
   const pdf = () => run('pdf', async () => {
     const file = await getFile('pdf');
     download(file, file.name);
@@ -165,9 +190,9 @@ export default function ExportPanel({
     if (popup) popup.opener = null;
     setBlockedWhatsAppUrl(popup ? '' : url);
     setMessage(
-      popup ? 'success' : 'failed',
+      'info',
       popup
-        ? (language === 'ta' ? 'வாடிக்கையாளர் WhatsApp உரையாடல் திறக்கப்பட்டது. PDF தானாக இணைக்கப்படவில்லை.' : 'Customer WhatsApp chat opened. The PDF was not attached automatically.')
+        ? (language === 'ta' ? 'உரை மட்டும் கொண்ட வாடிக்கையாளர் உரையாடல் பக்கம் திறக்கப்பட்டது. PDF இணைக்கப்படவில்லை.' : 'A text-only customer-chat page was opened. The PDF was not attached.')
         : (language === 'ta' ? 'WhatsApp திறப்பதை உலாவி தடுத்தது. கீழே உள்ள பொத்தானைத் தட்டவும்.' : 'The browser blocked WhatsApp. Tap the button below to open it.'),
     );
   };
@@ -177,11 +202,12 @@ export default function ExportPanel({
     { id: 'print', label: t('print'), text: t('browserPrintDialog'), icon: Printer, run: print, disabled: false },
     { id: 'pdf', label: t('downloadPdf'), text: t('cachedPdfFile'), icon: FileDown, run: pdf, disabled: false },
     { id: 'image', label: t('downloadImage'), text: t('pngImage'), icon: Image, run: image, disabled: false },
-    { id: 'share', label: t('sharePdf'), text: t('nativePdfShare'), icon: Share2, run: share, disabled: false },
+    { id: 'share', label: t('sharePdf'), text: pdfPreparation === 'preparing' ? t('preparingDocument') : t('nativePdfShare'), icon: Share2, run: share, disabled: !preparedPdf },
     { id: 'email', label: t('sendEmail'), text: emailReady ? t('pdfViaGmail') : t('providerUnavailable'), icon: Mail, run: () => setEmailComposerOpen(true), disabled: !emailReady },
     { id: 'whatsapp', label: t('openWhatsApp'), text: t('customerChatNoAttachment'), icon: MessageCircle, run: openWhatsApp, disabled: !validCustomerNumber },
   ];
-  const StatusIcon = status.type === 'generating' ? Loader2 : status.type === 'success' ? CheckCircle : AlertCircle;
+  const StatusIcon = status.type === 'generating' ? Loader2 : status.type === 'success' ? CheckCircle : status.type === 'info' ? Info : AlertCircle;
+  const nativeAvailable = preparedPdf ? getPdfFileShareSupport(preparedPdf).supported : true;
 
   return (
     <>
@@ -193,7 +219,7 @@ export default function ExportPanel({
         </div>
         {!nativeAvailable && <p className="mb-4 rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm text-stone-600">{t('systemFileSharingUnavailable')}</p>}
         {status.text && (
-          <div className={`mb-4 flex items-center gap-2 rounded-xl border p-3 text-sm ${status.type === 'failed' ? 'border-rose-200 bg-rose-50 text-rose-800' : status.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-blue-200 bg-blue-50 text-blue-800'}`}>
+          <div className={`mb-4 flex items-center gap-2 rounded-xl border p-3 text-sm ${status.type === 'failed' ? 'border-rose-200 bg-rose-50 text-rose-800' : status.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : status.type === 'info' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-blue-200 bg-blue-50 text-blue-800'}`}>
             <StatusIcon size={18} className={status.type === 'generating' ? 'animate-spin' : ''} />{status.text}
           </div>
         )}
