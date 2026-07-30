@@ -209,6 +209,13 @@ function useDesktopSettingsLayout() {
 export default function Settings() {
   const { state, updateProfile, updateSettings } = useData();
   const { t, language, setLanguage } = useLanguage();
+  const text = (english: string, tamil: string) => language === 'ta' ? tamil : english;
+  const sectionLabel = (id: SettingsSectionId) => ({
+    company: text('Company Profile', 'நிறுவன விவரம்'),
+    payment: text('Payment & Bank', 'கட்டணம் மற்றும் வங்கி'),
+    branding: text('Branding & Documents', 'அடையாளம் மற்றும் ஆவணங்கள்'),
+    integrations: text('Integrations', 'ஒருங்கிணைப்புகள்'),
+  }[id]);
   const { availability, status: availabilityStatus } = useIntegrationAvailability();
   const desktop = useDesktopSettingsLayout();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>('company');
@@ -277,18 +284,18 @@ export default function Settings() {
   };
 
   const companyContent = (
-    <Panel title="Company Profile" description="Business information shown on documents and exports.">
+    <Panel title={sectionLabel('company')} description={text('Business information shown on documents and exports.', 'ஆவணங்களிலும் ஏற்றுமதிகளிலும் காட்டப்படும் நிறுவனத் தகவல்.')}>
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Business name" secondary="வணிக பெயர்" className="md:col-span-2">
+        <Field label={text('Business name', 'வணிகப் பெயர்')} className="md:col-span-2">
           <input value={state.profile.name} onChange={(event) => updateProfileField('name', event.target.value)} className="settings-input" />
         </Field>
-        <Field label="GSTIN" secondary="GST எண்">
+        <Field label={text('GSTIN', 'GST எண்')}>
           <input value={state.profile.gst} onChange={(event) => updateProfileField('gst', event.target.value.toUpperCase())} className="settings-input uppercase" />
         </Field>
-        <Field label="MSME number">
+        <Field label={text('MSME number', 'MSME எண்')}>
           <input value={state.profile.msmeNumber || ''} onChange={(event) => updateProfileField('msmeNumber', event.target.value.toUpperCase())} className="settings-input uppercase" />
         </Field>
-        <Field label="Address" secondary="முகவரி" className="md:col-span-2">
+        <Field label={t('address')} className="md:col-span-2">
           <textarea rows={3} value={state.profile.address} onChange={(event) => updateProfileField('address', event.target.value)} className="settings-input" />
         </Field>
         <div className="md:col-span-2">
@@ -299,23 +306,22 @@ export default function Settings() {
             onApply={(result) => updateProfileField('address', `${result.locality}, ${result.district}, ${result.state}`)}
           />
         </div>
-        <Field label="Phone" secondary="தொலைபேசி">
+        <Field label={t('phone')}>
           <input value={state.profile.phone} onChange={(event) => updateProfileField('phone', event.target.value)} className="settings-input" />
         </Field>
-        <Field label="Email">
+        <Field label={t('email')}>
           <input type="email" value={state.profile.email} onChange={(event) => updateProfileField('email', event.target.value)} className="settings-input" />
         </Field>
-        <Field label="State code">
+        <Field label={text('State code', 'மாநிலக் குறியீடு')}>
           <input value={state.profile.stateCode || ''} onChange={(event) => {
             updateProfileField('stateCode', event.target.value);
             updateSettings({ businessStateCode: event.target.value });
           }} className="settings-input" />
         </Field>
-        <Field label="App language">
+        <Field label={text('App language', 'செயலி மொழி')}>
           <select value={language} onChange={(event) => {
             const next = event.target.value as 'en' | 'ta';
             setLanguage(next);
-            updateSettings({ language: next });
           }} className="settings-input">
             <option value="en">English</option>
             <option value="ta">தமிழ்</option>
@@ -327,39 +333,39 @@ export default function Settings() {
 
   const paymentContent = (
     <div className="space-y-4">
-      <Panel title="Bank Details" description="Optional payment information printed on documents.">
+      <Panel title={text('Bank Details', 'வங்கி விவரங்கள்')} description={text('Optional payment information printed on documents.', 'ஆவணங்களில் அச்சிடப்படும் விருப்பமான கட்டணத் தகவல்.')}>
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Bank name"><input value={bankDraft.bankName} onChange={(event) => setBankDraft((current) => ({ ...current, bankName: event.target.value }))} className="settings-input" /></Field>
-          <Field label="Account holder"><input value={bankDraft.accountHolderName} onChange={(event) => setBankDraft((current) => ({ ...current, accountHolderName: event.target.value }))} className="settings-input" /></Field>
-          <Field label="Account number">
+          <Field label={text('Bank name', 'வங்கிப் பெயர்')}><input value={bankDraft.bankName} onChange={(event) => setBankDraft((current) => ({ ...current, bankName: event.target.value }))} className="settings-input" /></Field>
+          <Field label={text('Account holder', 'கணக்கு வைத்திருப்பவர்')}><input value={bankDraft.accountHolderName} onChange={(event) => setBankDraft((current) => ({ ...current, accountHolderName: event.target.value }))} className="settings-input" /></Field>
+          <Field label={text('Account number', 'கணக்கு எண்')}>
             <div className="relative">
               <input type={showAccount ? 'text' : 'password'} value={bankDraft.accountNumber} onChange={(event) => setBankDraft((current) => ({ ...current, accountNumber: event.target.value }))} className="settings-input pr-12" />
               <button type="button" onClick={() => setShowAccount((current) => !current)} className="absolute inset-y-0 right-0 flex min-w-12 items-center justify-center text-stone-500" aria-label={showAccount ? 'Hide account number' : 'Reveal account number'}>{showAccount ? <EyeOff size={18} /> : <Eye size={18} />}</button>
             </div>
           </Field>
-          <Field label="Confirm account number"><input type={showAccount ? 'text' : 'password'} value={bankDraft.confirmAccountNumber} onChange={(event) => setBankDraft((current) => ({ ...current, confirmAccountNumber: event.target.value }))} className="settings-input" /></Field>
+          <Field label={text('Confirm account number', 'கணக்கு எண்ணை உறுதிசெய்')}><input type={showAccount ? 'text' : 'password'} value={bankDraft.confirmAccountNumber} onChange={(event) => setBankDraft((current) => ({ ...current, confirmAccountNumber: event.target.value }))} className="settings-input" /></Field>
           <Field label="IFSC"><input value={bankDraft.ifscCode} onChange={(event) => setBankDraft((current) => ({ ...current, ifscCode: event.target.value.toUpperCase() }))} className="settings-input uppercase" /></Field>
-          <Field label="Branch"><input value={bankDraft.branch} onChange={(event) => setBankDraft((current) => ({ ...current, branch: event.target.value }))} className="settings-input" /></Field>
-          <Field label="Account type"><input value={bankDraft.accountType} onChange={(event) => setBankDraft((current) => ({ ...current, accountType: event.target.value }))} className="settings-input" /></Field>
+          <Field label={text('Branch', 'கிளை')}><input value={bankDraft.branch} onChange={(event) => setBankDraft((current) => ({ ...current, branch: event.target.value }))} className="settings-input" /></Field>
+          <Field label={text('Account type', 'கணக்கு வகை')}><input value={bankDraft.accountType} onChange={(event) => setBankDraft((current) => ({ ...current, accountType: event.target.value }))} className="settings-input" /></Field>
           <Field label="SWIFT code"><input value={bankDraft.swiftCode} onChange={(event) => setBankDraft((current) => ({ ...current, swiftCode: event.target.value }))} className="settings-input uppercase" /></Field>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={saveBankDetails} className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-emerald-600 px-4 font-semibold text-white"><Save size={18} />Save bank details</button>
-          <span className={`text-sm ${bankStatus === 'error' ? 'text-rose-700' : 'text-stone-500'}`}>{bankStatus === 'saved' ? 'Saved' : bankStatus === 'error' ? 'Account numbers do not match' : 'Changes save only when you press Save'}</span>
+          <button type="button" onClick={saveBankDetails} className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-emerald-600 px-4 font-semibold text-white"><Save size={18} />{text('Save bank details', 'வங்கி விவரங்களைச் சேமி')}</button>
+          <span className={`text-sm ${bankStatus === 'error' ? 'text-rose-700' : 'text-stone-500'}`}>{bankStatus === 'saved' ? text('Saved', 'சேமிக்கப்பட்டது') : bankStatus === 'error' ? text('Account numbers do not match', 'கணக்கு எண்கள் பொருந்தவில்லை') : text('Changes save only when you press Save', 'சேமி என்பதை அழுத்தினால் மட்டுமே மாற்றங்கள் சேமிக்கப்படும்')}</span>
         </div>
       </Panel>
 
-      <Panel title="UPI Payment" description="QR payment settings for invoices and quotations.">
+      <Panel title={text('UPI Payment', 'UPI கட்டணம்')} description={text('QR payment settings for invoices and quotations.', 'விலைப்பட்டியல் மற்றும் விலைமதிப்பீட்டுக்கான QR கட்டண அமைப்புகள்.')}>
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="UPI ID"><input value={state.profile.upiId || ''} onChange={(event) => updateProfileField('upiId', event.target.value.replace(/\s/g, '').toLowerCase())} className="settings-input" placeholder="business@bank" /></Field>
-          <Field label="UPI payee name"><input value={state.profile.upiPayeeName || ''} onChange={(event) => updateProfileField('upiPayeeName', event.target.value)} className="settings-input" /></Field>
-          <Field label="Default payment note" className="md:col-span-2"><input value={state.profile.upiPaymentNote || ''} onChange={(event) => updateProfileField('upiPaymentNote', event.target.value)} className="settings-input" /></Field>
+          <Field label={text('UPI payee name', 'UPI பெறுநர் பெயர்')}><input value={state.profile.upiPayeeName || ''} onChange={(event) => updateProfileField('upiPayeeName', event.target.value)} className="settings-input" /></Field>
+          <Field label={text('Default payment note', 'இயல்புநிலை கட்டணக் குறிப்பு')} className="md:col-span-2"><input value={state.profile.upiPaymentNote || ''} onChange={(event) => updateProfileField('upiPaymentNote', event.target.value)} className="settings-input" /></Field>
           <Switch checked={Boolean(state.profile.enableUpiQr)} onChange={(checked) => {
             if (checked && !state.profile.upiPayeeName?.trim()) return;
             updateProfileField('enableUpiQr', checked);
-          }} label="Enable UPI QR on documents" />
-          <Switch checked={Boolean(state.profile.showUpiAmount)} onChange={(checked) => updateProfileField('showUpiAmount', checked)} label="Show payment amount in QR" />
-          <Field label="Optional fixed payment QR" className="md:col-span-2">
+          }} label={text('Enable UPI QR on documents', 'ஆவணங்களில் UPI QR-ஐ இயக்கு')} />
+          <Switch checked={Boolean(state.profile.showUpiAmount)} onChange={(checked) => updateProfileField('showUpiAmount', checked)} label={text('Show payment amount in QR', 'QR-ல் கட்டணத் தொகையைக் காட்டு')} />
+          <Field label={text('Optional fixed payment QR', 'விருப்பமான நிலையான கட்டண QR')} className="md:col-span-2">
             <div className="flex flex-wrap items-center gap-3">
               <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => loadSimpleImage(event.target.files?.[0] || null, 'qr')} className="min-h-12 min-w-0 flex-1 rounded-xl border border-stone-200 p-2" />
               {qrPreview && <img src={qrPreview} alt="Payment QR preview" className="h-20 w-20 rounded-xl border object-contain p-1" />}
@@ -368,16 +374,16 @@ export default function Settings() {
             {qrError && <p className="mt-2 text-sm text-rose-700">{qrError}</p>}
           </Field>
         </div>
-        {state.profile.enableUpiQr && !state.profile.upiPayeeName?.trim() && <p className="mt-3 text-sm text-rose-700">Enter a payee name before enabling the UPI QR.</p>}
+        {state.profile.enableUpiQr && !state.profile.upiPayeeName?.trim() && <p className="mt-3 text-sm text-rose-700">{text('Enter a payee name before enabling the UPI QR.', 'UPI QR-ஐ இயக்குவதற்கு முன் பெறுநர் பெயரை உள்ளிடவும்.')}</p>}
       </Panel>
     </div>
   );
 
   const brandingContent = (
     <div className="space-y-4">
-      <Panel title="Logo & Document Header">
+      <Panel title={text('Logo & Document Header', 'லோகோ மற்றும் ஆவணத் தலைப்பு')}>
         <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_16rem]">
-          <Field label="Company logo">
+          <Field label={text('Company logo', 'நிறுவன லோகோ')}>
             <div className="flex flex-wrap items-center gap-3">
               <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => loadSimpleImage(event.target.files?.[0] || null, 'logo')} className="min-h-12 min-w-0 flex-1 rounded-xl border border-stone-200 p-2" />
               {logoPreview && <button type="button" onClick={() => { setLogoPreview(''); updateProfileField('logo', ''); }} className="min-h-12 rounded-xl border border-rose-200 px-4 text-rose-700"><Trash2 size={18} /></button>}
@@ -397,14 +403,14 @@ export default function Settings() {
         </div>
       </Panel>
 
-      <Panel title="Authorization Assets" description="These are visual images, not legally certified digital signatures.">
+      <Panel title={text('Authorization Assets', 'அங்கீகாரப் படங்கள்')} description={text('These are visual images, not legally certified digital signatures.', 'இவை காட்சிப் படங்கள்; சட்டப்பூர்வமாகச் சான்றளிக்கப்பட்ட மின்னணுக் கையொப்பங்கள் அல்ல.')}>
         <div className="space-y-4">
-          <VisualAssetManager name="signature" title="Authorized Signature">
+          <VisualAssetManager name="signature" title={text('Authorized Signature', 'அங்கீகரிக்கப்பட்ட கையொப்பம்')}>
             {(['invoice', 'quotation', 'deliveryNote'] as const).map((kind) => (
               <Switch key={kind} checked={state.settings.signatureVisibility[kind]} onChange={(checked) => updateSettings({ signatureVisibility: { ...state.settings.signatureVisibility, [kind]: checked } })} label={`Show on ${kind === 'deliveryNote' ? 'Delivery Note' : kind[0].toUpperCase() + kind.slice(1)}`} />
             ))}
           </VisualAssetManager>
-          <VisualAssetManager name="seal" title="Company Seal / Stamp">
+          <VisualAssetManager name="seal" title={text('Company Seal / Stamp', 'நிறுவன முத்திரை')}>
             {(['invoice', 'quotation', 'deliveryNote'] as const).map((kind) => (
               <Switch key={kind} checked={state.settings.sealVisibility?.[kind] !== false} onChange={(checked) => updateSettings({ sealVisibility: { ...state.settings.sealVisibility, [kind]: checked } })} label={`Show on ${kind === 'deliveryNote' ? 'Delivery Note' : kind[0].toUpperCase() + kind.slice(1)}`} />
             ))}
@@ -412,35 +418,35 @@ export default function Settings() {
         </div>
       </Panel>
 
-      <Panel title="Document Visibility" description="Choose which information appears on generated documents.">
+      <Panel title={text('Document Visibility', 'ஆவணத்தில் காட்ட வேண்டியவை')} description={text('Choose which information appears on generated documents.', 'உருவாக்கப்படும் ஆவணங்களில் காட்ட வேண்டிய தகவலைத் தேர்ந்தெடுக்கவும்.')}>
         <div className="grid gap-2 md:grid-cols-2">
           {([
-            ['logo', 'Logo'],
+            ['logo', text('Logo', 'லோகோ')],
             ['gstNumber', 'GSTIN'],
-            ['address', 'Address'],
-            ['phoneEmail', 'Phone and email'],
-            ['discountColumn', 'Discount'],
+            ['address', t('address')],
+            ['phoneEmail', text('Phone and email', 'தொலைபேசி மற்றும் மின்னஞ்சல்')],
+            ['discountColumn', t('discount')],
             ['hsnSac', 'HSN / SAC'],
-            ['taxBreakdown', 'Tax breakdown'],
-            ['signature', 'Signature area'],
-            ['terms', 'Terms and conditions'],
-            ['qrCode', 'QR code'],
-            ['bankDetails', 'Bank details'],
+            ['taxBreakdown', text('Tax breakdown', 'வரி விவரம்')],
+            ['signature', text('Signature area', 'கையொப்பப் பகுதி')],
+            ['terms', text('Terms and conditions', 'விதிமுறைகள் மற்றும் நிபந்தனைகள்')],
+            ['qrCode', text('QR code', 'QR குறியீடு')],
+            ['bankDetails', t('bankDetails')],
           ] as [keyof TemplateVisibilitySettings, string][]).map(([key, label]) => (
             <Switch key={key} checked={state.settings.template.visibility[key]} onChange={(checked) => updateTemplateVisibility(key, checked)} label={label} />
           ))}
         </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <Field label="Default GST mode">
+          <Field label={text('Default GST mode', 'இயல்புநிலை GST முறை')}>
             <select value={state.settings.taxMode} onChange={(event) => updateSettings({ taxMode: event.target.value as 'exclusive' | 'inclusive' })} className="settings-input">
-              <option value="exclusive">GST Exclusive</option>
-              <option value="inclusive">GST Inclusive</option>
+              <option value="exclusive">{text('GST Exclusive', 'GST தனியாக')}</option>
+              <option value="inclusive">{text('GST Inclusive', 'GST உட்பட')}</option>
             </select>
           </Field>
-          <Field label="Quotation terminology">
+          <Field label={text('Quotation terminology', 'விலைமதிப்பீட்டு சொல்')}>
             <select value={state.settings.estimateDocumentLabel} onChange={(event) => updateSettings({ estimateDocumentLabel: event.target.value as 'estimate' | 'quotation' })} className="settings-input">
-              <option value="estimate">Estimate</option>
-              <option value="quotation">Quotation</option>
+              <option value="estimate">{text('Estimate', 'மதிப்பீடு')}</option>
+              <option value="quotation">{text('Quotation', 'விலைமதிப்பீடு')}</option>
             </select>
           </Field>
         </div>
@@ -449,33 +455,33 @@ export default function Settings() {
   );
 
   const integrations = [
-    { key: 'serverEmail' as const, label: 'Server Email', configured: availability.email },
-    { key: 'pinLookup' as const, label: 'PIN Code Lookup', configured: availability.postal },
-    { key: 'authorizedSignature' as const, label: 'Authorized Signature', configured: true },
+    { key: 'serverEmail' as const, label: text('Server Email', 'சேவையக மின்னஞ்சல்'), configured: availability.email },
+    { key: 'pinLookup' as const, label: text('PIN Code Lookup', 'அஞ்சல் குறியீடு தேடல்'), configured: availability.postal },
+    { key: 'authorizedSignature' as const, label: text('Authorized Signature', 'அங்கீகரிக்கப்பட்ட கையொப்பம்'), configured: true },
   ].filter((integration) => integration.configured);
 
   const integrationsContent = (
-    <Panel title="Integrations" description="Only services available in this deployment are shown.">
+    <Panel title={text('Integrations', 'ஒருங்கிணைப்புகள்')} description={text('Only services available in this deployment are shown.', 'இந்தப் பதிப்பில் கிடைக்கும் சேவைகள் மட்டுமே காட்டப்படுகின்றன.')}>
       <div className="space-y-3">
         {integrations.length ? integrations.map((integration) => (
           <div key={integration.key} className="flex min-h-14 items-center justify-between gap-4 rounded-xl border border-stone-200 px-4 py-3">
             <div>
               <p className="font-semibold text-stone-900">{integration.label}</p>
-              <p className="text-xs text-stone-500">{state.settings.integrations[integration.key] ? 'Configured and enabled' : 'Configured but disabled'}</p>
+              <p className="text-xs text-stone-500">{state.settings.integrations[integration.key] ? text('Configured and enabled', 'அமைக்கப்பட்டு இயக்கப்பட்டுள்ளது') : text('Configured but disabled', 'அமைக்கப்பட்டுள்ளது, ஆனால் முடக்கப்பட்டுள்ளது')}</p>
             </div>
             <input type="checkbox" checked={state.settings.integrations[integration.key]} onChange={(event) => updateSettings({ integrations: { ...state.settings.integrations, [integration.key]: event.target.checked } })} className="h-5 w-5" />
           </div>
-        )) : <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">No external integrations are configured.</p>}
+        )) : <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">{text('No external integrations are configured.', 'வெளிப்புற ஒருங்கிணைப்புகள் எதுவும் அமைக்கப்படவில்லை.')}</p>}
         {availability.email && state.settings.integrations.serverEmail && (
-          <Switch checked={state.settings.emailCcBusiness} onChange={(checked) => updateSettings({ emailCcBusiness: checked })} label="CC business email" secondary="Include the company email when sending documents." />
+          <Switch checked={state.settings.emailCcBusiness} onChange={(checked) => updateSettings({ emailCcBusiness: checked })} label={text('CC business email', 'நிறுவன மின்னஞ்சலுக்கு நகல் அனுப்பு')} secondary={text('Include the company email when sending documents.', 'ஆவணங்களை அனுப்பும்போது நிறுவன மின்னஞ்சலையும் சேர்க்கவும்.')} />
         )}
         <details className="rounded-xl border border-stone-200">
-          <summary className="flex min-h-12 cursor-pointer items-center justify-between px-4 py-3 font-semibold text-stone-700">Advanced integrations <ChevronDown size={18} /></summary>
+          <summary className="flex min-h-12 cursor-pointer items-center justify-between px-4 py-3 font-semibold text-stone-700">{text('Advanced integrations', 'மேம்பட்ட ஒருங்கிணைப்புகள்')} <ChevronDown size={18} /></summary>
           <div className="border-t border-stone-100 p-4 text-sm text-stone-500">
-            GST verification, barcode scanning, OCR import and AI quick actions are not configured and remain hidden from normal workflows.
+            {text('GST verification, barcode scanning, OCR import and AI quick actions are not configured and remain hidden from normal workflows.', 'GST சரிபார்ப்பு, பார்கோடு ஸ்கேன், OCR இறக்குமதி மற்றும் AI விரைவு செயல்கள் அமைக்கப்படாததால் வழக்கமான பணிச்சூழலில் மறைக்கப்பட்டுள்ளன.')}
           </div>
         </details>
-        {availabilityStatus === 'error' && <p className="text-sm text-amber-700">Integration availability could not be refreshed. Core billing remains available.</p>}
+        {availabilityStatus === 'error' && <p className="text-sm text-amber-700">{text('Integration availability could not be refreshed. Core billing remains available.', 'ஒருங்கிணைப்பு நிலையைப் புதுப்பிக்க முடியவில்லை. அடிப்படை பில்லிங் தொடர்ந்து கிடைக்கும்.')}</p>}
       </div>
     </Panel>
   );
@@ -490,17 +496,17 @@ export default function Settings() {
   return (
     <div className="mx-auto max-w-6xl space-y-5 pb-12">
       <div>
-        <Link to="/" className="inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} />Back to Dashboard</Link>
+        <Link to="/" className="inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} />{text('Back to Dashboard', 'முகப்புக்குத் திரும்பு')}</Link>
         <h1 className="mt-2 text-2xl font-black text-stone-900">{t('settings')}</h1>
-        <p className="mt-1 text-sm text-stone-500">Manage company, payment, branding and connected services.</p>
+        <p className="mt-1 text-sm text-stone-500">{text('Manage company, payment, branding and connected services.', 'நிறுவனம், கட்டணம், அடையாளம் மற்றும் இணைக்கப்பட்ட சேவைகளை நிர்வகிக்கவும்.')}</p>
       </div>
 
       {desktop ? (
         <div className="grid grid-cols-[15rem_minmax(0,1fr)] items-start gap-6">
           <nav className="sticky top-24 space-y-1 rounded-2xl border border-stone-200 bg-white p-2" aria-label="Settings sections">
-            {sectionDefinitions.map(({ id, label, icon: Icon }) => (
+            {sectionDefinitions.map(({ id, icon: Icon }) => (
               <button key={id} type="button" onClick={() => setActiveSection(id)} className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left font-semibold ${activeSection === id ? 'bg-emerald-50 text-emerald-800' : 'text-stone-600 hover:bg-stone-50'}`} aria-current={activeSection === id ? 'page' : undefined}>
-                <Icon size={20} />{label}
+                <Icon size={20} />{sectionLabel(id)}
               </button>
             ))}
           </nav>
@@ -508,13 +514,13 @@ export default function Settings() {
         </div>
       ) : (
         <div className="space-y-3">
-          {sectionDefinitions.map(({ id, label, icon: Icon }) => {
+          {sectionDefinitions.map(({ id, icon: Icon }) => {
             const expanded = activeSection === id;
             return (
               <div key={id} className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
                 <button type="button" onClick={() => setActiveSection(id)} className="flex min-h-14 w-full items-center gap-3 px-4 text-left font-bold text-stone-800" aria-expanded={expanded}>
                   <Icon size={20} className="text-emerald-700" />
-                  <span className="flex-1">{label}</span>
+                  <span className="flex-1">{sectionLabel(id)}</span>
                   <ChevronDown size={20} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
                 </button>
                 {expanded && <div className="border-t border-stone-100 bg-stone-50 p-3">{contentBySection[id]}</div>}

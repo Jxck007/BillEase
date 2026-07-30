@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Edit, Maximize2, Share2, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, Edit, Share2 } from 'lucide-react';
 import ExportPanel from '../components/export/ExportPanel';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import IndustrialDeliveryNoteTemplate from '../templates/IndustrialDeliveryNoteTemplate';
+import CanonicalDocumentViewport from '../components/documents/CanonicalDocumentViewport';
 
 export default function DeliveryNotePreview() {
   const { id } = useParams();
@@ -12,35 +13,9 @@ export default function DeliveryNotePreview() {
   const { state } = useData();
   const { language } = useLanguage();
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const printRef = useRef<HTMLDivElement>(null);
   const exportRootRef = useRef<HTMLDivElement>(null);
-  const scalerRef = useRef<HTMLDivElement>(null);
-  const [previewScale, setPreviewScale] = useState(1);
-  const [previewZoom, setPreviewZoom] = useState(1);
   const note = state.deliveryNotes.find(n => n.id === id);
   const customer = state.customers.find(c => c.id === note?.customerId);
-
-  // Fit document preview to screen width
-  const updateScale = useCallback(() => {
-    if (!scalerRef.current) return;
-    const container = scalerRef.current.parentElement;
-    if (!container) return;
-    const containerWidth = container.clientWidth;
-    const docWidth = scalerRef.current.scrollWidth || 900;
-    if (containerWidth < docWidth && containerWidth > 0) {
-      setPreviewScale(Math.min(1.5, Math.max(0.3, containerWidth / docWidth) * previewZoom));
-    } else {
-      setPreviewScale(previewZoom);
-    }
-  }, [previewZoom]);
-
-  useEffect(() => {
-    updateScale();
-    const observer = new ResizeObserver(updateScale);
-    const el = scalerRef.current?.parentElement;
-    if (el) observer.observe(el);
-    return () => observer.disconnect();
-  }, [updateScale, note]);
 
   if (!note) {
     return (
@@ -96,29 +71,9 @@ export default function DeliveryNotePreview() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <button type="button" onClick={() => setPreviewZoom(1)} className="preview-control">Fit Width</button>
-        <button type="button" onClick={() => scalerRef.current?.parentElement?.requestFullscreen().catch(() => undefined)} className="preview-control"><Maximize2 size={17} />Full Screen</button>
-        <div className="ml-auto flex items-center rounded-xl border border-stone-200 bg-white">
-          <button type="button" onClick={() => setPreviewZoom((current) => Math.max(0.75, current - 0.1))} className="flex min-h-12 min-w-12 items-center justify-center" aria-label="Zoom out"><ZoomOut size={18} /></button>
-          <span className="min-w-14 text-center text-sm font-semibold">{Math.round(previewZoom * 100)}%</span>
-          <button type="button" onClick={() => setPreviewZoom((current) => Math.min(1.5, current + 0.1))} className="flex min-h-12 min-w-12 items-center justify-center" aria-label="Zoom in"><ZoomIn size={18} /></button>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto print:overflow-visible">
-        <div className="preview-scaler" ref={scalerRef}>
-          <div ref={printRef} className="dn-export-root mx-auto w-full bg-white p-0 shadow-none print:shadow-none print:border-0" style={{ transform: previewScale < 1 ? `scale(${previewScale})` : 'none', transformOrigin: 'top center' }}>
-            <IndustrialDeliveryNoteTemplate note={note} profile={state.profile} customer={customer || undefined} />
-          </div>
-        </div>
-
-        <div className="export-capture-source fixed -left-[10000px] top-0 w-[210mm] bg-white p-0" aria-hidden="true">
-          <div ref={exportRootRef}>
-            <IndustrialDeliveryNoteTemplate note={note} profile={state.profile} customer={customer || undefined} />
-          </div>
-        </div>
-      </div>
+      <CanonicalDocumentViewport documentRef={exportRootRef}>
+        <IndustrialDeliveryNoteTemplate note={note} profile={state.profile} customer={customer || undefined} />
+      </CanonicalDocumentViewport>
 
       {/* Export Panel */}
       <ExportPanel

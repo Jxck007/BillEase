@@ -1,9 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle, FileDown, Image, Loader2, Mail, MessageCircle, Printer, Share2, X } from 'lucide-react';
 import type { RefObject } from 'react';
 import { useIntegrationAvailability } from '../../hooks/useIntegrationAvailability';
 import { documentPdfCacheKey, getCachedDocumentPdf } from '../../services/documentPdfCache';
 import DocumentDeliveryModal from './DocumentDeliveryModal';
+import { useLanguage } from '../../context/LanguageContext';
 
 export type DocumentType = 'invoice' | 'quotation' | 'delivery-note';
 interface ExportPanelProps {
@@ -47,16 +48,24 @@ export default function ExportPanel({
   onPrint,
   widthMm = 190,
 }: ExportPanelProps) {
+  const { language, t } = useLanguage();
   const [status, setStatus] = useState<{ type: 'idle' | 'generating' | 'success' | 'failed'; text: string }>({ type: 'idle', text: '' });
   const [active, setActive] = useState<string | null>(null);
-  const [deliveryChannel, setDeliveryChannel] = useState<'email' | 'whatsapp' | null>(null);
+  const [emailComposerOpen, setEmailComposerOpen] = useState(false);
   const { availability, status: availabilityStatus } = useIntegrationAvailability();
   const [nativeAvailable, setNativeAvailable] = useState(() => typeof navigator !== 'undefined' && Boolean(navigator.share && navigator.canShare));
-  const fileName = `${documentLabel.replace(/[^a-z0-9_-]+/gi, '_')}_${documentNumber.replace(/[^a-z0-9_-]+/gi, '_')}.pdf`;
+  const [shareFormat, setShareFormat] = useState<'pdf' | 'png'>('pdf');
+  const fileNameBase = `${documentLabel.replace(/[^a-z0-9_-]+/gi, '_')}_${documentNumber.replace(/[^a-z0-9_-]+/gi, '_')}`;
   const cacheKey = documentPdfCacheKey(documentType, documentId, updatedAt);
   const customerNumber = customerWhatsapp || customerPhone || '';
   const emailReady = emailEnabled && availabilityStatus === 'configured' && availability.email;
-  const whatsappReady = availabilityStatus === 'configured' && availability.whatsapp && availability.whatsappConnected;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [isOpen]);
 
   const setMessage = (type: typeof status.type, text: string, action: string | null = null) => {
     setStatus({ type, text });
@@ -70,34 +79,39 @@ export default function ExportPanel({
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, []);
-  const exportRoot = () => {
+  const exportRoot = useCallback(() => {
     const root = exportRootRef.current;
     if (!root) throw new Error('Document is not ready');
     return root;
-  };
-  const getFile = async () => {
+  }, [exportRootRef]);
+  const getFile = useCallback(async (format: 'pdf' | 'png' = 'pdf') => {
+    if (format === 'png') {
+      const service = await import('../../services/exportService');
+      const blob = await service.createPngBlobFromElement(exportRoot(), widthMm);
+      return new File([blob], `${fileNameBase}.png`, { type: 'image/png' });
+    }
     const blob = await getCachedDocumentPdf(cacheKey, async () => {
       const service = await import('../../services/exportService');
       return service.createPdfBlobFromElement(exportRoot(), widthMm);
     });
-    return new File([blob], fileName, { type: 'application/pdf' });
-  };
+    return new File([blob], `${fileNameBase}.pdf`, { type: 'application/pdf' });
+  }, [cacheKey, exportRoot, fileNameBase, widthMm]);
   const run = async (name: string, work: () => Promise<void>) => {
     if (active) return;
-    setMessage('generating', 'Preparing document…', name);
+    setMessage('generating', t('preparingDocument'), name);
     try {
       await work();
     } catch {
-      setMessage('failed', 'Could not prepare the document. Please try again.', name);
+      setMessage('failed', language === 'ta' ? 'ஆவணத்தைத் தயாரிக்க முடியவில்லை. மீண்டும் முயலவும்.' : 'Could not prepare the document. Please try again.', name);
     } finally {
       setActive(null);
     }
   };
   const share = () => run('share', async () => {
-    const file = await getFile();
+    const file = await getFile(shareFormat);
     if (!navigator.share || !navigator.canShare || !navigator.canShare({ files: [file] })) {
       setNativeAvailable(false);
-      setMessage('failed', 'File sharing is unavailable. Use a fallback below.');
+      setMessage('failed', language === 'ta' ? 'கோப்புப் பகிர்வு கிடைக்கவில்லை. கீழுள்ள மாற்று வழியைப் பயன்படுத்தவும்.' : 'File sharing is unavailable. Use a fallback below.');
       return;
     }
     try {
@@ -106,69 +120,76 @@ export default function ExportPanel({
         text: `Please find the ${documentLabel} ${documentNumber} from ${businessName}.`,
         files: [file],
       });
-      setMessage('success', 'Document shared with the PDF attached.');
+      setMessage('success', `${file.name} shared through the system share sheet.`);
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') setMessage('idle', 'Sharing cancelled.');
+      if (error instanceof DOMException && error.name === 'AbortError') setMessage('idle', language === 'ta' ? 'பகிர்வு ரத்து செய்யப்பட்டது.' : 'Sharing cancelled.');
       else throw error;
     }
   });
   const pdf = () => run('pdf', async () => {
-    const file = await getFile();
+    const file = await getFile('pdf');
     download(file, file.name);
-    setMessage('success', 'PDF downloaded.');
+    setMessage('success', t('pdfDownloaded'));
   });
   const image = () => run('image', async () => {
-    await (await import('../../services/exportService')).exportInvoiceAsImage(exportRoot(), fileName.replace(/\.pdf$/, ''), widthMm);
-    setMessage('success', 'Image downloaded.');
+    const file = await getFile('png');
+    download(file, file.name);
+    setMessage('success', t('imageDownloaded'));
   });
   const print = () => {
-    setMessage('generating', 'Opening print dialog…', 'print');
+    setMessage('generating', language === 'ta' ? 'அச்சு சாளரம் திறக்கப்படுகிறது…' : 'Opening print dialog…', 'print');
     onPrint();
-    setMessage('success', 'Print dialog opened.');
-  };
-  const emailFallback = async (to = customerEmail || '', subject = `${documentLabel} ${documentNumber} from ${businessName}`, message = `Please find the ${documentLabel} ${documentNumber}.`) => {
-    await run('email-fallback', async () => {
-      const file = await getFile();
-      download(file, file.name);
-      window.location.href = `mailto:${to.trim()}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
-      setMessage('success', 'PDF downloaded and mail app opened. Attach the PDF manually.');
-    });
+    setMessage('success', t('printDialogOpened'));
   };
   const whatsappFallback = async (number = customerNumber, caption = `Please find the ${documentLabel} ${documentNumber} from ${businessName}.`) => {
-    const popup = window.open('about:blank', '_blank');
     await run('whatsapp-fallback', async () => {
       if (!number) throw new Error('Missing WhatsApp number');
-      const file = await getFile();
+      const file = await getFile(shareFormat);
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `${documentLabel} ${documentNumber}`,
+          text: caption,
+        });
+        setMessage('success', language === 'ta' ? 'ஆவணத்துடன் சாதனப் பகிர்வு திறக்கப்பட்டது. WhatsApp-ஐத் தேர்ந்தெடுக்கவும்.' : 'System share opened with the document attached. Choose WhatsApp.');
+        return;
+      }
       download(file, file.name);
       const digits = number.replace(/\D/g, '');
       const normalized = digits.length === 10 ? `91${digits}` : digits;
       const url = `https://wa.me/${normalized}?text=${encodeURIComponent(caption)}`;
-      if (popup) popup.location.href = url;
-      else window.open(url, '_blank', 'noopener,noreferrer');
-      setMessage('success', 'PDF downloaded and WhatsApp opened. Attach the PDF manually.');
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setMessage('success', language === 'ta' ? `${file.name} பதிவிறக்கப்பட்டு WhatsApp திறக்கப்பட்டது. கோப்பைக் கைமுறையாக இணைக்கவும்.` : `${file.name} downloaded and WhatsApp opened. Attach the downloaded file manually.`);
     });
-    if (popup && popup.location.href === 'about:blank') popup.close();
   };
 
   if (!isOpen) return null;
   const actions = [
-    { id: 'print', label: 'Print', text: 'Browser print dialog', icon: Printer, run: print, disabled: false },
-    { id: 'pdf', label: 'Download PDF', text: 'Cached PDF file', icon: FileDown, run: pdf, disabled: false },
-    { id: 'image', label: 'Download Image', text: 'PNG image', icon: Image, run: image, disabled: false },
-    { id: 'share', label: 'Share Document', text: nativeAvailable ? 'Native PDF share' : 'Unavailable here', icon: Share2, run: share, disabled: !nativeAvailable },
-    { id: 'email', label: 'Send Email', text: emailReady ? 'PDF via Resend' : 'Provider unavailable', icon: Mail, run: () => setDeliveryChannel('email'), disabled: !emailReady },
-    { id: 'whatsapp', label: 'Send WhatsApp', text: whatsappReady ? 'PDF via Evolution Go' : 'Provider unavailable', icon: MessageCircle, run: () => setDeliveryChannel('whatsapp'), disabled: !whatsappReady },
+    { id: 'print', label: t('print'), text: t('browserPrintDialog'), icon: Printer, run: print, disabled: false },
+    { id: 'pdf', label: t('downloadPdf'), text: t('cachedPdfFile'), icon: FileDown, run: pdf, disabled: false },
+    { id: 'image', label: t('downloadImage'), text: t('pngImage'), icon: Image, run: image, disabled: false },
+    ...(nativeAvailable ? [{ id: 'share', label: t('shareDocument'), text: t('nativeFileShare'), icon: Share2, run: share, disabled: false }] : []),
+    { id: 'email', label: t('sendEmail'), text: emailReady ? t('pdfViaResend') : t('providerUnavailable'), icon: Mail, run: () => setEmailComposerOpen(true), disabled: !emailReady },
+    { id: 'whatsapp', label: t('openWhatsApp'), text: nativeAvailable ? t('nativeFileShare') : t('downloadThenAttach'), icon: MessageCircle, run: () => whatsappFallback(), disabled: !customerNumber },
   ];
   const StatusIcon = status.type === 'generating' ? Loader2 : status.type === 'success' ? CheckCircle : AlertCircle;
 
   return (
     <>
-      <button type="button" onClick={onClose} className="fixed inset-0 z-40 bg-black/30" aria-label="Close export panel" />
-      <div className="fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[92dvh] max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+      <button type="button" onClick={onClose} className="fixed inset-0 z-[70] bg-black/30" aria-label={language === 'ta' ? 'ஏற்றுமதி சாளரத்தை மூடு' : 'Close export panel'} />
+      <div role="dialog" aria-modal="true" aria-labelledby="export-share-title" className="fixed inset-x-0 bottom-0 z-[80] mx-auto max-h-[calc(100dvh-1rem)] max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-2xl lg:inset-0 lg:my-auto lg:h-fit lg:max-h-[calc(100dvh-3rem)] lg:rounded-3xl lg:pb-5">
         <div className="mb-5 flex items-center justify-between">
-          <div><h3 className="text-lg font-bold text-stone-800">Export & Share</h3><p className="text-xs text-stone-500">{documentLabel} #{documentNumber}</p></div>
-          <button onClick={onClose} className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl text-stone-600 hover:bg-stone-100" aria-label="Close"><X /></button>
+          <div><h3 id="export-share-title" className="text-lg font-bold text-stone-800">{t('exportShare')}</h3><p className="text-xs text-stone-500">{documentLabel} #{documentNumber}</p></div>
+          <button onClick={onClose} className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl text-stone-600 hover:bg-stone-100" aria-label={t('cancel')}><X /></button>
         </div>
+        <label className="mb-4 block text-sm font-semibold text-stone-700">
+          {t('shareFormat')}
+          <select value={shareFormat} onChange={(event) => setShareFormat(event.target.value as 'pdf' | 'png')} disabled={Boolean(active)} className="delivery-input">
+            <option value="pdf">{t('pdfDefault')}</option>
+            <option value="png">{t('pngImageOption')}</option>
+          </select>
+        </label>
+        {!nativeAvailable && <p className="mb-4 rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm text-stone-600">{t('systemFileSharingUnavailable')}</p>}
         {status.text && (
           <div className={`mb-4 flex items-center gap-2 rounded-xl border p-3 text-sm ${status.type === 'failed' ? 'border-rose-200 bg-rose-50 text-rose-800' : status.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-blue-200 bg-blue-50 text-blue-800'}`}>
             <StatusIcon size={18} className={status.type === 'generating' ? 'animate-spin' : ''} />{status.text}
@@ -179,24 +200,25 @@ export default function ExportPanel({
             const Icon = action.icon;
             const loading = active === action.id;
             return (
-              <button key={action.id} onClick={action.run} disabled={Boolean(active) || action.disabled} className="flex min-h-[56px] items-center gap-3 rounded-2xl border border-stone-200 bg-white p-3 text-left font-semibold text-stone-700 hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-45">
-                {loading ? <Loader2 className="animate-spin" /> : <Icon size={22} />}
-                <span>{action.label}</span><span className="ml-auto text-[10px] font-normal text-stone-500">{action.text}</span>
+              <button key={action.id} onClick={action.run} disabled={Boolean(active) || action.disabled} className="flex min-h-[68px] items-center gap-3 rounded-2xl border border-stone-200 bg-white p-3 text-left text-stone-700 hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-45">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-stone-100 text-emerald-700">
+                  {loading ? <Loader2 className="animate-spin" size={22} /> : <Icon size={22} />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-semibold leading-tight">{action.label}</span>
+                  <span className="mt-1 block text-xs font-normal leading-snug text-stone-500">{action.text}</span>
+                </span>
               </button>
             );
           })}
         </div>
-        <div className="mt-4 grid gap-2 border-t border-stone-100 pt-4 sm:grid-cols-2">
-          <button type="button" onClick={() => emailFallback()} disabled={Boolean(active) || !customerEmail} className="min-h-12 rounded-xl border px-3 text-sm font-semibold disabled:opacity-45">Download PDF & open mailto</button>
-          <button type="button" onClick={() => whatsappFallback()} disabled={Boolean(active) || !customerNumber} className="min-h-12 rounded-xl border px-3 text-sm font-semibold disabled:opacity-45">Download PDF & open wa.me</button>
-        </div>
-        {availabilityStatus !== 'configured' && <p className="mt-3 text-xs text-amber-800">Provider status is unavailable. Download, print, native share, mailto and wa.me remain available.</p>}
+        {availabilityStatus !== 'configured' && <p className="mt-3 text-xs text-amber-800">{t('providerStatusFallbacks')}</p>}
       </div>
       <DocumentDeliveryModal
-        channel={deliveryChannel}
-        onClose={() => setDeliveryChannel(null)}
-        providerReady={deliveryChannel === 'email' ? emailReady : whatsappReady}
-        providerReason={deliveryChannel === 'email' ? 'Resend is not configured or reachable. Use the mail-app fallback.' : 'Evolution Go is not configured, reachable, or connected. Use the WhatsApp fallback.'}
+        open={emailComposerOpen}
+        onClose={() => setEmailComposerOpen(false)}
+        providerReady={emailReady}
+        providerReason={language === 'ta' ? 'Resend சரியாக அமைக்கப்படவில்லை அல்லது அணுக முடியவில்லை.' : 'Resend is not configured correctly or is unreachable.'}
         documentId={documentId}
         documentType={documentType}
         documentNumber={documentNumber}
@@ -204,11 +226,8 @@ export default function ExportPanel({
         customerName={customerName}
         customerEmail={customerEmail || ''}
         defaultCcEmail={defaultCcEmail}
-        customerNumber={customerNumber}
         businessName={businessName}
-        getPdfFile={getFile}
-        onEmailFallback={emailFallback}
-        onWhatsAppFallback={whatsappFallback}
+        getAttachmentFile={getFile}
       />
     </>
   );

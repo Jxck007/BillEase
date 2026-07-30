@@ -1,14 +1,16 @@
 import { auth } from '../lib/firebase';
 
-export type DeliveryChannel = 'email' | 'whatsapp';
+export type DeliveryChannel = 'email';
 export type DeliveryErrorCode =
   | 'VALIDATION_FAILED'
   | 'AUTH_REQUIRED'
   | 'AUTH_INVALID'
   | 'ADMIN_REQUIRED'
   | 'ATTACHMENT_TOO_LARGE'
-  | 'PROVIDER_NOT_CONFIGURED'
-  | 'PROVIDER_UNAVAILABLE'
+  | 'RESEND_NOT_CONFIGURED'
+  | 'SENDER_NOT_VERIFIED'
+  | 'PROVIDER_REJECTED'
+  | 'PROVIDER_TIMEOUT'
   | 'TIMEOUT'
   | 'DELIVERY_IN_PROGRESS'
   | 'RATE_LIMITED'
@@ -20,9 +22,7 @@ export type DeliveryResult =
 
 export type DeliveryProviderStatus = {
   email: { configured: boolean; available: boolean };
-  whatsapp: { configured: boolean; available: boolean; instanceConnected: boolean };
   postal?: boolean;
-  signature?: boolean;
 };
 
 type SharedDocumentInput = {
@@ -30,7 +30,7 @@ type SharedDocumentInput = {
   documentType: 'invoice' | 'quotation' | 'delivery-note';
   documentNumber: string;
   customerId: string;
-  pdf: File;
+  attachment: File;
   idempotencyKey: string;
 };
 
@@ -42,11 +42,6 @@ type EmailInput = SharedDocumentInput & {
   message: string;
 };
 
-type WhatsAppInput = SharedDocumentInput & {
-  recipientNumber: string;
-  caption: string;
-};
-
 let statusCache: { expiresAt: number; value: DeliveryProviderStatus } | null = null;
 
 function friendlyCode(status: number, serverCode: string): DeliveryErrorCode {
@@ -56,8 +51,11 @@ function friendlyCode(status: number, serverCode: string): DeliveryErrorCode {
   if (status === 409) return 'DELIVERY_IN_PROGRESS';
   if (status === 413) return 'ATTACHMENT_TOO_LARGE';
   if (status === 429) return 'RATE_LIMITED';
-  if (serverCode === 'PROVIDER_NOT_CONFIGURED') return 'PROVIDER_NOT_CONFIGURED';
-  if (status >= 500) return 'PROVIDER_UNAVAILABLE';
+  if (serverCode === 'RESEND_NOT_CONFIGURED') return 'RESEND_NOT_CONFIGURED';
+  if (serverCode === 'SENDER_NOT_VERIFIED') return 'SENDER_NOT_VERIFIED';
+  if (serverCode === 'PROVIDER_TIMEOUT') return 'PROVIDER_TIMEOUT';
+  if (serverCode === 'PROVIDER_REJECTED') return 'PROVIDER_REJECTED';
+  if (status >= 500) return 'PROVIDER_REJECTED';
   return 'UNKNOWN';
 }
 
@@ -65,19 +63,22 @@ function friendlyMessage(status: number, fallback: string) {
   if (status === 400) return 'Check the recipient and document details, then try again.';
   if (status === 401) return 'Your login has expired. Sign in again before sending.';
   if (status === 403) return 'Admin access is required to send documents.';
-  if (status === 413) return 'The PDF is larger than the 3 MB attachment limit.';
+  if (status === 413) return 'The attachment is larger than the 2 MB delivery limit.';
+  if (status === 422) return fallback || 'The email provider rejected this request.';
+  if (status === 503) return 'Resend is not configured with valid credentials and a sender address.';
+  if (status === 504) return 'Resend timed out. Try again once.';
   if (status === 429) return 'Too many send attempts. Please wait a minute.';
   return fallback || 'Delivery provider is unavailable.';
 }
 
-async function currentToken() {
+async function currentToken(forceRefresh = false) {
   const user = auth?.currentUser;
   if (!user) throw new Error('AUTH_REQUIRED');
-  return user.getIdToken();
+  return user.getIdToken(forceRefresh);
 }
 
-async function authenticatedFetch(url: string, init: RequestInit, timeoutMs: number) {
-  const token = await currentToken();
+async function authenticatedFetch(url: string, init: RequestInit, timeoutMs: number, forceRefresh = false) {
+  const token = await currentToken(forceRefresh);
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -100,16 +101,20 @@ function appendShared(form: FormData, input: SharedDocumentInput) {
   form.set('documentNumber', input.documentNumber);
   form.set('customerId', input.customerId);
   form.set('idempotencyKey', input.idempotencyKey);
-  form.set('pdf', input.pdf, input.pdf.name);
+  form.set('attachment', input.attachment, input.attachment.name);
 }
 
 async function send(url: string, form: FormData, idempotencyKey: string): Promise<DeliveryResult> {
   try {
-    const response = await authenticatedFetch(url, {
+    const request = () => ({
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
       body: form,
-    }, 20_000);
+    });
+    let response = await authenticatedFetch(url, request(), 20_000);
+    if (response.status === 401 && auth?.currentUser) {
+      response = await authenticatedFetch(url, request(), 20_000, true);
+    }
     const payload = await response.json().catch(() => ({}));
     if (response.ok) {
       return {
@@ -132,7 +137,7 @@ async function send(url: string, form: FormData, idempotencyKey: string): Promis
     if (error instanceof DOMException && error.name === 'AbortError') {
       return { ok: false, status: 0, code: 'TIMEOUT', message: 'The delivery request timed out.' };
     }
-    return { ok: false, status: 0, code: 'PROVIDER_UNAVAILABLE', message: 'Delivery provider is unavailable.' };
+    return { ok: false, status: 0, code: 'PROVIDER_REJECTED', message: 'Delivery provider is unavailable.' };
   }
 }
 
@@ -145,14 +150,6 @@ export async function sendDocumentByEmail(input: EmailInput): Promise<DeliveryRe
   form.set('subject', input.subject);
   form.set('message', input.message);
   return send('/api/email/send-document', form, input.idempotencyKey);
-}
-
-export async function sendDocumentByWhatsApp(input: WhatsAppInput): Promise<DeliveryResult> {
-  const form = new FormData();
-  appendShared(form, input);
-  form.set('recipientNumber', input.recipientNumber);
-  form.set('caption', input.caption);
-  return send('/api/whatsapp/send-document', form, input.idempotencyKey);
 }
 
 export async function getDeliveryProviderStatus(force = false): Promise<DeliveryProviderStatus> {

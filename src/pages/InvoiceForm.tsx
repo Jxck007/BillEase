@@ -16,10 +16,10 @@ import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 
 function Label({ english, tamil, helper }: { english: string; tamil: string; helper?: string }) {
+  const { language } = useLanguage();
   return (
     <div className="mb-1">
-      <div className="text-sm font-semibold text-stone-800">{english}</div>
-      <div className="text-xs text-stone-500">{tamil}</div>
+      <div className="text-sm font-semibold text-stone-800">{language === 'ta' ? tamil : english}</div>
       {helper && <div className="mt-1 text-[11px] text-stone-400">{helper}</div>}
     </div>
   );
@@ -94,7 +94,6 @@ export default function InvoiceForm() {
   const [customerSearch, setCustomerSearch] = useState('');
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(true);
-  const [currentStep, setCurrentStep] = useState(1);
   const [customerDraft, setCustomerDraft] = useState({ name: '', phone: '', email: '', address: '', gstNumber: '', stateCode: '' });
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null);
 
@@ -257,16 +256,8 @@ export default function InvoiceForm() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 pb-48 sm:pb-12">
-      {/* Step indicator for older users */}
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 print:hidden">
-        <div className="text-sm font-bold">Step {currentStep} of 5 — {['Customer', 'Document details', 'Items', 'Review', 'Preview and Share'][currentStep - 1]}</div>
-        <div className="mt-2 grid grid-cols-5 gap-1" aria-hidden="true">
-          {[1, 2, 3, 4, 5].map((step) => <span key={step} className={`h-1.5 rounded-full ${step <= currentStep ? 'bg-emerald-600' : 'bg-emerald-200'}`} />)}
-        </div>
-      </div>
-
       <div className="flex items-start gap-3 border-b border-stone-200 pb-4">
-        <button type="button" title="Back" aria-label="Back" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="shrink-0 inline-flex min-h-12 items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2 shadow-sm">
+        <button type="button" title={t('back')} aria-label={t('back')} onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="shrink-0 inline-flex min-h-12 items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2 shadow-sm">
           <ArrowLeft size={24} className="text-stone-600" />
           <span className="text-sm font-semibold text-stone-700">{isEstimate ? 'Back to Quotations' : 'Back to Invoices'}</span>
         </button>
@@ -282,7 +273,7 @@ export default function InvoiceForm() {
         <section className="space-y-6">
           <div className="rounded-3xl border bg-white p-4 md:p-6 shadow-sm space-y-6">
             <details open className="form-section">
-              <summary onClick={() => setCurrentStep(1)}>1. Customer</summary>
+              <summary>{language === 'ta' ? 'வாடிக்கையாளர்' : 'Customer'}</summary>
               <div className="pt-4">
                 <Label english={t('customerName')} tamil="வாடிக்கையாளர் பெயர்" helper={language === 'en' ? 'Search or create a customer quickly.' : 'வாடிக்கையாளரை தேடவும் அல்லது புதிதாக சேர்க்கவும்.'} />
                 <div className="relative">
@@ -304,7 +295,7 @@ export default function InvoiceForm() {
             </details>
 
             <details open className="form-section">
-              <summary onClick={() => setCurrentStep(2)}>2. Document details</summary>
+              <summary>{language === 'ta' ? 'ஆவண விவரங்கள்' : 'Document details'}</summary>
               <div className="grid grid-cols-1 gap-4 pt-4 md:grid-cols-2">
                 <div>
                   <Label english={isEstimate ? getEstimateNumberLabel(state.settings) : t('invoiceNumber')} tamil="பில் எண்" />
@@ -357,11 +348,11 @@ export default function InvoiceForm() {
             ) : null}
 
             <details open className="form-section">
-              <summary onClick={() => setCurrentStep(3)}>3. Items</summary>
+              <summary>{language === 'ta' ? 'பொருட்கள்' : 'Items'}</summary>
               <div className="relative pt-4">
               {state.products.length > 0 && (
                 <div className="mb-4">
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-stone-500">Recent products</p>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-stone-500">{language === 'ta' ? 'சமீபத்திய பொருட்கள்' : 'Recent products'}</p>
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {state.products.slice(-5).reverse().map((product) => (
                       <button key={product.id} type="button" onClick={() => addRecentProduct(product)} className="min-h-12 shrink-0 rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold text-stone-700 hover:border-emerald-300 hover:bg-emerald-50">
@@ -396,7 +387,7 @@ export default function InvoiceForm() {
               </div>
             </details>
 
-            <button type="button" onClick={() => { setCurrentStep(4); setIsAdvancedOpen((current) => !current); }} className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 font-semibold text-stone-800">
+            <button type="button" onClick={() => setIsAdvancedOpen((current) => !current)} className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 font-semibold text-stone-800">
               <span>{language === 'en' ? '4. Review & advanced options' : '4. Review & advanced options'}</span>
               {isAdvancedOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
             </button>
@@ -410,8 +401,8 @@ export default function InvoiceForm() {
                 <div>
                   <Label english={language === 'en' ? 'GST Mode' : 'GST வகை'} tamil="வரி முறை" />
                   <select value={draft.gstMode || state.settings.taxMode} onChange={(event) => updateDraft({ gstMode: event.target.value as 'inclusive' | 'exclusive' })} title={language === 'en' ? 'GST mode' : 'GST வகை'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500">
-                    <option value="exclusive">GST Exclusive</option>
-                    <option value="inclusive">GST Inclusive</option>
+                    <option value="exclusive">{language === 'ta' ? 'GST தனியாக' : 'GST Exclusive'}</option>
+                    <option value="inclusive">{language === 'ta' ? 'GST உட்பட' : 'GST Inclusive'}</option>
                   </select>
                 </div>
                 {!isEstimate ? (
@@ -518,7 +509,7 @@ export default function InvoiceForm() {
               </div>
               {!isEstimate && <div className="flex justify-between text-stone-500"><span>{t('balanceDue')}</span><span>{formatCurrency(Math.max(0, (viewDraft.total || 0) - (draft.amountPaid || 0)))}</span></div>}
               <details className="border-t border-stone-100 pt-2">
-                <summary className="cursor-pointer font-semibold text-stone-700">GST check</summary>
+                <summary className="cursor-pointer font-semibold text-stone-700">{language === 'ta' ? 'GST சரிபார்ப்பு' : 'GST check'}</summary>
                 <div className="mt-2 space-y-1 text-xs text-stone-500">
                   <div>Business state: {state.settings.businessStateCode || state.profile.stateCode || '-'}</div>
                   <div>Customer state: {selectedCustomer?.stateCode || getStateCodeFromGSTIN(selectedCustomer?.gstNumber) || '-'}</div>
@@ -533,24 +524,24 @@ export default function InvoiceForm() {
 
       <div className="hidden border-t bg-white px-4 py-3 sm:block sm:border-0 sm:bg-transparent sm:p-0">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-          <button type="button" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-5 py-3 font-semibold text-stone-700 shadow-sm">Back</button>
+          <button type="button" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-5 py-3 font-semibold text-stone-700 shadow-sm">{t('back')}</button>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <button type="button" onClick={() => showToast('Draft saved locally', 'success')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold text-stone-700 shadow-sm">Save Draft</button>
-            <button type="button" onClick={() => isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast('Save the document first to open its full preview.', 'info')} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800"><Eye size={18} /> Preview</button>
-            <button type="button" onClick={handleSave} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-sm"><Save size={18} />Save and Finish</button>
+            <button type="button" onClick={() => showToast(language === 'ta' ? 'வரைவு சாதனத்தில் சேமிக்கப்பட்டது' : 'Draft saved locally', 'success')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold text-stone-700 shadow-sm">{language === 'ta' ? 'வரைவைச் சேமி' : 'Save Draft'}</button>
+            <button type="button" onClick={() => isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info')} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800"><Eye size={18} /> {language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
+            <button type="button" onClick={handleSave} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-sm"><Save size={18} />{language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}</button>
           </div>
         </div>
       </div>
 
       <div className="fixed inset-x-0 z-30 border-t border-stone-200 bg-white px-3 py-2 shadow-[0_-3px_12px_rgba(28,25,23,0.08)] sm:hidden print:hidden bottom-[calc(72px+env(safe-area-inset-bottom))]">
         <div className="mb-2 flex items-center justify-between px-1 text-sm">
-          <span className="font-medium text-stone-600">Total</span>
+          <span className="font-medium text-stone-600">{t('total')}</span>
           <span className="font-black text-emerald-700">{formatCurrency(viewDraft.total || 0)}</span>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <button type="button" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="min-h-12 rounded-xl border border-stone-200 font-semibold text-stone-700">Back</button>
-          <button type="button" onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 font-semibold text-white">Save</button>
-          <button type="button" onClick={() => { setCurrentStep(5); isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast('Save the document first to open its full preview.', 'info'); }} className="min-h-12 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">Preview</button>
+          <button type="button" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="min-h-12 rounded-xl border border-stone-200 font-semibold text-stone-700">{t('back')}</button>
+          <button type="button" onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 font-semibold text-white">{t('save')}</button>
+          <button type="button" onClick={() => { isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info'); }} className="min-h-12 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">{language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
         </div>
       </div>
 

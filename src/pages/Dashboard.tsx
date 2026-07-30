@@ -6,9 +6,11 @@ import {
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { formatCurrency } from '../lib/utils';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Dashboard() {
   const { state, syncStatus, lastSavedAt } = useData();
+  const { language, t } = useLanguage();
 
   const summary = useMemo(() => {
     const now = new Date();
@@ -19,11 +21,13 @@ export default function Dashboard() {
     const invoices = state.invoices.filter((document) => document.type === 'invoice');
     const quotations = state.invoices.filter((document) => document.type === 'estimate');
     const monthlyInvoices = invoices.filter((document) => thisMonth(document.date || document.createdAt));
-    const customerName = (id: string) => state.customers.find((customer) => customer.id === id)?.name || 'Unknown customer';
+    const customerName = (id: string) => state.customers.find((customer) => customer.id === id)?.name || (language === 'ta' ? 'தெரியாத வாடிக்கையாளர்' : 'Unknown customer');
     const recentDocuments = [
       ...state.invoices.map((document) => ({
         id: document.id,
-        label: document.type === 'estimate' ? `Quotation ${document.invoiceNumber}` : `Invoice ${document.invoiceNumber}`,
+        label: document.type === 'estimate'
+          ? `${language === 'ta' ? 'விலைமதிப்பீடு' : 'Quotation'} ${document.invoiceNumber}`
+          : `${language === 'ta' ? 'விலைப்பட்டியல்' : 'Invoice'} ${document.invoiceNumber}`,
         customer: customerName(document.customerId),
         date: document.date || document.createdAt,
         total: document.total,
@@ -31,7 +35,7 @@ export default function Dashboard() {
       })),
       ...state.deliveryNotes.map((document) => ({
         id: document.id,
-        label: `Delivery Note ${document.deliveryNoteNumber || document.dnNumber || ''}`,
+        label: `${language === 'ta' ? 'விநியோகக் குறிப்பு' : 'Delivery Note'} ${document.deliveryNoteNumber || document.dnNumber || ''}`,
         customer: customerName(document.customerId),
         date: document.date || document.createdAt,
         total: document.total || document.approximateValue || 0,
@@ -47,27 +51,29 @@ export default function Dashboard() {
       recentDocuments,
       recentCustomers: [...state.customers].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5),
     };
-  }, [state.customers, state.deliveryNotes, state.invoices]);
+  }, [language, state.customers, state.deliveryNotes, state.invoices]);
 
   const actions = [
-    { to: '/invoices/new', label: 'New Invoice', hint: 'Create a tax invoice', icon: FilePlus2, tone: 'bg-emerald-600 hover:bg-emerald-700 text-white' },
-    { to: '/estimates/new', label: 'New Quotation', hint: 'Prepare a price quote', icon: ReceiptText, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
-    { to: '/delivery-notes/new', label: 'New Delivery Note', hint: 'Record goods sent', icon: Truck, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
-    { to: '/customers?add=1', label: 'Add Customer', hint: 'Save a customer', icon: UserPlus, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
+    { to: '/invoices/new', label: t('newInvoice'), hint: language === 'ta' ? 'வரி விலைப்பட்டியல் உருவாக்கு' : 'Create a tax invoice', icon: FilePlus2, tone: 'bg-emerald-600 hover:bg-emerald-700 text-white' },
+    { to: '/estimates/new', label: t('newQuotation'), hint: language === 'ta' ? 'விலைமதிப்பீடு தயாரி' : 'Prepare a price quote', icon: ReceiptText, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
+    { to: '/delivery-notes/new', label: t('newDeliveryNote'), hint: language === 'ta' ? 'அனுப்பிய பொருட்களைப் பதிவு செய்' : 'Record goods sent', icon: Truck, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
+    { to: '/customers?add=1', label: t('addCustomer'), hint: language === 'ta' ? 'வாடிக்கையாளரைச் சேமி' : 'Save a customer', icon: UserPlus, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
   ];
 
-  const statusLabel = syncStatus === 'online' ? 'Synced' : syncStatus === 'syncing' ? 'Syncing' : syncStatus === 'failed' ? 'Sync failed' : syncStatus === 'loading' ? 'Loading' : 'Offline';
+  const statusLabel = language === 'ta'
+    ? syncStatus === 'online' ? 'ஒத்திசைக்கப்பட்டது' : syncStatus === 'syncing' ? 'ஒத்திசைக்கப்படுகிறது' : syncStatus === 'failed' ? 'ஒத்திசைவு தோல்வி' : syncStatus === 'loading' ? 'ஏற்றப்படுகிறது' : 'இணையமின்றி'
+    : syncStatus === 'online' ? 'Synced' : syncStatus === 'syncing' ? 'Syncing' : syncStatus === 'failed' ? 'Sync failed' : syncStatus === 'loading' ? 'Loading' : 'Offline';
 
   return (
     <div className="space-y-7">
       <header>
-        <p className="text-sm font-semibold text-emerald-700">Business command center</p>
-        <h1 className="mt-1 text-2xl font-bold text-stone-900 sm:text-3xl">What would you like to do?</h1>
-        <p className="mt-2 text-stone-600">Choose a task below, or review your latest business activity.</p>
+        <p className="text-sm font-semibold text-emerald-700">{language === 'ta' ? 'வணிகக் கட்டுப்பாட்டு மையம்' : 'Business command center'}</p>
+        <h1 className="mt-1 text-2xl font-bold text-stone-900 sm:text-3xl">{language === 'ta' ? 'நீங்கள் என்ன செய்ய விரும்புகிறீர்கள்?' : 'What would you like to do?'}</h1>
+        <p className="mt-2 text-stone-600">{language === 'ta' ? 'கீழே ஒரு பணியைத் தேர்ந்தெடுக்கவும் அல்லது சமீபத்திய வணிகச் செயல்பாட்டைப் பார்க்கவும்.' : 'Choose a task below, or review your latest business activity.'}</p>
       </header>
 
       <section aria-labelledby="quick-actions-heading">
-        <h2 id="quick-actions-heading" className="sr-only">Quick actions</h2>
+        <h2 id="quick-actions-heading" className="sr-only">{language === 'ta' ? 'விரைவு செயல்கள்' : 'Quick actions'}</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {actions.map(({ to, label, hint, icon: Icon, tone }) => (
             <Link key={to} to={to} className={`flex min-h-16 items-center gap-3 rounded-2xl px-4 py-3 shadow-sm ${tone}`}>
@@ -84,10 +90,10 @@ export default function Dashboard() {
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Business summary">
         {[
-          ['Revenue this month', formatCurrency(summary.revenue)],
-          ['Invoices this month', summary.invoiceCount.toString()],
-          ['Pending quotations', summary.pendingQuotations.toString()],
-          ['Outstanding amount', formatCurrency(summary.outstanding)],
+          [language === 'ta' ? 'இந்த மாத வருவாய்' : 'Revenue this month', formatCurrency(summary.revenue)],
+          [language === 'ta' ? 'இந்த மாத விலைப்பட்டியல்கள்' : 'Invoices this month', summary.invoiceCount.toString()],
+          [language === 'ta' ? 'நிலுவை விலைமதிப்பீடுகள்' : 'Pending quotations', summary.pendingQuotations.toString()],
+          [language === 'ta' ? 'நிலுவைத் தொகை' : 'Outstanding amount', formatCurrency(summary.outstanding)],
         ].map(([label, value]) => (
           <article key={label} className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
             <p className="text-xs font-semibold text-stone-500 sm:text-sm">{label}</p>
@@ -100,10 +106,10 @@ export default function Dashboard() {
         <article className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-stone-100 px-4 py-4 sm:px-5">
             <div>
-              <h2 className="font-bold text-stone-900">Recent documents</h2>
-              <p className="text-xs text-stone-500">Invoices, quotations and delivery notes</p>
+              <h2 className="font-bold text-stone-900">{language === 'ta' ? 'சமீபத்திய ஆவணங்கள்' : 'Recent documents'}</h2>
+              <p className="text-xs text-stone-500">{language === 'ta' ? 'விலைப்பட்டியல்கள், விலைமதிப்பீடுகள் மற்றும் விநியோகக் குறிப்புகள்' : 'Invoices, quotations and delivery notes'}</p>
             </div>
-            <Link to="/invoices" className="min-h-12 px-2 py-3 text-sm font-semibold text-emerald-700">View records</Link>
+            <Link to="/invoices" className="min-h-12 px-2 py-3 text-sm font-semibold text-emerald-700">{language === 'ta' ? 'பதிவுகளைப் பார்' : 'View records'}</Link>
           </div>
           {summary.recentDocuments.length ? (
             <div className="divide-y divide-stone-100">
@@ -118,7 +124,7 @@ export default function Dashboard() {
                 </Link>
               ))}
             </div>
-          ) : <EmptyMessage text="No documents yet. Create your first invoice above." />}
+          ) : <EmptyMessage text={language === 'ta' ? 'ஆவணங்கள் இல்லை. மேலே உங்கள் முதல் விலைப்பட்டியலை உருவாக்கவும்.' : 'No documents yet. Create your first invoice above.'} />}
         </article>
 
         <div className="space-y-5">
@@ -126,27 +132,27 @@ export default function Dashboard() {
             <div className="flex items-start gap-3">
               {syncStatus === 'offline' || syncStatus === 'failed' ? <WifiOff className="text-amber-600" /> : <Wifi className="text-emerald-600" />}
               <div>
-                <h2 className="font-bold text-stone-900">Sync status: {statusLabel}</h2>
+                <h2 className="font-bold text-stone-900">{language === 'ta' ? 'ஒத்திசைவு நிலை' : 'Sync status'}: {statusLabel}</h2>
                 <p className="mt-1 text-sm text-stone-500">
-                  Last synced: {lastSavedAt ? new Date(lastSavedAt).toLocaleString() : 'Not available yet'}
+                  {language === 'ta' ? 'கடைசியாக ஒத்திசைத்தது' : 'Last synced'}: {lastSavedAt ? new Date(lastSavedAt).toLocaleString(language === 'ta' ? 'ta-IN' : 'en-IN') : (language === 'ta' ? 'இன்னும் கிடைக்கவில்லை' : 'Not available yet')}
                 </p>
               </div>
             </div>
           </article>
           <article className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
-              <h2 className="font-bold text-stone-900">Recent customers</h2>
-              <Link to="/customers" className="text-sm font-semibold text-emerald-700">View all</Link>
+              <h2 className="font-bold text-stone-900">{language === 'ta' ? 'சமீபத்திய வாடிக்கையாளர்கள்' : 'Recent customers'}</h2>
+              <Link to="/customers" className="text-sm font-semibold text-emerald-700">{language === 'ta' ? 'அனைத்தையும் பார்' : 'View all'}</Link>
             </div>
             {summary.recentCustomers.length ? summary.recentCustomers.map((customer) => (
               <Link key={customer.id} to={`/customers?customer=${encodeURIComponent(customer.id)}`} className="flex min-h-14 items-center gap-3 border-b border-stone-100 px-5 py-3 last:border-0 hover:bg-stone-50">
                 <Users size={18} className="text-stone-400" />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold">{customer.name}</span>
-                  <span className="block truncate text-xs text-stone-500">{customer.phone || 'No phone number'}</span>
+                  <span className="block truncate text-xs text-stone-500">{customer.phone || (language === 'ta' ? 'தொலைபேசி எண் இல்லை' : 'No phone number')}</span>
                 </span>
               </Link>
-            )) : <EmptyMessage text="No customers saved yet." />}
+            )) : <EmptyMessage text={language === 'ta' ? 'வாடிக்கையாளர்கள் இன்னும் சேமிக்கப்படவில்லை.' : 'No customers saved yet.'} />}
           </article>
         </div>
       </section>

@@ -39,11 +39,6 @@ function ensureFirebaseAdminApp() {
   initializeApp({ credential: cert(serviceAccount) });
 }
 
-export function getFirebaseAdminAuth() {
-  ensureFirebaseAdminApp();
-  return getAuth();
-}
-
 export function getFirebaseAdmin() {
   ensureFirebaseAdminApp();
   return {

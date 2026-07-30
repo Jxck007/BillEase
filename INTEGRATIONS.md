@@ -12,44 +12,24 @@ Every API function verifies `Authorization: Bearer <Firebase ID token>` with Fir
 
 ## Email
 
-`POST /api/email/send-document` accepts the existing multipart form-data request used by the export panel. It also accepts an authenticated JSON compatibility payload containing `to`, `subject`, `message`, `fileName`, and `pdfBase64`. Both paths enforce a 3 MB decoded PDF limit, validate the PDF signature, reject header injection, and send through `RESEND_API_KEY` and `RESEND_FROM_EMAIL`.
+`POST /api/email/send-document` accepts the multipart form-data request used by the export panel. It also accepts an authenticated JSON compatibility payload containing `to`, `subject`, `message`, `fileName`, and Base64 attachment content. Both paths enforce a 2 MB decoded PDF/PNG limit and a 3 MB request limit, validate the file signature, reject header injection, and send through `RESEND_API_KEY` and `RESEND_FROM_EMAIL`.
 
 Use `npx vercel dev` when testing `.env.local`; Vercel loads the same unprefixed variables used by Preview and Production.
 
 Delivery records contain only document ID, channel, recipient, status, timestamp, and provider message ID. A Firestore transaction reserves each idempotency key before sending. Resend also receives that key.
 
-## Evolution Go WhatsApp
+## WhatsApp
 
-Evolution Go must run on a separate persistent server. BillEase uses these server-only configuration variables:
-
-- `EVOLUTION_API_URL`
-- `EVOLUTION_API_KEY`
-- `EVOLUTION_INSTANCE_ID`
-- `EVOLUTION_INSTANCE_NAME`
-
-The adapter targets the inspected Evolution Go `0.7.2` contract:
-
-- `GET /instance/status` with `apikey`, `instanceId`, and `instanceName` headers.
-- `POST /send/media` as `multipart/form-data`.
-- Multipart fields: `number`, `type=document`, `caption`, `filename`, `id`, and binary `file`.
-
-The `0.7.2` handler source explicitly supports direct multipart file upload, so BillEase does not create a media URL, use a Vercel filesystem URL, send a Base64 data URL, or require temporary object storage. `EVOLUTION_INSTANCE_ID` is sent on every Evolution request as the primary deployment identifier. The configured `EVOLUTION_API_KEY` must be the credential accepted by the deployed instance-scoped routes.
-
-Confirm the separately deployed Swagger and authentication behavior are `0.7.2`-compatible before adding the Evolution variables to Vercel. If that deployment requires a media URL instead, leave WhatsApp disabled until approved temporary object storage and cleanup are implemented.
+BillEase does not use a server-side WhatsApp provider. Native Share sends the generated PDF through the Android share sheet when the browser supports file sharing. The fallback downloads the PDF, opens `wa.me` with a prefilled message, and asks the administrator to attach the downloaded file manually.
 
 ## Status
 
-`GET /api/integrations/status` is authenticated. Evolution health uses a 3.5-second timeout and is cached server-side for 30 seconds. The response never contains credentials. The frontend also caches it briefly and disables provider sends when a provider is absent, unavailable, or disconnected. Native Share, PDF download plus `wa.me`, and PDF download plus `mailto` stay available.
+`GET /api/integrations/status` is authenticated and reports only Resend and postal lookup availability. The response never contains credentials. Native Share and PDF/PNG download plus `wa.me` remain available.
 
 ## Deployment order
 
-1. Configure `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`, `RESEND_API_KEY`, and `RESEND_FROM_EMAIL` in Vercel.
-2. Deploy Vercel and test one controlled email with a PDF attachment.
-3. Deploy an Evolution Go `0.7.2`-compatible version separately.
-4. Create and pair the WhatsApp instance.
-5. Confirm its Swagger and authentication match the documented `/send/media` multipart and `/instance/status` contract.
-6. Copy the API URL, API key, instance ID, and instance name into Vercel.
-7. Redeploy Vercel.
-8. Confirm the authenticated integration status reports the instance connected.
-9. Send one controlled PDF to the selected customer.
-10. Enable WhatsApp for production use only after that test succeeds.
+1. Configure `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `APP_URL` in Vercel.
+2. Deploy Vercel without the previous build cache.
+3. Confirm GET on the email endpoint returns 405.
+4. Test one controlled authenticated email with a PDF attachment.
+5. Verify native Share and the PDF download plus `wa.me` fallback on the target Android tablet.

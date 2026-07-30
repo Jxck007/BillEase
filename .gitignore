@@ -1,14 +1,38 @@
+# Dependencies
 node_modules/
+
+# Build and test output
 build/
 dist/
 coverage/
-.DS_Store
+output/
+*.tsbuildinfo
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment and local secrets
 .env
-.env.local
 .env.*
 !.env.example
-.git_disabled
-.vercel
-.playwright-cli
-output
+
+# Tooling caches and local state
+.vite/
+.vercel/
+.playwright-cli/
+.eslintcache
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local repository state
+.git_disabled/

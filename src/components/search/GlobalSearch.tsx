@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, Package, Search, Truck, Users, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface SearchResult {
   id: string;
@@ -15,6 +16,8 @@ interface SearchResult {
 
 export default function GlobalSearch() {
   const { state } = useData();
+  const { language, t } = useLanguage();
+  const text = (english: string, tamil: string) => language === 'ta' ? tamil : english;
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -38,8 +41,8 @@ export default function GlobalSearch() {
       return {
         id: document.id,
         group: quotation ? 'Quotations' as const : 'Invoices' as const,
-        label: `${quotation ? 'Quotation' : 'Invoice'} ${document.invoiceNumber}`,
-        detail: customer?.name || 'Unknown customer',
+        label: `${quotation ? text('Quotation', 'விலைமதிப்பீடு') : text('Invoice', 'விலைப்பட்டியல்')} ${document.invoiceNumber}`,
+        detail: customer?.name || text('Unknown customer', 'வாடிக்கையாளர் தெரியவில்லை'),
         to: `/${quotation ? 'estimates' : 'invoices'}/${document.id}`,
         icon: FileText,
         haystack: [document.invoiceNumber, customer?.name, customer?.gstNumber, customer?.gstin, customer?.phone].filter(Boolean).join(' ').toLowerCase(),
@@ -50,8 +53,8 @@ export default function GlobalSearch() {
       return {
         id: document.id,
         group: 'Delivery Notes' as const,
-        label: `Delivery Note ${document.deliveryNoteNumber || document.dnNumber || ''}`,
-        detail: customer?.name || 'Unknown customer',
+        label: `${text('Delivery Note', 'விநியோகக் குறிப்பு')} ${document.deliveryNoteNumber || document.dnNumber || ''}`,
+        detail: customer?.name || text('Unknown customer', 'வாடிக்கையாளர் தெரியவில்லை'),
         to: `/delivery-notes/${document.id}`,
         icon: Truck,
         haystack: [document.deliveryNoteNumber, document.dnNumber, customer?.name, customer?.phone].filter(Boolean).join(' ').toLowerCase(),
@@ -61,7 +64,7 @@ export default function GlobalSearch() {
       id: customer.id,
       group: 'Customers' as const,
       label: customer.name,
-      detail: customer.phone || customer.gstNumber || customer.gstin || 'Customer',
+      detail: customer.phone || customer.gstNumber || customer.gstin || t('customers'),
       to: `/customers?customer=${encodeURIComponent(customer.id)}`,
       icon: Users,
       haystack: [customer.name, customer.gstNumber, customer.gstin, customer.phone].filter(Boolean).join(' ').toLowerCase(),
@@ -70,12 +73,12 @@ export default function GlobalSearch() {
       id: product.id,
       group: 'Products' as const,
       label: product.name,
-      detail: [product.hsnSac, product.unit].filter(Boolean).join(' · ') || 'Product or service',
+      detail: [product.hsnSac, product.unit].filter(Boolean).join(' · ') || text('Product or service', 'பொருள் அல்லது சேவை'),
       to: `/products?product=${encodeURIComponent(product.id)}`,
       icon: Package,
       haystack: [product.name, product.hsnSac].filter(Boolean).join(' ').toLowerCase(),
     })),
-  ], [state.customers, state.deliveryNotes, state.invoices, state.products]);
+  ], [language, state.customers, state.deliveryNotes, state.invoices, state.products, t]);
 
   const results = useMemo(
     () => debouncedQuery ? allResults.filter((result) => result.haystack.includes(debouncedQuery)).slice(0, 30) : [],
@@ -123,9 +126,9 @@ export default function GlobalSearch() {
         onChange={(event) => setQuery(event.target.value)}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        placeholder="Search invoices, customers, products…"
+        placeholder={text('Search invoices, customers, products…', 'விலைப்பட்டியல், வாடிக்கையாளர், பொருட்களைத் தேடவும்…')}
         className="min-h-12 w-full rounded-xl border border-stone-300 bg-white pl-10 pr-4 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-        aria-label="Search all records"
+        aria-label={text('Search all records', 'அனைத்து பதிவுகளிலும் தேடு')}
         aria-expanded={open}
       />
     </div>
@@ -136,23 +139,23 @@ export default function GlobalSearch() {
       <div className="relative hidden w-full max-w-xl md:block">
         {searchInput}
         {open && query && (
-          <SearchResults groups={groups} results={results} activeIndex={activeIndex} query={query} onChoose={choose} />
+          <SearchResults groups={groups} results={results} activeIndex={activeIndex} query={query} onChoose={choose} language={language} />
         )}
       </div>
-      <button type="button" onClick={() => setOpen(true)} className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 font-semibold text-stone-700 md:hidden" aria-label="Open global search">
+      <button type="button" onClick={() => setOpen(true)} className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 font-semibold text-stone-700 md:hidden" aria-label={text('Open global search', 'தேடலைத் திற')}>
         <Search size={20} />
-        <span className="hidden min-[390px]:inline">Search</span>
+        <span className="hidden min-[390px]:inline">{text('Search', 'தேடு')}</span>
       </button>
       {open && (
-        <div className="fixed inset-0 z-[70] bg-white p-4 md:hidden" role="dialog" aria-modal="true" aria-label="Search records">
+        <div className="fixed inset-0 z-[70] bg-white p-4 md:hidden" role="dialog" aria-modal="true" aria-label={text('Search records', 'பதிவுகளைத் தேடு')}>
           <div className="mx-auto flex h-full max-w-2xl flex-col">
             <div className="flex items-center gap-2">
               {searchInput}
-              <button type="button" onClick={() => setOpen(false)} className="flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-stone-200" aria-label="Close search"><X size={22} /></button>
+              <button type="button" onClick={() => setOpen(false)} className="flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-stone-200" aria-label={text('Close search', 'தேடலை மூடு')}><X size={22} /></button>
             </div>
             <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
-              {query && <SearchResults groups={groups} results={results} activeIndex={activeIndex} query={query} onChoose={choose} inline />}
-              {!query && <p className="py-12 text-center text-sm text-stone-500">Type a number, customer, GSTIN, phone, product or HSN/SAC.</p>}
+              {query && <SearchResults groups={groups} results={results} activeIndex={activeIndex} query={query} onChoose={choose} language={language} inline />}
+              {!query && <p className="py-12 text-center text-sm text-stone-500">{text('Type a number, customer, GSTIN, phone, product or HSN/SAC.', 'எண், வாடிக்கையாளர், GSTIN, தொலைபேசி, பொருள் அல்லது HSN/SAC-ஐ உள்ளிடவும்.')}</p>}
             </div>
           </div>
         </div>
@@ -161,18 +164,25 @@ export default function GlobalSearch() {
   );
 }
 
-function SearchResults({ groups, results, activeIndex, query, onChoose, inline = false }: {
+function SearchResults({ groups, results, activeIndex, query, onChoose, language, inline = false }: {
   groups: { name: string; items: SearchResult[] }[];
   results: SearchResult[];
   activeIndex: number;
   query: string;
   onChoose: (result: SearchResult) => void;
+  language: 'en' | 'ta';
   inline?: boolean;
 }) {
   let resultIndex = -1;
   const content = results.length ? groups.map((group) => (
     <section key={group.name} className="py-2">
-      <h3 className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-stone-500">{group.name}</h3>
+      <h3 className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-stone-500">{language === 'ta' ? ({
+        Invoices: 'விலைப்பட்டியல்கள்',
+        Quotations: 'விலைமதிப்பீடுகள்',
+        'Delivery Notes': 'விநியோகக் குறிப்புகள்',
+        Customers: 'வாடிக்கையாளர்கள்',
+        Products: 'பொருட்கள்',
+      } as Record<string, string>)[group.name] : group.name}</h3>
       {group.items.map((result) => {
         resultIndex += 1;
         const currentIndex = resultIndex;
@@ -188,7 +198,7 @@ function SearchResults({ groups, results, activeIndex, query, onChoose, inline =
         );
       })}
     </section>
-  )) : <p className="px-4 py-10 text-center text-sm text-stone-500">No cached results for “{query}”.</p>;
+  )) : <p className="px-4 py-10 text-center text-sm text-stone-500">{language === 'ta' ? `“${query}” என்பதற்குச் சேமிக்கப்பட்ட முடிவுகள் இல்லை.` : `No cached results for “${query}”.`}</p>;
 
   return inline ? <div>{content}</div> : (
     <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 max-h-[70vh] overflow-y-auto rounded-2xl border border-stone-200 bg-white p-2 shadow-xl">

@@ -9,7 +9,7 @@
 - **Invoice & Estimate Generation**: Create professional invoices and estimates, apply taxes (Inclusive/Exclusive), discounts, and automatically calculate line totals.
 - **Multiple Document Templates**: Choose between multiple modern invoice templates optimized for A4 print and digital sharing.
 - **Instant PDF & PNG Export**: Completely local, client-side generation of PDFs and PNGs using `html2canvas` and `jspdf`, ensuring your documents look crisp and accurate without server reliance.
-- **Secure document delivery**: Authenticated Vercel functions verify Firebase admins and send email through Resend, with a disabled backend scaffold ready for a separately hosted Evolution Go integration.
+- **Secure document delivery**: Authenticated Vercel functions verify Firebase administrators and send email through Resend. WhatsApp delivery uses native document sharing or a PDF download plus `wa.me`.
 - **Multi-Language Support**: Seamlessly toggle between English and Tamil.
 - **Fully Responsive**: Designed with Tailwind CSS for perfect rendering on desktop, tablet, and mobile devices.
 
@@ -69,13 +69,10 @@ Server delivery variables are listed in `.env.example`. They belong in Vercel on
 FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON=
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=
-EVOLUTION_API_URL=
-EVOLUTION_API_KEY=
-EVOLUTION_INSTANCE_ID=
-EVOLUTION_INSTANCE_NAME=
+APP_URL=
 ```
 
-Firebase web-app variables above are public client configuration. The Firebase Admin service account, Resend key, and Evolution credentials are server secrets.
+Firebase web-app variables above are public client configuration. The Firebase Admin service account and Resend key are server secrets.
 
 ## 🔥 Firebase Setup
 
@@ -95,17 +92,18 @@ BillEase is optimized for deployment on modern edge networks like **Vercel** or 
 1. Install the Vercel CLI: `npm i -g vercel`
 2. Test the functions locally with `npx vercel dev`.
 3. Add the Firebase client variables plus the server delivery variables from `.env.example` to the Vercel dashboard.
-4. Deploy production with `npx vercel --prod`.
+4. Deploy production without the previous build cache with `npx vercel --prod --force`.
 
 ### Delivery deployment order
 
-1. Configure Firebase Admin JSON and Resend, deploy Vercel, and test email.
-2. Deploy an Evolution Go `0.7.2`-compatible version separately and pair its WhatsApp instance.
-3. Confirm its Swagger supports direct multipart `POST /send/media` and `GET /instance/status`.
-4. Add the Evolution API URL, key, instance ID, and instance name to Vercel, then redeploy.
-5. Check integration health, send one test PDF, and only then enable WhatsApp for production.
+1. Configure Firebase Admin JSON, Resend, and `APP_URL`.
+2. Deploy Vercel without the previous build cache and test the email endpoint.
+3. Use native Share where file sharing is supported.
+4. Otherwise download the PDF and open `wa.me`, then attach the PDF manually.
 
 See [INTEGRATIONS.md](INTEGRATIONS.md) for endpoint contracts, limits, authentication, fallback behavior, and verification details.
+
+See [API_AUDIT.md](API_AUDIT.md) for the current route/provider inventory and caller analysis.
 
 ## 📸 Screenshots
 

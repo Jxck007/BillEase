@@ -3,6 +3,7 @@ import { BusinessProfile, Customer, Invoice, Product, TemplateVisibilitySettings
 import { formatCurrency } from '../lib/utils';
 import { withDefaultCustomerFieldVisibility } from '../lib/invoiceCustomerFields';
 import InvoiceAuthorizationAssets from '../components/documents/InvoiceAuthorizationAssets';
+import { useLanguage } from '../context/LanguageContext';
 import {
   formatEstimateCopyTypeDisplay,
   getEstimateAmountInWords,
@@ -29,6 +30,7 @@ export default function QuotationEstimateTemplate({
   numberLabel,
   visibility: visibilityInput,
 }: Props) {
+  const { language, t } = useLanguage();
   const company = profile || ({
     name: 'My Business',
     address: '-',
@@ -56,12 +58,14 @@ export default function QuotationEstimateTemplate({
 
   const customerVisibility = withDefaultCustomerFieldVisibility(invoice.customerFieldVisibility);
   const copyTypeLabel = formatEstimateCopyTypeDisplay(invoice.copyType);
-  const amountInWords = getEstimateAmountInWords(invoice);
+  const amountInWords = language === 'ta'
+    ? `${formatCurrency(invoice.total || 0)} — ரூபாய் மட்டும்`
+    : getEstimateAmountInWords(invoice);
   const items = invoice.items || [];
   const hasDiscount = (invoice.discountTotal || 0) > 0;
 
   return (
-    <div className="quotation-export-page mx-auto box-border w-[190mm] max-w-[190mm] bg-white p-[6mm] text-[10px] leading-tight text-black print:w-[190mm] print:max-w-[190mm] print:p-[5mm]" data-export-root="true">
+    <div className="quotation-export-page box-border w-full bg-white text-[10px] leading-tight text-black">
       <div className="border-2 border-black">
         {/* ROW 1: Dedicated Title Row */}
         <div className="border-b-2 border-black py-2.5 text-center">
@@ -79,7 +83,7 @@ export default function QuotationEstimateTemplate({
           </div>
           {/* RIGHT SIDE: Document Info Block */}
           <div className="col-span-6 flex flex-col justify-center p-3 text-right text-[10px] font-bold leading-normal">
-            <div>Date: {invoice.date ? format(new Date(invoice.date), 'dd-MM-yyyy') : '-'}</div>
+            <div>{t('date')}: {invoice.date ? format(new Date(invoice.date), 'dd-MM-yyyy') : '-'}</div>
             <div>{numberLabel}: {invoice.invoiceNumber || '-'}</div>
             {copyTypeLabel ? <div className="text-[9px] font-black uppercase tracking-wide text-stone-600 mt-1">{copyTypeLabel}</div> : null}
           </div>
@@ -87,22 +91,22 @@ export default function QuotationEstimateTemplate({
 
         <div className="grid grid-cols-2 border-b-2 border-black">
           <div className="min-h-32 border-r-2 border-black p-3">
-            <div className="mb-2 text-[11px] font-black uppercase">From:</div>
+            <div className="mb-2 text-[11px] font-black uppercase">{language === 'ta' ? 'அனுப்புநர்:' : 'From:'}</div>
             <div className="space-y-0.5 text-[10px]">
               <div className="text-[12px] font-bold uppercase">{company.name}</div>
               {visibility.address && <div className="whitespace-pre-wrap">{company.address || '-'}</div>}
-              {visibility.phoneEmail && company.phone && <div>Phone: {company.phone}</div>}
-              {visibility.phoneEmail && company.email && <div>Email: {company.email}</div>}
+              {visibility.phoneEmail && company.phone && <div>{t('phone')}: {company.phone}</div>}
+              {visibility.phoneEmail && company.email && <div>{t('email')}: {company.email}</div>}
               {visibility.gstNumber && <div>GSTIN: {company.gst || '-'}</div>}
             </div>
           </div>
           <div className="min-h-32 p-3">
-            <div className="mb-2 text-[11px] font-black uppercase">To:</div>
+            <div className="mb-2 text-[11px] font-black uppercase">{t('to')}:</div>
             <div className="space-y-0.5 text-[10px]">
               <div className="text-[12px] font-bold">{customer?.name || '-'}</div>
               {customerVisibility.address && customer?.address && <div className="whitespace-pre-wrap">{customer.address}</div>}
-              {customerVisibility.phone && customer?.phone && <div>Phone: {customer.phone}</div>}
-              {customerVisibility.email && customer?.email && <div>Email: {customer.email}</div>}
+              {customerVisibility.phone && customer?.phone && <div>{t('phone')}: {customer.phone}</div>}
+              {customerVisibility.email && customer?.email && <div>{t('email')}: {customer.email}</div>}
               {customerVisibility.gstNumber && customer?.gstNumber && <div>GSTIN: {customer.gstNumber}</div>}
             </div>
           </div>
@@ -122,14 +126,14 @@ export default function QuotationEstimateTemplate({
             </colgroup>
             <thead>
               <tr>
-                <th className="border-b border-r border-black px-1 py-1.5 text-center font-black">S.No</th>
-                <th className="border-b border-r border-black px-1 py-1.5 text-left font-black">Description</th>
+                <th className="border-b border-r border-black px-1 py-1.5 text-center font-black">{language === 'ta' ? 'வ.எண்' : 'S.No'}</th>
+                <th className="border-b border-r border-black px-1 py-1.5 text-left font-black">{language === 'ta' ? 'விவரம்' : 'Description'}</th>
                 <th className="border-b border-r border-black px-1 py-1.5 text-center font-black">HSN/SAC</th>
-                <th className="border-b border-r border-black px-1 py-1.5 text-center font-black">Unit</th>
-                <th className="border-b border-r border-black px-1 py-1.5 text-center font-black">Qty</th>
-                <th className="border-b border-r border-black px-1 py-1.5 text-right font-black">Price</th>
+                <th className="border-b border-r border-black px-1 py-1.5 text-center font-black">{language === 'ta' ? 'அலகு' : 'Unit'}</th>
+                <th className="border-b border-r border-black px-1 py-1.5 text-center font-black">{t('quantity')}</th>
+                <th className="border-b border-r border-black px-1 py-1.5 text-right font-black">{t('price')}</th>
                 <th className="border-b border-r border-black px-1 py-1.5 text-center font-black">GST %</th>
-                <th className="border-b border-black px-1 py-1.5 text-right font-black">Amount</th>
+                <th className="border-b border-black px-1 py-1.5 text-right font-black">{language === 'ta' ? 'தொகை' : 'Amount'}</th>
               </tr>
             </thead>
             <tbody>
@@ -148,7 +152,7 @@ export default function QuotationEstimateTemplate({
                 </tr>
               )) : (
                 <tr>
-                  <td className="px-2 py-4 text-center" colSpan={8}>No items added</td>
+                  <td className="px-2 py-4 text-center" colSpan={8}>{language === 'ta' ? 'பொருட்கள் சேர்க்கப்படவில்லை' : 'No items added'}</td>
                 </tr>
               )}
             </tbody>
@@ -157,18 +161,18 @@ export default function QuotationEstimateTemplate({
 
         <div className="grid grid-cols-12 border-b-2 border-black">
           <div className="col-span-7 border-r-2 border-black p-3">
-            <div className="text-[11px] font-black uppercase">Amount in Words:</div>
+            <div className="text-[11px] font-black uppercase">{t('amountInWords')}:</div>
             <div className="mt-2 min-h-14 whitespace-pre-wrap text-[10px] italic leading-relaxed">{amountInWords}</div>
           </div>
           <div className="col-span-5 p-3">
             <div className="space-y-1 text-[10px]">
-              <div className="flex justify-between gap-3"><span>Subtotal</span><span className="font-semibold">{formatCurrency(invoice.subtotal || 0)}</span></div>
+              <div className="flex justify-between gap-3"><span>{t('subtotal')}</span><span className="font-semibold">{formatCurrency(invoice.subtotal || 0)}</span></div>
               {hasDiscount && visibility.discountColumn && (
-                <div className="flex justify-between gap-3"><span>Discount</span><span className="font-semibold">-{formatCurrency(invoice.discountTotal || 0)}</span></div>
+                <div className="flex justify-between gap-3"><span>{t('discount')}</span><span className="font-semibold">-{formatCurrency(invoice.discountTotal || 0)}</span></div>
               )}
-              <div className="flex justify-between gap-3"><span>Tax</span><span className="font-semibold">{formatCurrency(invoice.taxTotal || 0)}</span></div>
+              <div className="flex justify-between gap-3"><span>{t('tax')}</span><span className="font-semibold">{formatCurrency(invoice.taxTotal || 0)}</span></div>
               <div className="flex justify-between gap-3 border-t border-black pt-2 text-[11px] font-black">
-                <span>Grand Total</span>
+                <span>{t('grandTotal')}</span>
                 <span>{formatCurrency(invoice.total || 0)}</span>
               </div>
             </div>
@@ -180,7 +184,7 @@ export default function QuotationEstimateTemplate({
             <div className="border-r-2 border-black p-3">
               {invoice.notes?.trim() && (
                 <>
-                  <div className="text-[11px] font-black uppercase">Notes:</div>
+                  <div className="text-[11px] font-black uppercase">{t('notes')}:</div>
                   <div className="mt-2 whitespace-pre-wrap text-[10px] leading-relaxed">{invoice.notes.trim()}</div>
                 </>
               )}
@@ -188,7 +192,7 @@ export default function QuotationEstimateTemplate({
             <div className="p-3">
               {visibility.terms && invoice.terms?.trim() && (
                 <>
-                  <div className="text-[11px] font-black uppercase">Declaration:</div>
+                  <div className="text-[11px] font-black uppercase">{language === 'ta' ? 'அறிவிப்பு:' : 'Declaration:'}</div>
                   <div className="mt-2 whitespace-pre-wrap text-[10px] leading-relaxed">{invoice.terms.trim()}</div>
                 </>
               )}
@@ -199,11 +203,10 @@ export default function QuotationEstimateTemplate({
         {visibility.signature ? (
           <div className="grid grid-cols-2">
             <div className="min-h-24 border-r-2 border-black p-3">
-              <div className="text-[10px] font-semibold">Customer Signature</div>
+              <div className="text-[10px] font-semibold">{t('customerSignature')}</div>
               <div className="mt-10 border-t border-black pt-2 text-[9px]"></div>
             </div>
             <div className="min-h-24 p-3 text-right">
-              <div className="text-[11px] font-black">For {company.name}</div>
               <InvoiceAuthorizationAssets documentType="quotation" />
             </div>
           </div>

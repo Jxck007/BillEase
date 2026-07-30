@@ -36,8 +36,8 @@ export default function AppLayout() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-stone-50 text-stone-800 font-sans lg:flex-row">
-      <Sidebar mobileOpen={mobileDrawerOpen} onOpenMobile={openMobileDrawer} onCloseMobile={closeMobileDrawer} />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:h-screen lg:overflow-hidden">
+      <Sidebar mobileOpen={mobileDrawerOpen} onCloseMobile={closeMobileDrawer} />
+      <div className="flex min-w-0 flex-1 flex-col">
         <Navbar />
         <SyncStatusBadge status={syncStatus} />
         {lastSavedAt && (
@@ -50,7 +50,7 @@ export default function AppLayout() {
             Firebase not connected. Running in local mode.
           </div>
         )}
-          <main className="mx-auto w-full max-w-7xl flex-1 overflow-x-hidden p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:p-5 sm:pb-[calc(7rem+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(7rem+env(safe-area-inset-bottom))] lg:overflow-y-auto lg:p-8">
+        <main className="mx-auto w-full max-w-7xl flex-1 overflow-x-hidden p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:p-5 sm:pb-[calc(7rem+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(7rem+env(safe-area-inset-bottom))] lg:p-8">
           <Outlet />
         </main>
       </div>

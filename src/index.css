@@ -1,8 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Noto Sans Tamil", "Latha", "Vijaya", "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer components {
@@ -74,10 +73,16 @@
   body {
     font-family: var(--font-sans);
     min-width: 0;
+    min-height: 100dvh;
     overflow-x: hidden;
   }
 
+  html, #root { min-height: 100%; }
+  #root { min-height: 100dvh; }
   html { overflow-x: hidden; }
+  html[lang='ta'] body {
+  font-family: "Noto Sans Tamil", "Latha", "Vijaya", "Nirmala UI", system-ui, sans-serif;
+  }
 
   input[type='number'] {
     -moz-appearance: textfield;
@@ -106,17 +111,43 @@
 
   .canonical-preview-viewport {
     width: 100%;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
     position: relative;
+    box-sizing: border-box;
+  }
+  .canonical-preview-toolbar {
+    padding-bottom: 0.75rem;
+  }
+  .canonical-preview-fullscreen .canonical-preview-toolbar {
+    flex: 0 0 auto;
+    padding: max(0.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 0.75rem max(1rem, env(safe-area-inset-left));
+    background: white;
+    border-bottom: 1px solid #e7e5e4;
+  }
+  .canonical-preview-canvas {
+    position: relative;
+    margin: 0 auto;
   }
   .canonical-preview-transform {
-    flex: 0 0 auto;
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 210mm;
     transform-origin: top center;
     will-change: transform;
   }
-  .canonical-preview-document { width: 190mm; min-width: 190mm; }
+  .canonical-a4-document {
+    width: 210mm;
+    min-width: 210mm;
+    min-height: 297mm;
+    margin: 0;
+    padding: 10mm;
+    overflow: visible;
+    background: white;
+    box-sizing: border-box;
+  }
+  .canonical-a4-document img {
+    object-fit: contain;
+  }
 
   /* Responsive document preview container */
   .doc-preview-container {
@@ -137,9 +168,8 @@
       margin: 0; 
       padding: 0;
     }
-    * { margin: 0; padding: 0; }
-    html, body { height: 100%; width: 100%; }
-    body { background: white !important; margin: 0; padding: 10mm; }
+    html, body { width: 100%; min-height: 100%; }
+    body { background: white !important; margin: 0; padding: 0; }
     nav, aside, .print\:hidden, .no-print, .screen-only > *:not(.hidden.print\:block) { display: none !important; }
     main { padding: 0 !important; margin: 0 !important; max-width: none !important; width: 100% !important; overflow: visible !important; background: white; }
     .screen-only { display: block !important; width: 100%; padding: 0; margin: 0; }
@@ -154,15 +184,15 @@
       background: white;
       box-sizing: border-box;
     }
-    .canonical-preview-viewport { height: auto !important; overflow: visible !important; display: block !important; }
-    .canonical-preview-transform { width: auto !important; transform: none !important; }
-    .canonical-preview-document { width: 190mm !important; min-width: 190mm !important; margin: 0 auto; }
+    .canonical-preview-stage { position: static !important; height: auto !important; display: block !important; }
+    .canonical-preview-viewport,
+    .canonical-preview-canvas { width: 210mm !important; height: auto !important; overflow: visible !important; display: block !important; margin: 0 !important; }
+    .canonical-preview-transform { position: static !important; width: 210mm !important; transform: none !important; }
+    .canonical-a4-document { width: 210mm !important; min-width: 210mm !important; min-height: 297mm; margin: 0; padding: 10mm; }
     .dn-print-page { display: block !important; }
     .delivery-note-preview { padding: 0 !important; margin: 0 !important; }
-    .delivery-note-preview .dn-export-root { width: 210mm !important; max-width: 210mm !important; margin: 0 auto !important; padding: 0 !important; overflow: visible !important; }
-    body:has(.delivery-note-preview) { padding: 0 !important; }
-    .estimate-preview-root { width: 190mm !important; max-width: 190mm !important; margin: 0 auto !important; padding: 0 !important; overflow: visible !important; }
-    body:has(.estimate-preview-root) { padding: 0 !important; }
+    .delivery-note-preview .dn-export-root { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; }
+    .estimate-preview-root { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; }
   }
 
   /* print preview styling for the traditional invoice */
@@ -187,7 +217,7 @@
   .invoice-print-page .tv-td-center { text-align:center; }
   .invoice-print-page .tv-total { font-weight:800; }
   .invoice-print-page .tv-bottom { display:flex; justify-content:space-between; gap:16px; margin-top:14px; min-height: 120px; }
-  .invoice-print-page .tv-right { margin-left: auto; width: 38%; text-align: right; }
+  .invoice-print-page .tv-right { margin-left: auto; width: 45%; text-align: right; }
   .invoice-print-page .tv-bank { width: 50%; }
   .invoice-print-page .bank-pre { white-space:pre-wrap; font-size:12px; }
   .invoice-print-page .tv-qr-wrap { margin-top: 12px; }
@@ -199,127 +229,153 @@
   .invoice-print-page .authorization-for { font-weight: 600; }
   .invoice-print-page .authorization-assets {
     display: grid;
-    grid-template-columns: minmax(20mm, 25mm) minmax(28mm, 34mm);
-    align-items: end;
+    grid-template-columns: 30mm 46mm;
+    align-items: center;
     justify-content: end;
-    gap: 3mm;
+    gap: 5mm;
     margin-top: 3mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
   .invoice-print-page .company-seal-column,
   .invoice-print-page .signature-column {
     display: flex;
     min-width: 0;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: center;
   }
-  .invoice-print-page .company-seal-column { min-height: 22mm; }
+  .invoice-print-page .company-seal-column { min-height: 30mm; }
   .invoice-print-page .signature-column {
-    min-height: 22mm;
+    width: 46mm;
+    min-height: 30mm;
     flex-direction: column;
+    text-align: center;
   }
   .invoice-print-page .company-seal {
     display: block;
-    width: 23mm;
+    width: 27mm;
     max-width: 100%;
-    height: auto;
-    max-height: 22mm;
+    height: 27mm;
     object-fit: contain;
+  }
+  .invoice-print-page .authorization-company-name {
+    min-height: 4mm;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+  }
+  .invoice-print-page .company-signature-crop {
+    display: flex;
+    width: 38mm;
+    height: 15mm;
+    margin-top: 1.5mm;
+    overflow: hidden;
+    align-items: center;
+    justify-content: center;
   }
   .invoice-print-page .company-signature {
     display: block;
-    width: 32mm;
-    max-width: 100%;
-    height: auto;
-    max-height: 18mm;
+    width: 36mm;
+    height: 14mm;
     object-fit: contain;
+    transform: rotate(0deg);
+    transform-origin: center;
+  }
+  .invoice-print-page .company-signature.default-signature-rotation {
+    width: 30mm;
+    height: auto;
+    max-width: none;
+    transform: rotate(-43deg);
+    transform-origin: center;
   }
   .invoice-print-page .authorized-signature-label {
     display: block;
-    margin-top: 1mm;
+    margin-top: 3mm;
     white-space: nowrap;
     font-size: 11px;
     font-weight: 600;
+    text-align: center;
   }
   .quotation-export-page .authorization-assets,
   .dn-export-page .authorization-assets {
     display: grid;
-    grid-template-columns: 24mm 32mm;
-    align-items: end;
+    grid-template-columns: 30mm 46mm;
+    align-items: center;
     justify-content: end;
-    gap: 3mm;
-    margin-top: 2mm;
+    gap: 5mm;
+    margin-top: 3mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
   .quotation-export-page .company-seal-column,
   .quotation-export-page .signature-column,
   .dn-export-page .company-seal-column,
   .dn-export-page .signature-column {
     display: flex;
-    min-height: 20mm;
+    min-height: 30mm;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: center;
   }
   .quotation-export-page .signature-column,
-  .dn-export-page .signature-column { flex-direction: column; }
+  .dn-export-page .signature-column {
+    width: 46mm;
+    flex-direction: column;
+    text-align: center;
+  }
   .quotation-export-page .company-seal,
   .dn-export-page .company-seal {
-    width: 22mm;
-    height: 20mm;
+    width: 27mm;
+    height: 27mm;
     object-fit: contain;
+  }
+  .quotation-export-page .authorization-company-name,
+  .dn-export-page .authorization-company-name {
+    min-height: 4mm;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+  }
+  .quotation-export-page .company-signature-crop,
+  .dn-export-page .company-signature-crop {
+    display: flex;
+    width: 38mm;
+    height: 15mm;
+    margin-top: 1.5mm;
+    overflow: hidden;
+    align-items: center;
+    justify-content: center;
   }
   .quotation-export-page .company-signature,
   .dn-export-page .company-signature {
-    width: 30mm;
-    height: 17mm;
+    width: 36mm;
+    height: 14mm;
     object-fit: contain;
+    transform: rotate(0deg);
+    transform-origin: center;
+  }
+  .quotation-export-page .company-signature.default-signature-rotation,
+  .dn-export-page .company-signature.default-signature-rotation {
+    width: 30mm;
+    height: auto;
+    max-width: none;
+    transform: rotate(-43deg);
+    transform-origin: center;
   }
   .quotation-export-page .authorized-signature-label,
   .dn-export-page .authorized-signature-label {
-    margin-top: 1mm;
+    margin-top: 3mm;
     white-space: nowrap;
     font-size: 9px;
     font-weight: 600;
+    text-align: center;
   }
   .invoice-print-page .tv-footer-note { margin-top: 28px; font-size: 11px; text-align: left; }
 
   /* Delivery Note print styles */
   .dn-print-page { display:block; }  /* Show on screen for preview */
   @media print { .dn-print-page { display:block; width: 100%; min-height: auto; margin: 0; padding: 0; box-shadow: none; background: white; box-sizing: border-box; } }
-
-  /* Screen-preview scaling for delivery note & estimate templates */
-  /* ONLY applies on screen - print gets its own @media print rules */
-  @media screen {
-    .preview-scaler {
-      display: flex;
-      justify-content: center;
-      width: 100%;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    .preview-scaler > .dn-export-page,
-    .preview-scaler > .quotation-export-page,
-    .preview-scaler > .estimate-preview-root {
-      flex-shrink: 0;
-      transform-origin: top center;
-    }
-    .preview-scaler > .dn-export-page {
-      width: 210mm;
-      min-width: 210mm;
-      max-width: 210mm;
-      margin: 0;
-    }
-    .preview-scaler > .quotation-export-page,
-    .preview-scaler > .estimate-preview-root {
-      width: 190mm;
-      min-width: 190mm;
-      max-width: 190mm;
-      margin: 0;
-    }
-    @media (max-width: 1024px) {
-      .preview-scaler {
-        justify-content: flex-start;
-      }
-    }
-  }
 
   @media (max-width: 1023px) {
     * { scroll-behavior: auto; }
@@ -425,29 +481,6 @@
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
-}
-
-.export-capture-source {
-  position: fixed;
-  left: 0;
-  top: 0;
-  width: 794px;
-  background: #ffffff;
-  pointer-events: none;
-  opacity: 1;
-  visibility: visible;
-  display: block;
-  z-index: -1;
-}
-
-.export-capture-source [data-export-root="true"] {
-  transform: none !important;
-  scale: none !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  display: block !important;
-  background: #ffffff;
-  color: #111111;
 }
 
 @media (max-width: 1024px) {

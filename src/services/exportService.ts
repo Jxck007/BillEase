@@ -6,8 +6,7 @@ import { sanitizeForHtml2Canvas } from '../utils/sanitizeForHtml2Canvas';
 const MM_TO_PX = 96 / 25.4;
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
-const PDF_MARGIN_MM = 5;
-const EXPORT_EDGE_BUFFER_PX = 32;
+const PDF_MARGIN_MM = 0;
 
 /** Use lower scale on mobile/tablet to avoid memory crashes on older devices */
 export function getSafeExportScale(): number {
@@ -55,22 +54,20 @@ export function downloadBlob(blob: Blob, fileName: string) {
   URL.revokeObjectURL(link.href);
 }
 
-function measureExportRootSize(element: HTMLElement, fallbackWidth: number) {
+function measureExportRootSize(element: HTMLElement, targetWidth: number) {
   const rootRect = element.getBoundingClientRect();
-  let maxRight = rootRect.width;
   let maxBottom = rootRect.height;
 
   const descendants = element.querySelectorAll<HTMLElement>('*');
   descendants.forEach((node) => {
     const rect = node.getBoundingClientRect();
     if (!rect.width && !rect.height) return;
-    maxRight = Math.max(maxRight, rect.right - rootRect.left);
     maxBottom = Math.max(maxBottom, rect.bottom - rootRect.top);
   });
 
   return {
-    width: Math.ceil(Math.max(element.scrollWidth, element.clientWidth, rootRect.width, maxRight, fallbackWidth) + EXPORT_EDGE_BUFFER_PX),
-    height: Math.ceil(Math.max(element.scrollHeight, element.clientHeight, element.offsetHeight, rootRect.height, maxBottom) + EXPORT_EDGE_BUFFER_PX),
+    width: targetWidth,
+    height: Math.ceil(Math.max(element.scrollHeight, element.clientHeight, element.offsetHeight, rootRect.height, maxBottom)),
   };
 }
 
@@ -102,15 +99,12 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   clone.style.boxSizing = 'border-box';
   clone.style.overflow = 'visible';
   clone.style.height = 'auto';
-  clone.style.minHeight = '0';
   clone.style.maxHeight = 'none';
   clone.style.transform = 'none';
   clone.style.scale = 'none';
   clone.style.borderRadius = '0';
   clone.style.boxShadow = 'none';
   clone.style.margin = '0';
-  clone.style.padding = clone.style.padding || '0';
-  clone.style.paddingBottom = `calc(${clone.style.paddingBottom || '0px'} + ${EXPORT_EDGE_BUFFER_PX}px)`;
   clone.style.background = '#ffffff';
   clone.style.color = '#111111';
   clone.style.display = 'block';
@@ -165,7 +159,6 @@ export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDT
 
     const { width, height } = measureExportRootSize(clone, targetWidthPx);
     const text = (clone.innerText || '').trim();
-    console.log('export root size', { width, height, text: text.slice(0, 200) });
     if (!width || !height) {
       throw new Error('Export failed: document size is zero');
     }
@@ -178,7 +171,7 @@ export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDT
       backgroundColor: '#ffffff',
       useCORS: true,
       allowTaint: true,
-      logging: true,
+      logging: false,
       imageTimeout: 5000,
       scrollX: 0,
       scrollY: 0,
@@ -210,11 +203,6 @@ export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDT
     if (!canvas.width || !canvas.height) {
       throw new Error('Export failed: document size is zero');
     }
-    console.log('EXPORT CANVAS', {
-      width: canvas.width,
-      height: canvas.height,
-      dataUrlStart: canvas.toDataURL('image/png').slice(0, 50),
-    });
     return { canvas, scale: safeScale };
   } catch (error) {
     throw new Error(`Export rendering failed: ${(error as Error).message}`);
@@ -223,7 +211,7 @@ export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDT
   }
 }
 
-async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {
+export async function createPngBlobFromElement(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {
   const { canvas } = await renderExportCanvas(element, widthMm, scale);
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Failed to generate PNG blob'))), 'image/png', 1.0);

@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { useLanguage } from '../../context/LanguageContext';
 import { useData } from '../../context/DataContext';
-import { useVisualAsset } from '../../lib/firebase';
+import { DEFAULT_VISUAL_ASSETS, useVisualAsset } from '../../lib/firebase';
 
-function OptionalDocumentImage({ src, alt, className }: { src: string; alt: string; className: string }) {
+function OptionalDocumentImage({ src, alt, className, defaultAsset = false }: { src: string; alt: string; className: string; defaultAsset?: boolean }) {
   const [failed, setFailed] = useState(false);
   if (!src || failed) return null;
-  return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />;
+  return <img src={src} alt={alt} className={`${className}${defaultAsset ? ' default-signature-rotation' : ''}`} onError={() => setFailed(true)} />;
 }
 
 type DocumentType = 'invoice' | 'quotation' | 'deliveryNote';
@@ -14,6 +15,7 @@ export default function InvoiceAuthorizationAssets({ documentType = 'invoice' }:
   const signature = useVisualAsset('signature');
   const seal = useVisualAsset('seal');
   const { state } = useData();
+  const { t } = useLanguage();
   const signatureEnabled = state.settings.integrations.authorizedSignature
     && state.settings.signatureVisibility[documentType];
   const sealEnabled = state.settings.sealVisibility?.[documentType] !== false;
@@ -24,8 +26,18 @@ export default function InvoiceAuthorizationAssets({ documentType = 'invoice' }:
         {sealEnabled && <OptionalDocumentImage src={seal} alt="Company seal" className="company-seal" />}
       </div>
       <div className="signature-column">
-        {signatureEnabled && <OptionalDocumentImage src={signature} alt="Authorized signature" className="company-signature" />}
-        <span className="authorized-signature-label">Authorized Signature</span>
+        <span className="authorization-company-name">{t('forCompany').replace('{company}', state.profile.name || t('yourBusiness'))}</span>
+        <div className="company-signature-crop">
+          {signatureEnabled && (
+            <OptionalDocumentImage
+              src={signature}
+              alt={t('authorizedSignature')}
+              className="company-signature"
+              defaultAsset={signature === DEFAULT_VISUAL_ASSETS.signature}
+            />
+          )}
+        </div>
+        <span className="authorized-signature-label">{t('authorizedSignature')}</span>
       </div>
     </div>
   );

@@ -13,7 +13,6 @@ export default class AppErrorBoundary extends Component<{ children: ReactNode },
     const device = /Android|iPhone|Mobile/i.test(navigator.userAgent) ? 'mobile-or-tablet' : 'desktop';
     const report = { errorId: this.state.errorId, route: window.location.pathname, appVersion: '0.0.0', category: error.name || 'UIError', device, integration: 'none' };
     console.error('[BillEase error]', report);
-    fetch('/api/errors/report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(report), keepalive: true }).catch(() => undefined);
   }
   render() {
     if (!this.state.failed) return this.props.children;

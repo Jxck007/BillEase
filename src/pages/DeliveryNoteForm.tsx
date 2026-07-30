@@ -29,7 +29,6 @@ export default function DeliveryNoteForm() {
   const { language } = useLanguage();
   const { showToast } = useToast();
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null);
-  const [currentStep, setCurrentStep] = useState(1);
 
   const existingNote = state.deliveryNotes.find((note) => note.id === id);
 
@@ -171,7 +170,7 @@ export default function DeliveryNoteForm() {
       addDeliveryNote(note);
     }
 
-    showToast('Delivery Note saved', 'success');
+    showToast(language === 'ta' ? 'விநியோகக் குறிப்பு சேமிக்கப்பட்டது' : 'Delivery Note saved', 'success');
     navigate('/delivery-notes');
   };
 
@@ -198,15 +197,8 @@ export default function DeliveryNoteForm() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900">
-        <div className="text-sm font-bold">Step {currentStep} of 5 — {['Customer', 'Document details', 'Items', 'Review', 'Preview and Share'][currentStep - 1]}</div>
-        <div className="mt-2 grid grid-cols-5 gap-1" aria-hidden="true">
-          {[1, 2, 3, 4, 5].map((step) => <span key={step} className={`h-1.5 rounded-full ${step <= currentStep ? 'bg-emerald-600' : 'bg-emerald-200'}`} />)}
-        </div>
-      </div>
-
       <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div className="mb-4 text-[12px] font-black uppercase tracking-wide text-stone-800">PARTICULARS OF PLACE</div>
+        <div className="mb-4 text-[12px] font-black uppercase tracking-wide text-stone-800">{language === 'ta' ? 'இட விவரங்கள்' : 'PARTICULARS OF PLACE'}</div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-semibold text-stone-700">{language === 'en' ? '(a) From where goods are consigned' : '(a) பொருள் அனுப்பப்படும் இடம்'}</label>
@@ -215,7 +207,7 @@ export default function DeliveryNoteForm() {
               value={formData.fromPlace || ''}
               onChange={(event) => setFormData((previous) => ({ ...previous, fromPlace: event.target.value }))}
               title={language === 'en' ? 'From where goods are consigned' : 'பொருள் அனுப்பப்படும் இடம்'}
-              placeholder={language === 'en' ? 'Enter from place' : 'From place'}
+              placeholder={language === 'en' ? 'Enter from place' : 'அனுப்பும் இடத்தை உள்ளிடவும்'}
               className="mt-1 w-full rounded-2xl border border-stone-200 px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
@@ -226,7 +218,7 @@ export default function DeliveryNoteForm() {
               value={formData.toPlace || ''}
               onChange={(event) => setFormData((previous) => ({ ...previous, toPlace: event.target.value }))}
               title={language === 'en' ? 'To which goods are consigned' : 'பொருள் சேரும் இடம்'}
-              placeholder={language === 'en' ? 'Enter to place' : 'To place'}
+              placeholder={language === 'en' ? 'Enter to place' : 'சேரும் இடத்தை உள்ளிடவும்'}
               className="mt-1 w-full rounded-2xl border border-stone-200 px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
@@ -315,7 +307,7 @@ export default function DeliveryNoteForm() {
           </button>
         </div>
 
-        <div className="mt-5 space-y-4" onFocus={() => setCurrentStep(3)}>
+        <div className="mt-5 space-y-4">
           {(formData.items || []).map((item, index) => {
             const normalizedItem = normalizeDeliveryNoteItem(item as Partial<DeliveryNoteItem>);
             return (
@@ -477,30 +469,30 @@ export default function DeliveryNoteForm() {
           onClick={() => setLeaveTarget('/delivery-notes')}
           className="min-h-12 rounded-2xl border border-stone-200 bg-white px-6 py-3 font-semibold text-stone-700 shadow-sm"
         >
-          Back
+          {language === 'ta' ? 'பின்செல்' : 'Back'}
         </button>
-        <button type="button" onClick={() => showToast('Draft saved locally', 'success')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-6 py-3 font-semibold text-stone-700 shadow-sm">Save Draft</button>
-        <button type="button" onClick={() => id ? navigate(`/delivery-notes/${id}`) : showToast('Save the document first to open its full preview.', 'info')} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-3 font-semibold text-emerald-800"><Eye size={18} /> Preview</button>
+        <button type="button" onClick={() => showToast(language === 'ta' ? 'வரைவு சாதனத்தில் சேமிக்கப்பட்டது' : 'Draft saved locally', 'success')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-6 py-3 font-semibold text-stone-700 shadow-sm">{language === 'ta' ? 'வரைவைச் சேமி' : 'Save Draft'}</button>
+        <button type="button" onClick={() => id ? navigate(`/delivery-notes/${id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info')} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-3 font-semibold text-emerald-800"><Eye size={18} /> {language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
         <button
           type="button"
           onClick={handleSave}
           className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-semibold text-white shadow-sm"
         >
-          <Save size={18} /> Save and Finish
+          <Save size={18} /> {language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}
         </button>
       </div>
       <div className="fixed inset-x-0 z-30 border-t border-stone-200 bg-white px-3 py-2 shadow-[0_-3px_12px_rgba(28,25,23,0.08)] sm:hidden print:hidden bottom-[calc(72px+env(safe-area-inset-bottom))]">
         <div className="mb-2 flex items-center justify-between px-1 text-sm">
-          <span className="font-medium text-stone-600">Approximate total</span>
+          <span className="font-medium text-stone-600">{language === 'ta' ? 'தோராயமான மொத்தம்' : 'Approximate total'}</span>
           <span className="font-black text-emerald-700">{formatCurrency(Number(formData.approximateValue || 0))}</span>
         </div>
         <div className="grid grid-cols-3 gap-2">
-          <button type="button" onClick={() => setLeaveTarget('/delivery-notes')} className="min-h-12 rounded-xl border border-stone-200 font-semibold text-stone-700">Back</button>
-          <button type="button" onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 font-semibold text-white">Save</button>
-          <button type="button" onClick={() => { setCurrentStep(5); id ? navigate(`/delivery-notes/${id}`) : showToast('Save the document first to open its full preview.', 'info'); }} className="min-h-12 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">Preview</button>
+          <button type="button" onClick={() => setLeaveTarget('/delivery-notes')} className="min-h-12 rounded-xl border border-stone-200 font-semibold text-stone-700">{language === 'ta' ? 'பின்செல்' : 'Back'}</button>
+          <button type="button" onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 font-semibold text-white">{language === 'ta' ? 'சேமி' : 'Save'}</button>
+          <button type="button" onClick={() => { id ? navigate(`/delivery-notes/${id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info'); }} className="min-h-12 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">{language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
         </div>
       </div>
-      <ConfirmDialog open={Boolean(leaveTarget)} title="Leave this delivery note?" message="Your latest changes may only be saved locally. Continue?" confirmLabel="Leave" onCancel={() => setLeaveTarget(null)} onConfirm={() => { const target = leaveTarget; setLeaveTarget(null); if (target) navigate(target); }} />
+      <ConfirmDialog open={Boolean(leaveTarget)} title={language === 'ta' ? 'இந்த விநியோகக் குறிப்பிலிருந்து வெளியேறவா?' : 'Leave this delivery note?'} message={language === 'ta' ? 'உங்கள் சமீபத்திய மாற்றங்கள் சாதனத்தில் மட்டுமே சேமிக்கப்பட்டிருக்கலாம். தொடரவா?' : 'Your latest changes may only be saved locally. Continue?'} confirmLabel={language === 'ta' ? 'வெளியேறு' : 'Leave'} onCancel={() => setLeaveTarget(null)} onConfirm={() => { const target = leaveTarget; setLeaveTarget(null); if (target) navigate(target); }} />
     </div>
   );
 }

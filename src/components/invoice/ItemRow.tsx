@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { InvoiceItem, Product, TaxMode } from '../../lib/types';
 import { Minus, Plus, Trash2 } from 'lucide-react';
 import { formatCurrency, roundMoney } from '../../lib/utils';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface Props {
   item: InvoiceItem;
@@ -17,6 +18,8 @@ interface Props {
 }
 
 const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatches, isActive, gstMode, isEstimate = false, onFocus, onChange, onSelectProduct, onRemove }: Props) {
+  const { language } = useLanguage();
+  const text = (english: string, tamil: string) => language === 'ta' ? tamil : english;
   const [query, setQuery] = useState(item.name || '');
   const [expanded, setExpanded] = useState(false);
   const matches = isActive ? (query ? productMatches(query) : activeMatches) : [];
@@ -54,13 +57,13 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
       <div className="group relative w-full overflow-hidden rounded-2xl border border-stone-200 bg-white p-3 shadow-sm transition-all duration-200 hover:border-emerald-200 hover:shadow-md md:p-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 min-[1180px]:grid-cols-12 min-[1180px]:gap-2">
           <div className="relative min-w-0 md:col-span-2 min-[1180px]:col-span-3">
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Description</div>
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{text('Description', 'விவரம்')}</div>
             <div className="relative">
               <input
                 value={query}
                 onFocus={() => { onFocus(); }}
                 onChange={(e) => { setQuery(e.target.value); onChange({ name: e.target.value, description: e.target.value }); }}
-                placeholder="Enter description"
+                placeholder={text('Enter description', 'விவரத்தை உள்ளிடவும்')}
                 className="min-h-12 w-full min-w-0 rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm font-medium text-stone-800 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
               />
             </div>
@@ -87,7 +90,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
           </div>
 
           <div className="min-w-0 min-[1180px]:col-span-1">
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Unit</div>
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{text('Unit', 'அலகு')}</div>
             <input
               value={item.unit || 'Nos'}
               onChange={(e) => onChange({ unit: e.target.value })}
@@ -97,7 +100,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
           </div>
 
           <div className="min-w-0 min-[1180px]:col-span-2">
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Quantity</div>
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{text('Quantity', 'அளவு')}</div>
             <div className="flex min-h-12 items-center rounded-xl bg-stone-50">
               <button type="button" onClick={() => handleQty(-1)} aria-label="Decrease quantity" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-stone-600 hover:bg-white"><Minus size={17} /></button>
               <input
@@ -111,7 +114,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
           </div>
 
           <div className="min-w-0 min-[1180px]:col-span-2">
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Price</div>
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{text('Price', 'விலை')}</div>
             <div className="flex min-h-12 items-center rounded-xl bg-stone-50 px-3">
               <span className="mr-2 shrink-0 text-sm text-stone-400">₹</span>
               <input
@@ -138,7 +141,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
           </div>
 
           <div className="min-w-0 min-[1180px]:col-span-1">
-            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Amount</div>
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{text('Amount', 'தொகை')}</div>
             <div className="flex min-h-12 items-center justify-between rounded-xl bg-stone-50 px-3 py-2">
               <div className="text-sm font-bold text-stone-900">{formatCurrency(lineTotal)}</div>
               <button type="button" onClick={onRemove} aria-label="Delete item" className="opacity-70 transition-all duration-200 hover:text-rose-600 md:opacity-100 p-2 -mr-2 text-stone-500 hover:bg-stone-100 rounded-lg flex items-center justify-center">
@@ -155,13 +158,13 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
     <div className="group relative w-full overflow-hidden rounded-2xl border border-stone-200 bg-white p-3 shadow-sm transition-all duration-200 hover:border-emerald-200 hover:shadow-md md:p-4">
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 min-[1180px]:grid-cols-12 min-[1180px]:gap-3">
         <div className="relative min-w-0 md:col-span-2 min-[1180px]:col-span-4">
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Product</div>
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{text('Product', 'பொருள்')}</div>
           <div className="relative">
             <input
               value={query}
               onFocus={() => { onFocus(); }}
               onChange={(e) => { setQuery(e.target.value); onChange({ name: e.target.value }); }}
-              placeholder="Search product or enter name"
+              placeholder={text('Search product or enter name', 'பொருளைத் தேடவும் அல்லது பெயரை உள்ளிடவும்')}
               className="min-h-12 w-full min-w-0 rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm font-medium text-stone-800 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
             />
           </div>
@@ -179,7 +182,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
         </div>
 
         <div className="min-w-0 min-[1180px]:col-span-2">
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Qty</div>
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{text('Qty', 'அளவு')}</div>
           <div className="flex min-h-12 items-center rounded-xl bg-stone-50">
             <button type="button" onClick={() => handleQty(-1)} aria-label="Decrease quantity" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-stone-600 hover:bg-white"><Minus size={17} /></button>
             <input
@@ -193,7 +196,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
         </div>
 
         <div className="min-w-0 min-[1180px]:col-span-2">
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Unit Price</div>
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{text('Unit Price', 'அலகு விலை')}</div>
           <div className="flex min-h-12 items-center rounded-xl bg-stone-50 px-3">
             <span className="mr-2 shrink-0 text-sm text-stone-400">₹</span>
             <input
@@ -233,7 +236,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
         </div>
 
         <div className="min-w-0 min-[1180px]:col-span-2">
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Total</div>
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{text('Total', 'மொத்தம்')}</div>
           <div className="flex min-h-12 items-center justify-between rounded-xl bg-stone-50 px-3 py-2">
             <div className="min-w-0">
               <div className="text-sm font-bold text-stone-900">{formatCurrency(lineTotal)}</div>
@@ -246,7 +249,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
 
         <div className="md:col-span-2 min-[1180px]:col-span-12">
           <button type="button" onClick={() => setExpanded((value) => !value)} className="text-xs font-medium text-stone-500 hover:text-stone-700">
-            {expanded ? 'Hide details' : 'Details'}
+            {expanded ? text('Hide details', 'விவரங்களை மறை') : text('Details', 'விவரங்கள்')}
           </button>
           <div className={`mt-2 space-y-3 ${expanded ? 'block' : 'hidden'}`}>
             <div>
@@ -259,11 +262,11 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
               />
             </div>
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">Description</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{text('Description', 'விவரம்')}</div>
               <input
                 value={item.description || ''}
                 onChange={(e) => onChange({ description: e.target.value })}
-                placeholder="Optional description"
+                placeholder={text('Optional description', 'விருப்பமான விவரம்')}
                 className="mt-1 min-h-12 w-full rounded-xl border-0 bg-stone-50 px-3 py-2 text-sm text-stone-700 outline-none ring-1 ring-transparent placeholder:text-stone-400 focus:ring-2 focus:ring-emerald-400"
               />
             </div>

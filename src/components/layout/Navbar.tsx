@@ -4,7 +4,7 @@ import { Languages, HelpCircle } from 'lucide-react';
 import GlobalSearch from '../search/GlobalSearch';
 
 export default function Navbar() {
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const { openHelp } = useHelp();
 
   return (
@@ -15,10 +15,10 @@ export default function Navbar() {
           type="button"
           onClick={() => setLanguage(language === 'en' ? 'ta' : 'en')}
           className="flex min-h-12 min-w-12 items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold text-stone-700 hover:border-emerald-300 hover:text-emerald-700"
-          aria-label={language === 'en' ? 'Change language to Tamil' : 'Change language to English'}
+          aria-label={language === 'en' ? 'தமிழுக்கு மாற்று' : 'Change language to English'}
         >
           <Languages size={19} />
-          <span className="hidden xl:inline">{language === 'en' ? 'தமிழ்' : 'English'}</span>
+          <span>{language === 'en' ? 'தமிழ்' : 'English'}</span>
         </button>
         <button
           type="button"
@@ -26,7 +26,7 @@ export default function Navbar() {
           className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700"
         >
           <HelpCircle size={19} />
-          <span className="hidden min-[390px]:inline">Help</span>
+          <span className="hidden min-[390px]:inline">{t('help')}</span>
         </button>
       </div>
     </header>

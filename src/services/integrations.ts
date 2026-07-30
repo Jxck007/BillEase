@@ -1,10 +1,6 @@
 export type PostalResult = { locality: string; district: string; state: string };
 export type Result<T> = { ok: true; value: T } | { ok: false; message: string };
 export interface PostalLookupProvider { lookup(pin: string, token: string): Promise<Result<PostalResult[]>> }
-export interface GstValidationProvider { enabled: false }
-export interface DocumentRenderer { render(root: HTMLElement, widthMm: number): Promise<File> }
-export interface OcrProvider { enabled: false }
-export interface AiActionProvider { enabled: false }
 
 function reportIntegrationFailure(integration: string, category: string, token: string) {
   const report = {
@@ -52,4 +48,3 @@ export const postalProvider: PostalLookupProvider = {
     return result;
   },
 };
-export const deferredProviders = { gst: { enabled: false } as GstValidationProvider, ocr: { enabled: false } as OcrProvider, ai: { enabled: false } as AiActionProvider, barcode: false };

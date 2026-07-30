@@ -1,10 +1,10 @@
-import { HttpError } from '../http/errors';
+import { HttpError } from '../http/errors.js';
 
 const SENDING_LOCK_MS = 2 * 60 * 1000;
 const RATE_LIMIT = 6;
 const RATE_WINDOW_MS = 60 * 1000;
 
-export async function enforceDeliveryRateLimit(db: any, uid: string, channel: 'email' | 'whatsapp') {
+export async function enforceDeliveryRateLimit(db: any, uid: string, channel: 'email') {
   const windowId = Math.floor(Date.now() / RATE_WINDOW_MS);
   const reference = db.doc(`billeaseDeliveryRateLimits/${uid}_${channel}_${windowId}`);
 
@@ -23,7 +23,7 @@ export async function enforceDeliveryRateLimit(db: any, uid: string, channel: 'e
 
 export async function reserveDelivery(
   db: any,
-  channel: 'email' | 'whatsapp',
+  channel: 'email',
   idempotencyKey: string,
   metadata: { documentId: string; recipient: string },
 ) {

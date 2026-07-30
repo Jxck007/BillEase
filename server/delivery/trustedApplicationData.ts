@@ -1,4 +1,4 @@
-import { HttpError } from '../http/errors';
+import { HttpError } from '../http/errors.js';
 
 type DocumentType = 'invoice' | 'quotation' | 'delivery-note';
 

@@ -1,7 +1,13 @@
-import { HttpError } from '../http/errors';
-import { FirebaseAdminConfigurationError, getFirebaseAdmin } from './firebaseAdmin';
+import { HttpError } from '../http/errors.js';
+import { FirebaseAdminConfigurationError, getFirebaseAdmin } from './firebaseAdmin.js';
 
-export async function verifyAdminRequest(request: any) {
+type VerificationEvents = {
+  tokenVerified?: () => void;
+  adminLookupStarted?: () => void;
+  adminLookupCompleted?: (allowed: boolean) => void;
+};
+
+export async function verifyAdminRequest(request: any, events: VerificationEvents = {}) {
   const authorization = String(request.headers?.authorization || '');
   const match = authorization.match(/^Bearer ([^\s]+)$/i);
   if (!match?.[1]) throw new HttpError(401, 'AUTH_REQUIRED', 'Authentication required');
@@ -19,13 +25,17 @@ export async function verifyAdminRequest(request: any) {
   let decoded;
   try {
     decoded = await auth.verifyIdToken(match[1]);
+    events.tokenVerified?.();
   } catch {
     throw new HttpError(401, 'AUTH_INVALID', 'Authentication is invalid or expired');
   }
 
+  events.adminLookupStarted?.();
   const admin = await db.doc(`admins/${decoded.uid}`).get();
   const adminData = admin.data();
-  if (!admin.exists || adminData?.active !== true || adminData?.role !== 'admin') {
+  const allowed = admin.exists && adminData?.active === true && adminData?.role === 'admin';
+  events.adminLookupCompleted?.(allowed);
+  if (!allowed) {
     throw new HttpError(403, 'ADMIN_REQUIRED', 'Admin access required');
   }
 

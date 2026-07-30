@@ -13,20 +13,21 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useLanguage } from '../../context/LanguageContext';
 
 type SheetName = 'records' | 'create' | null;
 
 const records = [
-  { to: '/invoices', label: 'Invoices', icon: FileText },
-  { to: '/estimates', label: 'Quotations', icon: ReceiptText },
-  { to: '/delivery-notes', label: 'Delivery Notes', icon: Truck },
+  { to: '/invoices', labelKey: 'invoices', icon: FileText },
+  { to: '/estimates', labelKey: 'quotations', icon: ReceiptText },
+  { to: '/delivery-notes', labelKey: 'deliveryNotes', icon: Truck },
 ];
 
 const quickCreate = [
-  { to: '/invoices/new', label: 'New Invoice', icon: FilePlus2 },
-  { to: '/estimates/new', label: 'New Quotation', icon: ReceiptText },
-  { to: '/delivery-notes/new', label: 'New Delivery Note', icon: Truck },
-  { to: '/customers?add=1', label: 'Add Customer', icon: UserPlus },
+  { to: '/invoices/new', labelKey: 'newInvoice', icon: FilePlus2 },
+  { to: '/estimates/new', labelKey: 'newQuotation', icon: ReceiptText },
+  { to: '/delivery-notes/new', labelKey: 'newDeliveryNote', icon: Truck },
+  { to: '/customers?add=1', labelKey: 'addCustomer', icon: UserPlus },
 ];
 
 function ActionSheet({ title, links, onClose }: {
@@ -34,6 +35,7 @@ function ActionSheet({ title, links, onClose }: {
   links: typeof records;
   onClose: () => void;
 }) {
+  const { t } = useLanguage();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const sheetRef = useRef<HTMLElement>(null);
 
@@ -74,10 +76,10 @@ function ActionSheet({ title, links, onClose }: {
           </button>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
-          {links.map(({ to, label, icon: Icon }) => (
+          {links.map(({ to, labelKey, icon: Icon }) => (
             <Link key={to} to={to} onClick={onClose} className="flex min-h-14 items-center gap-3 rounded-2xl border border-stone-200 px-4 font-semibold text-stone-800 hover:border-emerald-300 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
               <Icon size={22} className="text-emerald-700" />
-              {label}
+              {t(labelKey)}
             </Link>
           ))}
         </div>
@@ -87,6 +89,7 @@ function ActionSheet({ title, links, onClose }: {
 }
 
 export default function MobileBottomNavigation({ onOpenMore }: { onOpenMore: () => void }) {
+  const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
   const [sheet, setSheet] = useState<SheetName>(null);
@@ -124,27 +127,27 @@ export default function MobileBottomNavigation({ onOpenMore }: { onOpenMore: () 
         <div className="mx-auto grid min-h-[72px] max-w-xl grid-cols-5 items-center">
           <button type="button" onClick={() => directAction('/')} className={itemClass(location.pathname === '/')} aria-current={location.pathname === '/' ? 'page' : undefined}>
             <LayoutDashboard size={21} />
-            <span>Dashboard</span>
+            <span>{t('dashboard')}</span>
           </button>
           <button type="button" onClick={() => setSheet('records')} className={itemClass(recordsActive)} aria-expanded={sheet === 'records'} aria-haspopup="dialog">
             <FileText size={21} />
-            <span>Records</span>
+            <span>{t('records')}</span>
           </button>
           <button type="button" onClick={() => setSheet('create')} className="mx-auto -mt-7 flex h-[60px] w-[60px] items-center justify-center rounded-full border-4 border-stone-50 bg-emerald-600 text-white shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2" aria-label="Open quick create menu" aria-expanded={sheet === 'create'} aria-haspopup="dialog">
             <Plus size={31} strokeWidth={2.5} />
           </button>
           <button type="button" onClick={() => directAction('/customers')} className={itemClass(location.pathname.startsWith('/customers'))} aria-current={location.pathname.startsWith('/customers') ? 'page' : undefined}>
             <Users size={21} />
-            <span>Customers</span>
+            <span>{t('customers')}</span>
           </button>
           <button type="button" onClick={() => { setSheet(null); onOpenMore(); }} className={itemClass(moreActive)} aria-haspopup="dialog">
             <Menu size={21} />
-            <span>More</span>
+            <span>{t('more')}</span>
           </button>
         </div>
       </nav>
-      {sheet === 'records' && <ActionSheet title="Records" links={records} onClose={() => setSheet(null)} />}
-      {sheet === 'create' && <ActionSheet title="Quick create" links={quickCreate} onClose={() => setSheet(null)} />}
+      {sheet === 'records' && <ActionSheet title={t('records')} links={records} onClose={() => setSheet(null)} />}
+      {sheet === 'create' && <ActionSheet title={t('quickCreate')} links={quickCreate} onClose={() => setSheet(null)} />}
     </>
   );
 }
