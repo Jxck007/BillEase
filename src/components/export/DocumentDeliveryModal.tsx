@@ -110,7 +110,6 @@ export default function DocumentDeliveryModal(props: Props) {
         attachment,
         idempotencyKey: idempotencyKey.current,
         recipientEmail: form.recipientEmail.trim(),
-        recipientEdited: form.recipientEmail.trim().toLowerCase() !== props.customerEmail.trim().toLowerCase(),
         ccEmail: form.ccEmail.trim() || undefined,
         subject: form.subject.trim(),
         message: form.message.trim(),
@@ -145,7 +144,7 @@ export default function DocumentDeliveryModal(props: Props) {
         </div>
 
         <div className="grid gap-3">
-          <Field label={t('to')}><input type="email" autoComplete="email" value={form.recipientEmail} onChange={(event) => setForm({ ...form, recipientEmail: event.target.value })} className="delivery-input" /></Field>
+          <Field label={t('to')}><input type="email" autoComplete="email" value={form.recipientEmail} readOnly className="delivery-input bg-stone-50" /></Field>
           <Field label={t('ccOptional')}><input type="email" value={form.ccEmail} onChange={(event) => setForm({ ...form, ccEmail: event.target.value })} className="delivery-input" /></Field>
           <Field label={t('subject')}><input maxLength={200} value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} className="delivery-input" /></Field>
           <Field label={t('message')}><textarea maxLength={3000} rows={5} value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} className="mt-1 w-full rounded-xl border p-3 font-normal" /></Field>

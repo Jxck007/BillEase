@@ -3,7 +3,12 @@ import { AlertCircle, CheckCircle, FileDown, Image, Loader2, Mail, MessageCircle
 import type { RefObject } from 'react';
 import { useIntegrationAvailability } from '../../hooks/useIntegrationAvailability';
 import { documentPdfCacheKey, getCachedDocumentPdf } from '../../services/documentPdfCache';
-import { sharePdfFile, sharePdfWithWhatsAppFallback } from '../../services/documentShareService';
+import {
+  createDocumentExportFile,
+  isValidWhatsAppNumber,
+  sharePdfWithWhatsAppFallback,
+  whatsappChatUrl,
+} from '../../services/documentShareService';
 import DocumentDeliveryModal from './DocumentDeliveryModal';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -53,11 +58,12 @@ export default function ExportPanel({
   const [status, setStatus] = useState<{ type: 'idle' | 'generating' | 'success' | 'failed'; text: string }>({ type: 'idle', text: '' });
   const [active, setActive] = useState<string | null>(null);
   const [emailComposerOpen, setEmailComposerOpen] = useState(false);
+  const [blockedWhatsAppUrl, setBlockedWhatsAppUrl] = useState('');
   const { availability, status: availabilityStatus } = useIntegrationAvailability();
   const [nativeAvailable, setNativeAvailable] = useState(() => typeof navigator !== 'undefined' && Boolean(navigator.share && navigator.canShare));
-  const fileNameBase = `${documentLabel.replace(/[^a-z0-9_-]+/gi, '_')}_${documentNumber.replace(/[^a-z0-9_-]+/gi, '_')}`;
   const cacheKey = documentPdfCacheKey(documentType, documentId, updatedAt);
   const customerNumber = customerWhatsapp || customerPhone || '';
+  const validCustomerNumber = isValidWhatsAppNumber(customerNumber);
   const emailReady = emailEnabled && availabilityStatus === 'configured' && availability.email;
 
   useEffect(() => {
@@ -88,14 +94,14 @@ export default function ExportPanel({
     if (format === 'png') {
       const service = await import('../../services/exportService');
       const blob = await service.createPngBlobFromElement(exportRoot(), widthMm);
-      return new File([blob], `${fileNameBase}.png`, { type: 'image/png' });
+      return createDocumentExportFile(blob, documentType, documentNumber, 'png');
     }
     const blob = await getCachedDocumentPdf(cacheKey, async () => {
       const service = await import('../../services/exportService');
       return service.createPdfBlobFromElement(exportRoot(), widthMm);
     });
-    return new File([blob], `${fileNameBase}.pdf`, { type: 'application/pdf' });
-  }, [cacheKey, exportRoot, fileNameBase, widthMm]);
+    return createDocumentExportFile(blob, documentType, documentNumber, 'pdf');
+  }, [cacheKey, documentNumber, documentType, exportRoot, widthMm]);
   const run = async (name: string, work: () => Promise<void>) => {
     if (active) return;
     setMessage('generating', t('preparingDocument'), name);
@@ -108,19 +114,30 @@ export default function ExportPanel({
     }
   };
   const share = () => run('share', async () => {
+    setBlockedWhatsAppUrl('');
     const file = await getFile('pdf');
-    const result = await sharePdfFile(
+    const result = await sharePdfWithWhatsAppFallback({
       file,
-      `${documentLabel} ${documentNumber}`,
-      `Please find the ${documentLabel} ${documentNumber} from ${businessName}.`,
-    );
-    if (result.status === 'unsupported') {
+      title: `${documentLabel} ${documentNumber}`,
+      text: `Please find the ${documentLabel} ${documentNumber} from ${businessName}.`,
+      phoneNumber: validCustomerNumber ? customerNumber : undefined,
+      download: (pdfFile) => download(pdfFile, pdfFile.name),
+      openChat: (url) => {
+        const popup = window.open(url, '_blank');
+        if (popup) popup.opener = null;
+        return Boolean(popup);
+      },
+    });
+    if (result.status === 'downloaded' || result.status === 'fallback' || result.status === 'fallback-blocked') {
       setNativeAvailable(false);
-      setMessage('failed', language === 'ta' ? 'கோப்புப் பகிர்வு கிடைக்கவில்லை. கீழுள்ள மாற்று வழியைப் பயன்படுத்தவும்.' : 'File sharing is unavailable. Use a fallback below.');
+      if (result.status === 'fallback-blocked') setBlockedWhatsAppUrl(result.url);
+      setMessage('success', language === 'ta'
+        ? 'PDF பதிவிறக்கம் செய்யப்பட்டது. பதிவிறக்கம் செய்யப்பட்ட ஆவணத்தை WhatsApp-ல் இணைக்கவும்.'
+        : 'PDF downloaded. Please attach the downloaded document in WhatsApp.');
       return;
     }
     if (result.status === 'cancelled') {
-      setMessage('idle', language === 'ta' ? 'பகிர்வு ரத்து செய்யப்பட்டது.' : 'Sharing cancelled.');
+      setMessage('idle', '');
       return;
     }
     setMessage('success', `${file.name} shared through the system share sheet.`);
@@ -140,30 +157,19 @@ export default function ExportPanel({
     onPrint();
     setMessage('success', t('printDialogOpened'));
   };
-  const whatsappFallback = async (number = customerNumber, caption = `Please find the ${documentLabel} ${documentNumber} from ${businessName}.`) => {
-    await run('whatsapp-fallback', async () => {
-      if (!number) throw new Error('Missing WhatsApp number');
-      const file = await getFile('pdf');
-      const result = await sharePdfWithWhatsAppFallback({
-        file,
-        title: `${documentLabel} ${documentNumber}`,
-        text: caption,
-        phoneNumber: number,
-        download: (pdfFile) => download(pdfFile, pdfFile.name),
-        openChat: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
-      });
-      if (result.status === 'shared') {
-        setMessage('success', language === 'ta' ? 'ஆவணத்துடன் சாதனப் பகிர்வு திறக்கப்பட்டது. WhatsApp-ஐத் தேர்ந்தெடுக்கவும்.' : 'System share opened with the document attached. Choose WhatsApp.');
-        return;
-      }
-      if (result.status === 'cancelled') {
-        setMessage('idle', language === 'ta' ? 'பகிர்வு ரத்து செய்யப்பட்டது.' : 'Sharing cancelled.');
-        return;
-      }
-      setMessage('success', language === 'ta'
-        ? 'PDF பதிவிறக்கப்பட்டது. பதிவிறக்கப்பட்ட ஆவணத்தை WhatsApp-ல் இணைக்கவும்.'
-        : 'PDF downloaded. Please attach the downloaded document in WhatsApp.');
-    });
+  const openWhatsApp = () => {
+    if (!validCustomerNumber || active) return;
+    const caption = `Hello, this is ${businessName} regarding ${documentLabel} ${documentNumber}.`;
+    const url = whatsappChatUrl(customerNumber, caption);
+    const popup = window.open(url, '_blank');
+    if (popup) popup.opener = null;
+    setBlockedWhatsAppUrl(popup ? '' : url);
+    setMessage(
+      popup ? 'success' : 'failed',
+      popup
+        ? (language === 'ta' ? 'வாடிக்கையாளர் WhatsApp உரையாடல் திறக்கப்பட்டது. PDF தானாக இணைக்கப்படவில்லை.' : 'Customer WhatsApp chat opened. The PDF was not attached automatically.')
+        : (language === 'ta' ? 'WhatsApp திறப்பதை உலாவி தடுத்தது. கீழே உள்ள பொத்தானைத் தட்டவும்.' : 'The browser blocked WhatsApp. Tap the button below to open it.'),
+    );
   };
 
   if (!isOpen) return null;
@@ -171,9 +177,9 @@ export default function ExportPanel({
     { id: 'print', label: t('print'), text: t('browserPrintDialog'), icon: Printer, run: print, disabled: false },
     { id: 'pdf', label: t('downloadPdf'), text: t('cachedPdfFile'), icon: FileDown, run: pdf, disabled: false },
     { id: 'image', label: t('downloadImage'), text: t('pngImage'), icon: Image, run: image, disabled: false },
-    ...(nativeAvailable ? [{ id: 'share', label: t('shareDocument'), text: t('nativeFileShare'), icon: Share2, run: share, disabled: false }] : []),
+    { id: 'share', label: t('sharePdf'), text: t('nativePdfShare'), icon: Share2, run: share, disabled: false },
     { id: 'email', label: t('sendEmail'), text: emailReady ? t('pdfViaGmail') : t('providerUnavailable'), icon: Mail, run: () => setEmailComposerOpen(true), disabled: !emailReady },
-    { id: 'whatsapp', label: t('openWhatsApp'), text: nativeAvailable ? t('nativeFileShare') : t('downloadThenAttach'), icon: MessageCircle, run: () => whatsappFallback(), disabled: !customerNumber },
+    { id: 'whatsapp', label: t('openWhatsApp'), text: t('customerChatNoAttachment'), icon: MessageCircle, run: openWhatsApp, disabled: !validCustomerNumber },
   ];
   const StatusIcon = status.type === 'generating' ? Loader2 : status.type === 'success' ? CheckCircle : AlertCircle;
 
@@ -208,13 +214,18 @@ export default function ExportPanel({
             );
           })}
         </div>
+        {blockedWhatsAppUrl && (
+          <a href={blockedWhatsAppUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-600 px-4 font-semibold text-white">
+            {t('tapToOpenWhatsApp')}
+          </a>
+        )}
         {availabilityStatus !== 'configured' && <p className="mt-3 text-xs text-amber-800">{t('providerStatusFallbacks')}</p>}
       </div>
       <DocumentDeliveryModal
         open={emailComposerOpen}
         onClose={() => setEmailComposerOpen(false)}
         providerReady={emailReady}
-        providerReason={language === 'ta' ? 'Gmail சரியாக அமைக்கப்படவில்லை அல்லது அங்கீகாரம் புதுப்பிக்கப்பட வேண்டும்.' : 'Gmail is not configured correctly or its authorization must be renewed.'}
+        providerReason={language === 'ta' ? 'Gmail SMTP சரியாக அமைக்கப்படவில்லை அல்லது App Password தவறானது.' : 'Gmail SMTP is not configured correctly or the App Password is invalid.'}
         documentId={documentId}
         documentType={documentType}
         documentNumber={documentNumber}

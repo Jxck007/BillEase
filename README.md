@@ -9,7 +9,7 @@
 - **Invoice & Estimate Generation**: Create professional invoices and estimates, apply taxes (Inclusive/Exclusive), discounts, and automatically calculate line totals.
 - **Multiple Document Templates**: Choose between multiple modern invoice templates optimized for A4 print and digital sharing.
 - **Instant PDF & PNG Export**: Completely local, client-side generation of PDFs and PNGs using `html2canvas` and `jspdf`, ensuring your documents look crisp and accurate without server reliance.
-- **Secure document delivery**: Authenticated Vercel functions verify Firebase administrators and send email through the Gmail API with server-side OAuth 2.0. WhatsApp delivery uses native PDF sharing or a PDF download plus `wa.me`.
+- **Secure document delivery**: Authenticated Vercel functions verify Firebase administrators and send email through Gmail SMTP with a server-only Google App Password. WhatsApp delivery uses native PDF sharing or a PDF download plus `wa.me`.
 - **Multi-Language Support**: Seamlessly toggle between English and Tamil.
 - **Fully Responsive**: Designed with Tailwind CSS for perfect rendering on desktop, tablet, and mobile devices.
 
@@ -67,14 +67,13 @@ Server delivery variables are listed in `.env.example`. They belong in Vercel on
 
 ```env
 FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON=
-GMAIL_CLIENT_ID=
-GMAIL_CLIENT_SECRET=
-GMAIL_REFRESH_TOKEN=
-GMAIL_SENDER_EMAIL=kimeraveltech@gmail.com
+GMAIL_SMTP_USER=kimeraveltech@gmail.com
+GMAIL_SMTP_APP_PASSWORD=replace_with_google_app_password
+GMAIL_FROM_NAME=Kimera Vel Tech
 APP_URL=
 ```
 
-Firebase web-app variables above are public client configuration. The Firebase Admin service account and all Gmail OAuth values are server secrets. Never prefix Gmail variables with `VITE_`. The old `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `RESEND_REPLY_TO_EMAIL` variables are no longer required; remove them manually from Vercel when convenient.
+Firebase web-app variables above are public client configuration. The Firebase Admin service account and Gmail App Password are server secrets. Never prefix Gmail SMTP variables with `VITE_` and never use the normal Google account password.
 
 ## 🔥 Firebase Setup
 
@@ -98,7 +97,7 @@ BillEase is optimized for deployment on modern edge networks like **Vercel** or 
 
 ### Delivery deployment order
 
-1. Configure Firebase Admin JSON, Gmail OAuth, and `APP_URL`.
+1. Configure Firebase Admin JSON, Gmail SMTP, and `APP_URL`.
 2. Deploy Vercel without the previous build cache and test the email endpoint.
 3. Use native Share where file sharing is supported.
 4. Otherwise download the PDF and open `wa.me`, then attach the PDF manually.

@@ -1,11 +1,11 @@
 # BillEase API and server inventory
 
-Audited on 2026-07-30. Gmail provider and document-sharing behavior have mock-based Node tests; Firebase authorization and controlled live endpoint verification remain deployment checks.
+Audited on 2026-07-30. Gmail SMTP, API authentication, export filenames/File objects, and document-sharing behavior have mock-based Node tests; controlled live endpoint and physical-device verification remain deployment checks.
 
 | File | Callers | Environment | Documentation | Production purpose | Decision |
 | --- | --- | --- | --- | --- | --- |
-| `api/email/send-document.ts` | `src/services/documentDeliveryService.ts` | `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`, Gmail OAuth variables | README, INTEGRATIONS | Authenticated administrator Gmail delivery with PDF/PNG-compatible route contract | Keep |
-| `api/integrations/status.ts` | `src/services/documentDeliveryService.ts` through `useIntegrationAvailability` | Firebase Admin variables, Gmail OAuth variables, optional `POSTAL_LOOKUP_URL` | INTEGRATIONS | Authenticated capability status for Gmail and postal lookup | Keep |
+| `api/email/send-document.ts` | `src/services/documentDeliveryService.ts` | `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`, Gmail SMTP variables | README, INTEGRATIONS | Authenticated administrator Gmail SMTP delivery with PDF/PNG-compatible route contract | Keep |
+| `api/integrations/status.ts` | `src/services/documentDeliveryService.ts` through `useIntegrationAvailability` | Firebase Admin variables, Gmail SMTP variables, optional `POSTAL_LOOKUP_URL` | INTEGRATIONS | Authenticated capability status for Gmail SMTP and postal lookup | Keep |
 | `api/postal/lookup.js` | `src/services/integrations.ts` through `PinLookupField` | `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`, optional `POSTAL_LOOKUP_URL` | INTEGRATIONS | Authenticated PIN-code address lookup | Keep |
 | `api/errors/report.js` | Authenticated failures from `src/services/integrations.ts` | `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON` | This inventory | Sanitized integration error metadata; never receives document content | Keep |
 | `api/_auth.js` | `api/postal/lookup.js`, `api/errors/report.js` | Firebase Admin variables through server auth | INTEGRATIONS | Shared compatibility exports for admin verification and safe errors | Keep |
@@ -16,7 +16,7 @@ Audited on 2026-07-30. Gmail provider and document-sharing behavior have mock-ba
 | `server/delivery/parseDocumentMultipart.ts` | Email route and Base64 limits | None | INTEGRATIONS | Multipart parsing, attachment limits, signature validation and temporary-file cleanup | Keep |
 | `server/delivery/deliverySecurity.ts` | Email route | Firestore through verified Admin request | INTEGRATIONS | Email rate limiting and idempotent delivery reservation | Keep |
 | `server/delivery/trustedApplicationData.ts` | Email multipart path | Firestore through verified Admin request | INTEGRATIONS | Confirms document/customer identity against trusted stored data | Keep |
-| `server/providers/gmailEmailProvider.ts` | Email route and integration status | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `GMAIL_SENDER_EMAIL` | README, INTEGRATIONS | OAuth token refresh, MIME construction, Gmail API request, timeout and safe provider-error normalization | Keep |
+| `server/providers/gmailSmtpProvider.ts` | Email route and integration status | `GMAIL_SMTP_USER`, `GMAIL_SMTP_APP_PASSWORD`, optional `GMAIL_FROM_NAME` | README, INTEGRATIONS | Nodemailer Gmail SMTP transport, sender enforcement, attachment construction, and safe error normalization | Keep |
 
 ## Removed integrations and dead code
 

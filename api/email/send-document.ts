@@ -13,6 +13,21 @@ function isSafeHttpError(error: unknown): error is SafeHttpError {
   return Number.isInteger(candidate.status) && typeof candidate.code === 'string';
 }
 
+export function gmailSmtpSuccessPayload(
+  status: 'sent' | 'already_sent',
+  messageId: string | undefined,
+  sentAt: string | undefined,
+) {
+  return {
+    ok: true as const,
+    provider: 'gmail-smtp' as const,
+    status,
+    messageId,
+    providerMessageId: messageId,
+    sentAt,
+  };
+}
+
 function sendEmailError(response: any, error: unknown) {
   if (isSafeHttpError(error)) {
     if (error.status === 400) return response.status(400).json({ ok: false, code: error.code, error: 'Invalid request.' });
@@ -20,11 +35,10 @@ function sendEmailError(response: any, error: unknown) {
     if (error.status === 403) return response.status(403).json({ ok: false, code: error.code, error: 'Admin access denied.' });
     if (error.status === 409) return response.status(409).json({ ok: false, code: error.code, error: 'This document is already being sent.' });
     if (error.status === 413) return response.status(413).json({ ok: false, code: error.code, error: 'Attachment is too large.' });
-    if (error.status === 422) return response.status(422).json({ ok: false, provider: 'gmail', code: error.code, error: 'Gmail rejected the request.' });
+    if (error.status === 422) return response.status(422).json({ ok: false, provider: 'gmail-smtp', code: error.code, error: 'Gmail rejected the message.' });
     if (error.status === 429) return response.status(429).json({ ok: false, code: error.code, error: 'Too many requests.' });
-    if (error.status === 502) return response.status(502).json({ ok: false, provider: 'gmail', code: error.code, error: 'Gmail is unavailable.' });
-    if (error.status === 503) return response.status(503).json({ ok: false, provider: 'gmail', code: error.code, error: error.code === 'GMAIL_AUTH_REVOKED' ? 'Gmail authorization must be renewed.' : 'Gmail is not configured or authorized.' });
-    if (error.status === 504) return response.status(504).json({ ok: false, provider: 'gmail', code: error.code, error: 'Gmail timed out.' });
+    if (error.status === 502) return response.status(502).json({ ok: false, provider: 'gmail-smtp', code: error.code, error: 'Could not connect to Gmail SMTP.' });
+    if (error.status === 503) return response.status(503).json({ ok: false, provider: 'gmail-smtp', code: error.code, error: error.code === 'GMAIL_SMTP_AUTH_FAILED' ? 'Gmail SMTP authentication failed.' : 'Gmail SMTP is not configured.' });
   }
   return response.status(500).json({ ok: false, code: 'EMAIL_SEND_FAILED', error: 'Unable to send the email.' });
 }
@@ -41,11 +55,9 @@ export default async function handler(request: any, response: any) {
 
   console.info('[email/send-document] configuration present', {
     firebaseAdmin: Boolean(process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON?.trim()),
-    gmail: Boolean(
-      process.env.GMAIL_CLIENT_ID?.trim()
-      && process.env.GMAIL_CLIENT_SECRET?.trim()
-      && process.env.GMAIL_REFRESH_TOKEN?.trim()
-      && process.env.GMAIL_SENDER_EMAIL?.trim(),
+    gmailSmtp: Boolean(
+      process.env.GMAIL_SMTP_USER?.trim()
+      && process.env.GMAIL_SMTP_APP_PASSWORD?.trim(),
     ),
     bearerToken: /^Bearer [^\s]+$/i.test(String(request.headers?.authorization || '')),
     contentType: String(request.headers?.['content-type'] || '').split(';', 1)[0].slice(0, 100),
@@ -65,7 +77,7 @@ export default async function handler(request: any, response: any) {
       { parseDocumentMultipart },
       { resolveTrustedDocumentAndCustomer },
       { HttpError },
-      { getGmailConfiguration, sendEmailWithGmail },
+      { getGmailSmtpConfiguration, sendEmailWithGmailSmtp },
     ] = await Promise.all([
       import('node:crypto'),
       import('../../server/auth/verifyAdminRequest.js'),
@@ -74,7 +86,7 @@ export default async function handler(request: any, response: any) {
       import('../../server/delivery/parseDocumentMultipart.js'),
       import('../../server/delivery/trustedApplicationData.js'),
       import('../../server/http/errors.js'),
-      import('../../server/providers/gmailEmailProvider.js'),
+      import('../../server/providers/gmailSmtpProvider.js'),
     ]);
     const {
       enforceDeliveryRateLimit,
@@ -141,8 +153,8 @@ export default async function handler(request: any, response: any) {
         customerId: fields.customerId,
       });
       const customerEmail = String(customer.email || '').trim().toLowerCase();
-      if (email.recipientEmail !== customerEmail && fields.recipientEdited !== 'true') {
-        throw new HttpError(400, 'RECIPIENT_MISMATCH', 'Confirm the edited recipient email');
+      if (email.recipientEmail !== customerEmail) {
+        throw new HttpError(400, 'RECIPIENT_MISMATCH', 'Recipient must match the selected customer');
       }
     } else {
       const parsed = parseBase64EmailRequest(await readJsonRequestBody(request));
@@ -166,9 +178,9 @@ export default async function handler(request: any, response: any) {
       type: attachment.mimeType,
       decodedBytes: attachment.decodedBytes,
     });
-    const gmailConfiguration = getGmailConfiguration();
+    const gmailConfiguration = getGmailSmtpConfiguration();
     if (!gmailConfiguration.configured) {
-      throw new HttpError(503, 'GMAIL_NOT_CONFIGURED', 'Email provider is not configured');
+      throw new HttpError(503, 'GMAIL_SMTP_NOT_CONFIGURED', 'Email provider is not configured');
     }
     await enforceDeliveryRateLimit(db, uid, 'email');
     const idempotencyKey = String(request.headers?.['idempotency-key'] || requestedIdempotencyKey || randomUUID()).trim();
@@ -179,51 +191,42 @@ export default async function handler(request: any, response: any) {
     deliveryReference = reservation.reference;
 
     if (reservation.state === 'already_sent') {
-      return response.status(200).json({
-        ok: true,
-        provider: 'gmail',
-        messageId: reservation.data?.providerMessageId || undefined,
-        status: 'already_sent',
-        sentAt: reservation.data?.timestamp || undefined,
-      });
+      return response.status(200).json(gmailSmtpSuccessPayload(
+        'already_sent',
+        reservation.data?.providerMessageId || undefined,
+        reservation.data?.timestamp || undefined,
+      ));
     }
     if (reservation.state === 'in_progress') {
       throw new HttpError(409, 'DELIVERY_IN_PROGRESS', 'This email is already being sent');
     }
 
     phase = 'provider';
-    console.info('[email/send-document] Gmail request', { status: 'started' });
-    const result = await sendEmailWithGmail({
+    console.info('[email/send-document] Gmail SMTP request', { status: 'started' });
+    const result = await sendEmailWithGmailSmtp({
       ...email,
       ccEmail: email.ccEmail || undefined,
       filename: attachment.filename,
       mimeType: attachment.mimeType,
       attachment: attachment.buffer,
     }, {
-      request: (serializedBytes) => console.info('[email/send-document] Gmail request', {
-        status: 'serialized',
-        approximateBytes: serializedBytes,
-      }),
-      response: (status, providerType) => console.info('[email/send-document] Gmail response', {
+      response: (status, providerType) => console.info('[email/send-document] Gmail SMTP response', {
         status,
         providerType,
       }),
     });
     const sentAt = new Date().toISOString();
     await markDeliverySent(deliveryReference, result.messageId, sentAt);
-    console.info('[email/send-document] Gmail provider outcome', {
+    console.info('[email/send-document] Gmail SMTP provider outcome', {
       status: 'sent',
       messageIdPresent: Boolean(result.messageId),
     });
     console.info('[email/send-document] normalized completion', { ok: true, status: 'sent' });
-    return response.status(200).json({
-      ok: true,
-      provider: 'gmail',
-      status: 'sent',
-      messageId: result.messageId || undefined,
-      providerMessageId: result.messageId || undefined,
+    return response.status(200).json(gmailSmtpSuccessPayload(
+      'sent',
+      result.messageId || undefined,
       sentAt,
-    });
+    ));
   } catch (error) {
     if (deliveryReference && markFailed && !(isSafeHttpError(error) && error.code === 'DELIVERY_IN_PROGRESS')) {
       await markFailed(deliveryReference).catch(() => undefined);
@@ -234,7 +237,7 @@ export default async function handler(request: any, response: any) {
       code: isSafeHttpError(error) ? error.code : 'EMAIL_SEND_FAILED',
     });
     if (phase === 'provider') {
-      console.warn('[email/send-document] Gmail provider outcome', {
+      console.warn('[email/send-document] Gmail SMTP provider outcome', {
         status: 'failed',
         code: isSafeHttpError(error) ? error.code : 'EMAIL_SEND_FAILED',
       });

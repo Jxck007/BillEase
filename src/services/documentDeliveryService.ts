@@ -7,10 +7,10 @@ export type DeliveryErrorCode =
   | 'AUTH_INVALID'
   | 'ADMIN_REQUIRED'
   | 'ATTACHMENT_TOO_LARGE'
-  | 'GMAIL_NOT_CONFIGURED'
-  | 'GMAIL_AUTH_FAILED'
-  | 'GMAIL_AUTH_REVOKED'
-  | 'GMAIL_API_REJECTED'
+  | 'GMAIL_SMTP_NOT_CONFIGURED'
+  | 'GMAIL_SMTP_AUTH_FAILED'
+  | 'GMAIL_SMTP_CONNECTION_FAILED'
+  | 'GMAIL_SMTP_REJECTED'
   | 'PROVIDER_REJECTED'
   | 'PROVIDER_TIMEOUT'
   | 'TIMEOUT'
@@ -38,7 +38,6 @@ type SharedDocumentInput = {
 
 type EmailInput = SharedDocumentInput & {
   recipientEmail: string;
-  recipientEdited?: boolean;
   ccEmail?: string;
   subject: string;
   message: string;
@@ -53,10 +52,10 @@ function friendlyCode(status: number, serverCode: string): DeliveryErrorCode {
   if (status === 409) return 'DELIVERY_IN_PROGRESS';
   if (status === 413) return 'ATTACHMENT_TOO_LARGE';
   if (status === 429) return 'RATE_LIMITED';
-  if (serverCode === 'GMAIL_NOT_CONFIGURED') return 'GMAIL_NOT_CONFIGURED';
-  if (serverCode === 'GMAIL_AUTH_FAILED') return 'GMAIL_AUTH_FAILED';
-  if (serverCode === 'GMAIL_AUTH_REVOKED') return 'GMAIL_AUTH_REVOKED';
-  if (serverCode === 'GMAIL_API_REJECTED') return 'GMAIL_API_REJECTED';
+  if (serverCode === 'GMAIL_SMTP_NOT_CONFIGURED') return 'GMAIL_SMTP_NOT_CONFIGURED';
+  if (serverCode === 'GMAIL_SMTP_AUTH_FAILED') return 'GMAIL_SMTP_AUTH_FAILED';
+  if (serverCode === 'GMAIL_SMTP_CONNECTION_FAILED') return 'GMAIL_SMTP_CONNECTION_FAILED';
+  if (serverCode === 'GMAIL_SMTP_REJECTED') return 'GMAIL_SMTP_REJECTED';
   if (serverCode === 'PROVIDER_TIMEOUT') return 'PROVIDER_TIMEOUT';
   if (serverCode === 'PROVIDER_REJECTED') return 'PROVIDER_REJECTED';
   if (status >= 500) return 'PROVIDER_REJECTED';
@@ -69,8 +68,7 @@ function friendlyMessage(status: number, fallback: string) {
   if (status === 403) return 'Admin access is required to send documents.';
   if (status === 413) return 'The attachment is larger than the 2 MB delivery limit.';
   if (status === 422) return fallback || 'The email provider rejected this request.';
-  if (status === 503) return fallback || 'Gmail is not configured or its authorization must be renewed.';
-  if (status === 504) return 'Gmail timed out. Try again once.';
+  if (status === 503) return fallback || 'Gmail SMTP is not configured or the App Password is invalid.';
   if (status === 429) return 'Too many send attempts. Please wait a minute.';
   return fallback || 'Delivery provider is unavailable.';
 }
@@ -149,7 +147,6 @@ export async function sendDocumentByEmail(input: EmailInput): Promise<DeliveryRe
   const form = new FormData();
   appendShared(form, input);
   form.set('recipientEmail', input.recipientEmail);
-  form.set('recipientEdited', input.recipientEdited ? 'true' : 'false');
   if (input.ccEmail) form.set('ccEmail', input.ccEmail);
   form.set('subject', input.subject);
   form.set('message', input.message);
