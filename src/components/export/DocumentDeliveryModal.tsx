@@ -17,7 +17,7 @@ type Props = {
   customerEmail: string;
   defaultCcEmail?: string;
   businessName: string;
-  getAttachmentFile: (format: 'pdf' | 'png') => Promise<File>;
+  getAttachmentFile: (format: 'pdf') => Promise<File>;
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -39,7 +39,6 @@ export default function DocumentDeliveryModal(props: Props) {
   const [form, setForm] = useState(defaults);
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
   const [message, setMessage] = useState('');
-  const [format, setFormat] = useState<'pdf' | 'png'>('pdf');
   const [attachment, setAttachment] = useState<File | null>(null);
   const [preparingAttachment, setPreparingAttachment] = useState(false);
   const inFlight = useRef(false);
@@ -50,7 +49,6 @@ export default function DocumentDeliveryModal(props: Props) {
     setForm(defaults);
     setState('idle');
     setMessage('');
-    setFormat('pdf');
     setAttachment(null);
     inFlight.current = false;
     idempotencyKey.current = createRequestId();
@@ -61,7 +59,7 @@ export default function DocumentDeliveryModal(props: Props) {
     let cancelled = false;
     setPreparingAttachment(true);
     setAttachment(null);
-    props.getAttachmentFile(format)
+    props.getAttachmentFile('pdf')
       .then((file) => {
         if (!cancelled) setAttachment(file);
       })
@@ -75,7 +73,7 @@ export default function DocumentDeliveryModal(props: Props) {
         if (!cancelled) setPreparingAttachment(false);
       });
     return () => { cancelled = true; };
-  }, [format, props.getAttachmentFile, props.open, t]);
+  }, [props.getAttachmentFile, props.open, t]);
 
   if (!props.open) return null;
   const validationError = !EMAIL_PATTERN.test(form.recipientEmail.trim())
@@ -151,12 +149,6 @@ export default function DocumentDeliveryModal(props: Props) {
           <Field label={t('ccOptional')}><input type="email" value={form.ccEmail} onChange={(event) => setForm({ ...form, ccEmail: event.target.value })} className="delivery-input" /></Field>
           <Field label={t('subject')}><input maxLength={200} value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} className="delivery-input" /></Field>
           <Field label={t('message')}><textarea maxLength={3000} rows={5} value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} className="mt-1 w-full rounded-xl border p-3 font-normal" /></Field>
-          <Field label={t('attachmentFormat')}>
-            <select value={format} onChange={(event) => setFormat(event.target.value as 'pdf' | 'png')} disabled={state === 'sending'} className="delivery-input">
-              <option value="pdf">{t('pdfDefault')}</option>
-              <option value="png">{t('pngImageOption')}</option>
-            </select>
-          </Field>
           <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm">
             <p className="font-semibold">{preparingAttachment ? t('preparingDocument') : attachment?.name || t('preparingDocument')}</p>
             {attachment && <p className="mt-1 text-xs text-stone-500">{formatBytes(attachment.size)} · {attachment.type}</p>}

@@ -3,6 +3,7 @@ import { AlertCircle, CheckCircle, FileDown, Image, Loader2, Mail, MessageCircle
 import type { RefObject } from 'react';
 import { useIntegrationAvailability } from '../../hooks/useIntegrationAvailability';
 import { documentPdfCacheKey, getCachedDocumentPdf } from '../../services/documentPdfCache';
+import { sharePdfFile, sharePdfWithWhatsAppFallback } from '../../services/documentShareService';
 import DocumentDeliveryModal from './DocumentDeliveryModal';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -54,7 +55,6 @@ export default function ExportPanel({
   const [emailComposerOpen, setEmailComposerOpen] = useState(false);
   const { availability, status: availabilityStatus } = useIntegrationAvailability();
   const [nativeAvailable, setNativeAvailable] = useState(() => typeof navigator !== 'undefined' && Boolean(navigator.share && navigator.canShare));
-  const [shareFormat, setShareFormat] = useState<'pdf' | 'png'>('pdf');
   const fileNameBase = `${documentLabel.replace(/[^a-z0-9_-]+/gi, '_')}_${documentNumber.replace(/[^a-z0-9_-]+/gi, '_')}`;
   const cacheKey = documentPdfCacheKey(documentType, documentId, updatedAt);
   const customerNumber = customerWhatsapp || customerPhone || '';
@@ -108,23 +108,22 @@ export default function ExportPanel({
     }
   };
   const share = () => run('share', async () => {
-    const file = await getFile(shareFormat);
-    if (!navigator.share || !navigator.canShare || !navigator.canShare({ files: [file] })) {
+    const file = await getFile('pdf');
+    const result = await sharePdfFile(
+      file,
+      `${documentLabel} ${documentNumber}`,
+      `Please find the ${documentLabel} ${documentNumber} from ${businessName}.`,
+    );
+    if (result.status === 'unsupported') {
       setNativeAvailable(false);
       setMessage('failed', language === 'ta' ? 'கோப்புப் பகிர்வு கிடைக்கவில்லை. கீழுள்ள மாற்று வழியைப் பயன்படுத்தவும்.' : 'File sharing is unavailable. Use a fallback below.');
       return;
     }
-    try {
-      await navigator.share({
-        title: `${documentLabel} ${documentNumber}`,
-        text: `Please find the ${documentLabel} ${documentNumber} from ${businessName}.`,
-        files: [file],
-      });
-      setMessage('success', `${file.name} shared through the system share sheet.`);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') setMessage('idle', language === 'ta' ? 'பகிர்வு ரத்து செய்யப்பட்டது.' : 'Sharing cancelled.');
-      else throw error;
+    if (result.status === 'cancelled') {
+      setMessage('idle', language === 'ta' ? 'பகிர்வு ரத்து செய்யப்பட்டது.' : 'Sharing cancelled.');
+      return;
     }
+    setMessage('success', `${file.name} shared through the system share sheet.`);
   });
   const pdf = () => run('pdf', async () => {
     const file = await getFile('pdf');
@@ -144,22 +143,26 @@ export default function ExportPanel({
   const whatsappFallback = async (number = customerNumber, caption = `Please find the ${documentLabel} ${documentNumber} from ${businessName}.`) => {
     await run('whatsapp-fallback', async () => {
       if (!number) throw new Error('Missing WhatsApp number');
-      const file = await getFile(shareFormat);
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: `${documentLabel} ${documentNumber}`,
-          text: caption,
-        });
+      const file = await getFile('pdf');
+      const result = await sharePdfWithWhatsAppFallback({
+        file,
+        title: `${documentLabel} ${documentNumber}`,
+        text: caption,
+        phoneNumber: number,
+        download: (pdfFile) => download(pdfFile, pdfFile.name),
+        openChat: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
+      });
+      if (result.status === 'shared') {
         setMessage('success', language === 'ta' ? 'ஆவணத்துடன் சாதனப் பகிர்வு திறக்கப்பட்டது. WhatsApp-ஐத் தேர்ந்தெடுக்கவும்.' : 'System share opened with the document attached. Choose WhatsApp.');
         return;
       }
-      download(file, file.name);
-      const digits = number.replace(/\D/g, '');
-      const normalized = digits.length === 10 ? `91${digits}` : digits;
-      const url = `https://wa.me/${normalized}?text=${encodeURIComponent(caption)}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setMessage('success', language === 'ta' ? `${file.name} பதிவிறக்கப்பட்டு WhatsApp திறக்கப்பட்டது. கோப்பைக் கைமுறையாக இணைக்கவும்.` : `${file.name} downloaded and WhatsApp opened. Attach the downloaded file manually.`);
+      if (result.status === 'cancelled') {
+        setMessage('idle', language === 'ta' ? 'பகிர்வு ரத்து செய்யப்பட்டது.' : 'Sharing cancelled.');
+        return;
+      }
+      setMessage('success', language === 'ta'
+        ? 'PDF பதிவிறக்கப்பட்டது. பதிவிறக்கப்பட்ட ஆவணத்தை WhatsApp-ல் இணைக்கவும்.'
+        : 'PDF downloaded. Please attach the downloaded document in WhatsApp.');
     });
   };
 
@@ -169,7 +172,7 @@ export default function ExportPanel({
     { id: 'pdf', label: t('downloadPdf'), text: t('cachedPdfFile'), icon: FileDown, run: pdf, disabled: false },
     { id: 'image', label: t('downloadImage'), text: t('pngImage'), icon: Image, run: image, disabled: false },
     ...(nativeAvailable ? [{ id: 'share', label: t('shareDocument'), text: t('nativeFileShare'), icon: Share2, run: share, disabled: false }] : []),
-    { id: 'email', label: t('sendEmail'), text: emailReady ? t('pdfViaResend') : t('providerUnavailable'), icon: Mail, run: () => setEmailComposerOpen(true), disabled: !emailReady },
+    { id: 'email', label: t('sendEmail'), text: emailReady ? t('pdfViaGmail') : t('providerUnavailable'), icon: Mail, run: () => setEmailComposerOpen(true), disabled: !emailReady },
     { id: 'whatsapp', label: t('openWhatsApp'), text: nativeAvailable ? t('nativeFileShare') : t('downloadThenAttach'), icon: MessageCircle, run: () => whatsappFallback(), disabled: !customerNumber },
   ];
   const StatusIcon = status.type === 'generating' ? Loader2 : status.type === 'success' ? CheckCircle : AlertCircle;
@@ -182,13 +185,6 @@ export default function ExportPanel({
           <div><h3 id="export-share-title" className="text-lg font-bold text-stone-800">{t('exportShare')}</h3><p className="text-xs text-stone-500">{documentLabel} #{documentNumber}</p></div>
           <button onClick={onClose} className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl text-stone-600 hover:bg-stone-100" aria-label={t('cancel')}><X /></button>
         </div>
-        <label className="mb-4 block text-sm font-semibold text-stone-700">
-          {t('shareFormat')}
-          <select value={shareFormat} onChange={(event) => setShareFormat(event.target.value as 'pdf' | 'png')} disabled={Boolean(active)} className="delivery-input">
-            <option value="pdf">{t('pdfDefault')}</option>
-            <option value="png">{t('pngImageOption')}</option>
-          </select>
-        </label>
         {!nativeAvailable && <p className="mb-4 rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm text-stone-600">{t('systemFileSharingUnavailable')}</p>}
         {status.text && (
           <div className={`mb-4 flex items-center gap-2 rounded-xl border p-3 text-sm ${status.type === 'failed' ? 'border-rose-200 bg-rose-50 text-rose-800' : status.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-blue-200 bg-blue-50 text-blue-800'}`}>
@@ -218,7 +214,7 @@ export default function ExportPanel({
         open={emailComposerOpen}
         onClose={() => setEmailComposerOpen(false)}
         providerReady={emailReady}
-        providerReason={language === 'ta' ? 'Resend சரியாக அமைக்கப்படவில்லை அல்லது அணுக முடியவில்லை.' : 'Resend is not configured correctly or is unreachable.'}
+        providerReason={language === 'ta' ? 'Gmail சரியாக அமைக்கப்படவில்லை அல்லது அங்கீகாரம் புதுப்பிக்கப்பட வேண்டும்.' : 'Gmail is not configured correctly or its authorization must be renewed.'}
         documentId={documentId}
         documentType={documentType}
         documentNumber={documentNumber}

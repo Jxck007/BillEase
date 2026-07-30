@@ -7,8 +7,10 @@ export type DeliveryErrorCode =
   | 'AUTH_INVALID'
   | 'ADMIN_REQUIRED'
   | 'ATTACHMENT_TOO_LARGE'
-  | 'RESEND_NOT_CONFIGURED'
-  | 'SENDER_NOT_VERIFIED'
+  | 'GMAIL_NOT_CONFIGURED'
+  | 'GMAIL_AUTH_FAILED'
+  | 'GMAIL_AUTH_REVOKED'
+  | 'GMAIL_API_REJECTED'
   | 'PROVIDER_REJECTED'
   | 'PROVIDER_TIMEOUT'
   | 'TIMEOUT'
@@ -51,8 +53,10 @@ function friendlyCode(status: number, serverCode: string): DeliveryErrorCode {
   if (status === 409) return 'DELIVERY_IN_PROGRESS';
   if (status === 413) return 'ATTACHMENT_TOO_LARGE';
   if (status === 429) return 'RATE_LIMITED';
-  if (serverCode === 'RESEND_NOT_CONFIGURED') return 'RESEND_NOT_CONFIGURED';
-  if (serverCode === 'SENDER_NOT_VERIFIED') return 'SENDER_NOT_VERIFIED';
+  if (serverCode === 'GMAIL_NOT_CONFIGURED') return 'GMAIL_NOT_CONFIGURED';
+  if (serverCode === 'GMAIL_AUTH_FAILED') return 'GMAIL_AUTH_FAILED';
+  if (serverCode === 'GMAIL_AUTH_REVOKED') return 'GMAIL_AUTH_REVOKED';
+  if (serverCode === 'GMAIL_API_REJECTED') return 'GMAIL_API_REJECTED';
   if (serverCode === 'PROVIDER_TIMEOUT') return 'PROVIDER_TIMEOUT';
   if (serverCode === 'PROVIDER_REJECTED') return 'PROVIDER_REJECTED';
   if (status >= 500) return 'PROVIDER_REJECTED';
@@ -65,8 +69,8 @@ function friendlyMessage(status: number, fallback: string) {
   if (status === 403) return 'Admin access is required to send documents.';
   if (status === 413) return 'The attachment is larger than the 2 MB delivery limit.';
   if (status === 422) return fallback || 'The email provider rejected this request.';
-  if (status === 503) return 'Resend is not configured with valid credentials and a sender address.';
-  if (status === 504) return 'Resend timed out. Try again once.';
+  if (status === 503) return fallback || 'Gmail is not configured or its authorization must be renewed.';
+  if (status === 504) return 'Gmail timed out. Try again once.';
   if (status === 429) return 'Too many send attempts. Please wait a minute.';
   return fallback || 'Delivery provider is unavailable.';
 }

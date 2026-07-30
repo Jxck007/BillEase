@@ -5,12 +5,12 @@ export default async function handler(request: any, response: any) {
   }
 
   try {
-    const [{ verifyAdminRequest }, { getResendConfiguration }] = await Promise.all([
+    const [{ verifyAdminRequest }, { getGmailConfiguration }] = await Promise.all([
       import('../../server/auth/verifyAdminRequest.js'),
-      import('../../server/providers/resendEmailProvider.js'),
+      import('../../server/providers/gmailEmailProvider.js'),
     ]);
     await verifyAdminRequest(request);
-    const emailConfigured = getResendConfiguration().configured;
+    const emailConfigured = getGmailConfiguration().configured;
 
     response.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
     return response.json({

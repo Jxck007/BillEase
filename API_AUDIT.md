@@ -1,11 +1,11 @@
 # BillEase API and server inventory
 
-Audited on 2026-07-30. There is no automated API test suite in this repository; verification is performed through TypeScript/build checks and controlled endpoint tests during deployment.
+Audited on 2026-07-30. Gmail provider and document-sharing behavior have mock-based Node tests; Firebase authorization and controlled live endpoint verification remain deployment checks.
 
 | File | Callers | Environment | Documentation | Production purpose | Decision |
 | --- | --- | --- | --- | --- | --- |
-| `api/email/send-document.ts` | `src/services/documentDeliveryService.ts` | `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, optional `RESEND_REPLY_TO_EMAIL` | README, INTEGRATIONS | Authenticated administrator email delivery with PDF/PNG attachment | Keep |
-| `api/integrations/status.ts` | `src/services/documentDeliveryService.ts` through `useIntegrationAvailability` | Firebase Admin variables, Resend variables, optional `POSTAL_LOOKUP_URL` | INTEGRATIONS | Authenticated capability status for Resend and postal lookup | Keep |
+| `api/email/send-document.ts` | `src/services/documentDeliveryService.ts` | `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`, Gmail OAuth variables | README, INTEGRATIONS | Authenticated administrator Gmail delivery with PDF/PNG-compatible route contract | Keep |
+| `api/integrations/status.ts` | `src/services/documentDeliveryService.ts` through `useIntegrationAvailability` | Firebase Admin variables, Gmail OAuth variables, optional `POSTAL_LOOKUP_URL` | INTEGRATIONS | Authenticated capability status for Gmail and postal lookup | Keep |
 | `api/postal/lookup.js` | `src/services/integrations.ts` through `PinLookupField` | `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`, optional `POSTAL_LOOKUP_URL` | INTEGRATIONS | Authenticated PIN-code address lookup | Keep |
 | `api/errors/report.js` | Authenticated failures from `src/services/integrations.ts` | `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON` | This inventory | Sanitized integration error metadata; never receives document content | Keep |
 | `api/_auth.js` | `api/postal/lookup.js`, `api/errors/report.js` | Firebase Admin variables through server auth | INTEGRATIONS | Shared compatibility exports for admin verification and safe errors | Keep |
@@ -16,7 +16,7 @@ Audited on 2026-07-30. There is no automated API test suite in this repository; 
 | `server/delivery/parseDocumentMultipart.ts` | Email route and Base64 limits | None | INTEGRATIONS | Multipart parsing, attachment limits, signature validation and temporary-file cleanup | Keep |
 | `server/delivery/deliverySecurity.ts` | Email route | Firestore through verified Admin request | INTEGRATIONS | Email rate limiting and idempotent delivery reservation | Keep |
 | `server/delivery/trustedApplicationData.ts` | Email multipart path | Firestore through verified Admin request | INTEGRATIONS | Confirms document/customer identity against trusted stored data | Keep |
-| `server/providers/resendEmailProvider.ts` | Email route and integration status | `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, optional `RESEND_REPLY_TO_EMAIL` | README, INTEGRATIONS | Resend request, optional reply-to, timeout and provider-error normalization | Keep |
+| `server/providers/gmailEmailProvider.ts` | Email route and integration status | `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `GMAIL_SENDER_EMAIL` | README, INTEGRATIONS | OAuth token refresh, MIME construction, Gmail API request, timeout and safe provider-error normalization | Keep |
 
 ## Removed integrations and dead code
 
@@ -28,4 +28,4 @@ Audited on 2026-07-30. There is no automated API test suite in this repository; 
 - Disabled GST/OCR/AI/barcode provider placeholders: zero-caller experimental declarations; removed.
 - Unauthenticated error-boundary request to the admin-only error route: unreachable reporting branch; removed while retaining local safe metadata logging.
 
-Generic browser sharing remains implemented in `ExportPanel.tsx`: supported devices use `navigator.share` with the generated file; other browsers download the PDF/PNG and open `wa.me` for manual attachment.
+Generic browser sharing remains implemented in `ExportPanel.tsx`: supported devices use `navigator.share` with the generated canonical PDF; other browsers download the PDF once and open `wa.me` for manual attachment. Independent PNG download remains available.
