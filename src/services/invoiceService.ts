@@ -27,6 +27,7 @@ export function getDefaultSettings(profile: BusinessProfile): AppSettings {
     signatureVisibility: { invoice: true, quotation: true, deliveryNote: false },
     sealVisibility: { invoice: true, quotation: true, deliveryNote: true },
     emailCcBusiness: false,
+    showPaymentSummaryOnPdf: true,
   };
 }
 
@@ -89,8 +90,12 @@ export function duplicateInvoice(source: Invoice, prefix: string, nextNumber: nu
     invoiceNumber: buildDefaultInvoiceNumber(prefix, nextNumber, source.type),
     date: new Date().toISOString().split('T')[0],
     dueDate: undefined,
+    payments: [],
     amountPaid: 0,
+    balanceDue: source.total,
+    paymentStatus: 'unpaid',
     status: 'unpaid',
+    lastPaymentAt: undefined,
     draft: true,
     qrCodeData: '',
     createdAt: new Date().toISOString(),

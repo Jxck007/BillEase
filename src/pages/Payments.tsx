@@ -2,12 +2,16 @@ import React from 'react';
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Plus, Search, DollarSign } from 'lucide-react';
+import { Plus, Search, DollarSign, Receipt, Download } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { PaymentMethod } from '../lib/types';
 import { format } from 'date-fns';
 import Modal from '../components/ui/Modal';
 import { useToast } from '../context/ToastContext';
+import PaymentReceiptModal from '../components/payments/PaymentReceiptModal';
+import PaymentReceiptTemplate from '../templates/PaymentReceiptTemplate';
+import { MAX_BULK_PDFS, prepareBulkDownload } from '../services/bulkDownloadService';
+import type { Payment } from '../lib/types';
 
 export default function Payments() {
   const { state, addPayment } = useData();
@@ -16,7 +20,11 @@ export default function Payments() {
   const { showToast } = useToast();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState<{ invoiceId: string; amount: number; date: string; method: PaymentMethod; notes: string }>({ invoiceId: '', amount: 0, date: new Date().toISOString().split('T')[0], method: 'Cash', notes: '' });
+  const [receiptPayment, setReceiptPayment] = useState<Payment | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkProgress, setBulkProgress] = useState('');
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [formData, setFormData] = useState<{ invoiceId: string; amount: number; date: string; method: PaymentMethod; notes: string }>({ invoiceId: '', amount: 0, date: new Date().toISOString().split('T')[0], method: 'cash', notes: '' });
 
   const filteredPayments = state.payments.filter(p => {
     const invoice = state.invoices.find(i => i.id === p.invoiceId);
@@ -25,7 +33,20 @@ export default function Payments() {
            (customer?.name.toLowerCase().includes(searchTerm.toLowerCase()));
   });
 
-  const unpaidInvoices = state.invoices.filter(i => i.status !== 'paid' && i.type !== 'estimate');
+  const unpaidInvoices = state.invoices.filter(i => !['paid', 'cancelled'].includes(i.paymentStatus) && i.type !== 'estimate');
+  const selected = state.payments.filter((payment) => payment.kind === 'payment' && selectedIds.has(payment.id));
+  const downloadSelected = async () => {
+    if (!selected.length) return;
+    setBulkRunning(true);
+    try {
+      const { createPdfBlobFromElement } = await import('../services/exportService');
+      const result = await prepareBulkDownload(selected.map((payment) => ({
+        id: payment.id, fileName: `Payment-Receipt-R-${payment.id}.pdf`,
+        generate: () => createPdfBlobFromElement(document.querySelector<HTMLElement>(`[data-bulk-receipt="${CSS.escape(payment.id)}"]`)!),
+      })), `Payment-Receipts-${new Date().toISOString().slice(0, 10)}.zip`, (progress) => setBulkProgress(progress.stage === 'preparing' ? `Preparing ${progress.current} of ${progress.total}` : progress.stage === 'zipping' ? 'Creating ZIP' : 'Download ready'));
+      showToast(result.failed.length ? `${result.prepared} prepared; ${result.failed.length} need attention.` : 'Download ready', result.failed.length ? 'error' : 'success');
+    } catch (error) { showToast((error as Error).message, 'error'); } finally { setBulkRunning(false); }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +56,7 @@ export default function Payments() {
     }
     addPayment(formData);
     setIsModalOpen(false);
-    setFormData({ invoiceId: '', amount: 0, date: new Date().toISOString().split('T')[0], method: 'Cash', notes: '' });
+    setFormData({ invoiceId: '', amount: 0, date: new Date().toISOString().split('T')[0], method: 'cash', notes: '' });
     showToast('Payment saved', 'success');
   };
 
@@ -57,6 +78,7 @@ export default function Payments() {
         </button>
       </div>
 
+      {selectedIds.size ? <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-3"><strong>{selectedIds.size} selected</strong><button disabled={bulkRunning} onClick={downloadSelected} className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white"><Download size={18} />Download Selected</button><span role="status">{bulkProgress}</span><span className="text-sm">Maximum {MAX_BULK_PDFS} PDFs.</span></div> : null}
       <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 border-b">
           <div className="relative max-w-md">
@@ -76,11 +98,13 @@ export default function Payments() {
             <table className="w-full min-w-[500px] md:min-w-[600px] text-left text-sm">
                <thead className="bg-stone-50 text-stone-600 border-b border-stone-200">
                 <tr>
+                   <th className="px-3 py-3"><input type="checkbox" aria-label="Select all receipts" onChange={(event) => setSelectedIds(event.target.checked ? new Set(filteredPayments.filter((payment) => payment.kind === 'payment').map((payment) => payment.id)) : new Set())} /></th>
                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-xs">{t('date')}</th>
                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-xs">{t('invoiceNumber')}</th>
                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-xs">{t('customerName')}</th>
                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-xs">Method</th>
                    <th className="px-6 py-3 font-bold uppercase tracking-wider text-xs text-right">Amount</th>
+                   <th className="px-6 py-3 font-bold uppercase tracking-wider text-xs text-right">Receipt</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100 text-stone-700">
@@ -89,11 +113,13 @@ export default function Payments() {
                   const customer = invoice ? state.customers.find(c => c.id === invoice.customerId) : null;
                   return (
                     <tr key={payment.id} className="hover:bg-emerald-50/50 transition-colors">
-                      <td className="px-6 py-4 font-medium">{format(new Date(payment.date), 'MMM d, yyyy')}</td>
+                      <td className="px-3 py-4">{payment.kind === 'payment' ? <input type="checkbox" checked={selectedIds.has(payment.id)} onChange={() => setSelectedIds((current) => { const next = new Set(current); next.has(payment.id) ? next.delete(payment.id) : next.add(payment.id); return next; })} /> : null}</td>
+                      <td className="px-6 py-4 font-medium">{format(new Date(payment.paidAt), 'MMM d, yyyy')}</td>
                       <td className="px-6 py-4 font-bold text-stone-800">#{invoice?.invoiceNumber || '-'}</td>
                       <td className="px-6 py-4 font-bold text-stone-800">{customer?.name || '-'}</td>
                       <td className="px-6 py-4 font-medium">{payment.method}</td>
-                      <td className="px-6 py-4 font-bold text-emerald-600 text-right">+{formatCurrency(payment.amount)}</td>
+                      <td className={`px-6 py-4 font-bold text-right ${payment.kind === 'reversal' ? 'text-rose-600' : 'text-emerald-600'}`}>{payment.kind === 'reversal' ? '-' : '+'}{formatCurrency(payment.amount)}</td>
+                      <td className="px-6 py-4 text-right">{payment.kind === 'payment' ? <button onClick={() => setReceiptPayment(payment)} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2"><Receipt size={16} />Receipt</button> : null}</td>
                     </tr>
                   )
                 })}
@@ -117,6 +143,13 @@ export default function Payments() {
           </div>
         )}
       </div>
+      <PaymentReceiptModal payment={receiptPayment} invoice={state.invoices.find((invoice) => invoice.id === receiptPayment?.invoiceId) || null} onClose={() => setReceiptPayment(null)} />
+      <div aria-hidden="true" className="fixed left-[-20000px] top-0 w-[210mm]">{selected.map((payment) => {
+        const invoice = state.invoices.find((entry) => entry.id === payment.invoiceId);
+        if (!invoice) return null;
+        const customer = state.customers.find((entry) => entry.id === invoice.customerId) || invoice.customerSnapshot;
+        return <div key={payment.id} className="canonical-a4-document bg-white text-black" data-export-root="true" data-bulk-receipt={payment.id}><PaymentReceiptTemplate payment={payment} invoice={invoice} profile={state.profile} customer={customer as any} /></div>;
+      })}</div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('recordPayment')}>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -127,12 +160,12 @@ export default function Payments() {
               setFormData({ 
                 ...formData, 
                 invoiceId: e.target.value, 
-                amount: inv ? (inv.total - inv.amountPaid) : 0 
+                amount: inv ? inv.balanceDue : 0
               });
             }} className="w-full p-2 border rounded-xl focus:ring-2 focus:ring-emerald-500">
               <option value="">-- {language === 'en' ? 'Select Invoice to Pay' : 'பில் தேர்வு செய்'} --</option>
               {unpaidInvoices.map(inv => (
-                <option key={inv.id} value={inv.id}>#{inv.invoiceNumber} (Due: {formatCurrency(inv.total - inv.amountPaid)})</option>
+                <option key={inv.id} value={inv.id}>#{inv.invoiceNumber} (Due: {formatCurrency(inv.balanceDue)})</option>
               ))}
             </select>
           </div>
@@ -149,10 +182,12 @@ export default function Payments() {
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">Payment Method</label>
             <select value={formData.method} onChange={e => setFormData({...formData, method: e.target.value as PaymentMethod})} className="w-full p-2 border rounded-xl focus:ring-2 focus:ring-emerald-500">
-              <option value="Cash">Cash (ரொக்கம்)</option>
+              <option value="cash">Cash (ரொக்கம்)</option>
               <option value="UPI">UPI / GPay / PhonePe</option>
-              <option value="Bank Transfer">Bank Transfer (வங்கி)</option>
-              <option value="Card">Card</option>
+              <option value="bank_transfer">Bank Transfer (வங்கி)</option>
+              <option value="cheque">Cheque (காசோலை)</option>
+              <option value="card">Card</option>
+              <option value="other">Other</option>
             </select>
           </div>
           

@@ -213,8 +213,8 @@ export default function QuotationEstimateTemplate({
               </div>
             </div>
           ) : null}
-          <ComputerGeneratedFooter />
         </div>
+        <ComputerGeneratedFooter />
       </div>
     </div>
   );

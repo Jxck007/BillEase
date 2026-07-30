@@ -29,7 +29,7 @@ export type DeliveryProviderStatus = {
 
 type SharedDocumentInput = {
   documentId: string;
-  documentType: 'invoice' | 'quotation' | 'delivery-note';
+  documentType: 'invoice' | 'quotation' | 'delivery-note' | 'payment-receipt';
   documentNumber: string;
   customerId: string;
   attachment: File;

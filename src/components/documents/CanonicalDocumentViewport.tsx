@@ -23,6 +23,16 @@ export default function CanonicalDocumentViewport({ children, documentRef }: Pro
     const viewport = viewportRef.current;
     const documentRoot = documentRef.current;
     if (!viewport || !documentRoot) return;
+    const footer = documentRoot.querySelector<HTMLElement>('.document-final-footer');
+    if (footer) {
+      footer.style.marginTop = '0px';
+      const pageHeight = documentRoot.clientWidth * (297 / 210);
+      const bottomMargin = Number.parseFloat(window.getComputedStyle(documentRoot).paddingBottom) || 0;
+      const contentBottom = footer.getBoundingClientRect().bottom - documentRoot.getBoundingClientRect().top;
+      const pages = Math.max(1, Math.ceil((contentBottom + bottomMargin - 2) / pageHeight));
+      const gap = Math.max(0, (pages * pageHeight) - bottomMargin - contentBottom);
+      footer.style.marginTop = `${gap}px`;
+    }
     const horizontalPadding = fullScreen ? 32 : 0;
     const availableWidth = Math.max(1, viewport.clientWidth - horizontalPadding);
     const documentWidth = 210 * MM_TO_PX;

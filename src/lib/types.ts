@@ -1,18 +1,19 @@
 export type Language = 'en' | 'ta';
 export type TaxMode = 'exclusive' | 'inclusive';
 export type InvoiceType = 'invoice' | 'estimate';
-export type PaymentStatus = 'paid' | 'unpaid' | 'partial';
+export type PaymentStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled';
 // Legacy values are retained only so existing saved invoices/settings continue to load.
 // New invoices always use the single canonical document.
 export type InvoiceTemplateId = 'canonical' | 'classic' | 'modern' | 'thermal' | 'wholesale' | 'minimal';
 export type DiscountType = 'flat' | 'percent';
-export type PaymentMethod = 'Cash' | 'UPI' | 'Card' | 'Bank' | 'Cheque' | 'Wallet' | 'Other';
+export type PaymentMethod = 'cash' | 'UPI' | 'bank_transfer' | 'cheque' | 'card' | 'other';
+export type PaymentEntryKind = 'payment' | 'reversal';
 
 export interface AuditLog {
   id: string;
-  entityType: 'customer' | 'product' | 'invoice' | 'payment' | 'expense' | 'profile' | 'settings' | 'deliveryNote';
+  entityType: 'customer' | 'product' | 'invoice' | 'payment' | 'receipt' | 'expense' | 'profile' | 'settings' | 'deliveryNote';
   entityId: string;
-  action: 'created' | 'updated' | 'deleted' | 'draft-saved' | 'draft-restored' | 'duplicated';
+  action: 'created' | 'updated' | 'deleted' | 'draft-saved' | 'draft-restored' | 'duplicated' | 'recorded' | 'reversed' | 'cancelled' | 'recalculated' | 'generated';
   message: string;
   createdAt: string;
   meta?: Record<string, unknown>;
@@ -109,7 +110,12 @@ export interface Invoice {
   roundOff?: number;
   total: number;
   amountPaid: number;
-  status: PaymentStatus;
+  balanceDue: number;
+  paymentStatus: PaymentStatus;
+  /** @deprecated Read-only compatibility mirror for older UI/data. */
+  status: 'paid' | 'unpaid' | 'partial' | 'overdue' | 'cancelled';
+  payments: Payment[];
+  lastPaymentAt?: string;
   notes: string;
   terms: string;
   signatureName?: string;
@@ -125,11 +131,18 @@ export interface Payment {
   id: string;
   invoiceId: string;
   amount: number;
-  date: string;
+  paidAt: string;
   method: PaymentMethod;
   notes: string;
   reference?: string;
   createdAt: string;
+  createdBy: string;
+  operationId: string;
+  kind: PaymentEntryKind;
+  originalPaymentId?: string;
+  reason?: string;
+  /** @deprecated Compatibility value for payment records saved before paidAt. */
+  date?: string;
 }
 
 export interface Expense {
@@ -158,6 +171,7 @@ export interface BusinessProfile {
   upiPayeeName?: string;
   upiPaymentNote?: string;
   enableUpiQr?: boolean;
+  showUpiQrOnInvoice?: boolean;
   showUpiAmount?: boolean;
   paymentQrImage?: string;
   tagline?: string;
@@ -214,6 +228,7 @@ export interface AppSettings {
   signatureVisibility: { invoice: boolean; quotation: boolean; deliveryNote: boolean };
   sealVisibility: { invoice: boolean; quotation: boolean; deliveryNote: boolean };
   emailCcBusiness: boolean;
+  showPaymentSummaryOnPdf?: boolean;
 }
 
 export interface DeliveryNoteItem {

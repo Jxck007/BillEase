@@ -10,7 +10,7 @@ type Props = {
   providerReady: boolean;
   providerReason: string;
   documentId: string;
-  documentType: 'invoice' | 'quotation' | 'delivery-note';
+  documentType: 'invoice' | 'quotation' | 'delivery-note' | 'payment-receipt';
   documentNumber: string;
   customerId: string;
   customerName: string;
@@ -178,6 +178,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function documentLabel(type: Props['documentType'], language: 'en' | 'ta') {
+  if (type === 'payment-receipt') return language === 'ta' ? 'கட்டண ரசீது' : 'Payment Receipt';
   if (language === 'ta') {
     if (type === 'delivery-note') return 'விநியோகக் குறிப்பு';
     return type === 'quotation' ? 'விலைமதிப்பீடு' : 'விலைப்பட்டியல்';

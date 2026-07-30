@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
-import { AppState, AuditLog, AppSettings, BusinessProfile, Customer, Expense, Invoice, Payment, Product, DeliveryNote } from '../lib/types';
+import { AppState, AuditLog, AppSettings, BusinessProfile, Customer, Expense, Invoice, Payment, PaymentMethod, Product, DeliveryNote } from '../lib/types';
 import { generateId } from '../lib/utils';
 import { getDefaultSettings } from '../services/invoiceService';
 import { AppDataEnvelope, contentHash, db, getAppDataEnvelope, getFirebaseStatus, FirebaseStatus, useFirestoreSync } from '../lib/firebase';
@@ -12,6 +12,7 @@ import { customerSnapshot, normalizeCustomer, normalizeInvoice, validateDelivery
 import { loadLocalAppState, LocalAppRecord, saveLocalAppState, saveRecoverySnapshot } from '../services/localDataStore';
 import { errorReference, recordDiagnostic } from '../services/diagnostics';
 import { decideRemoteSnapshot, mergeRemoteWithoutLosingLocal } from '../services/persistencePolicy';
+import { normalizePayment, recalculateInvoicePayments, validateNewPayment } from '../services/paymentService';
 
 export type SyncStatus = 'loading' | 'unsaved' | 'saving' | 'local' | 'online' | 'offline' | 'failed' | 'action-required';
 export type MutationResult = { ok: boolean; id?: string; errors?: ValidationIssue[]; errorReference?: string };
@@ -33,7 +34,10 @@ interface DataContextType {
   addInvoice: (invoice: Omit<Invoice, 'createdAt'>) => Promise<MutationResult>;
   updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<MutationResult>;
   deleteInvoice: (id: string) => Promise<MutationResult>;
-  addPayment: (payment: Omit<Payment, 'id' | 'createdAt'>) => Promise<MutationResult>;
+  addPayment: (payment: { invoiceId: string; amount: number; paidAt?: string; date?: string; method: PaymentMethod; reference?: string; notes: string; operationId?: string }) => Promise<MutationResult>;
+  reversePayment: (invoiceId: string, paymentId: string, reason: string, operationId?: string) => Promise<MutationResult>;
+  correctPayment: (invoiceId: string, paymentId: string, replacement: { amount: number; paidAt: string; method: PaymentMethod; reference?: string; notes: string }, reason: string, operationId?: string) => Promise<MutationResult>;
+  cancelInvoice: (invoiceId: string, reason: string) => Promise<MutationResult>;
   addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => Promise<MutationResult>;
   deleteExpense: (id: string) => Promise<MutationResult>;
   updateProfile: (profile: BusinessProfile) => Promise<MutationResult>;
@@ -67,12 +71,31 @@ export function hydrateAppState(input: unknown): { value: AppState; warnings: Va
     errors.push(...result.errors.map((item) => ({ ...item, field: `customers.${index}.${item.field}` })));
     return result.value as Customer;
   });
+  const normalizedLedger = asArray(remote.payments)
+    .map((entry) => normalizePayment(entry as Record<string, unknown>))
+    .filter((entry): entry is Payment => Boolean(entry));
   const invoices = asArray(remote.invoices).map((entry, index) => {
     const result = normalizeInvoice(entry);
     errors.push(...result.errors.map((item) => ({ ...item, field: `invoices.${index}.${item.field}` })));
     const invoice = result.value as Invoice;
     const linkedCustomer = customers.find((customer) => customer.id === invoice.customerId);
-    return !invoice.customerSnapshot && linkedCustomer ? { ...invoice, customerSnapshot: customerSnapshot(linkedCustomer) } : invoice;
+    let linkedPayments = invoice.payments.length
+      ? invoice.payments
+      : normalizedLedger.filter((payment) => payment.invoiceId === invoice.id);
+    const legacySource = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {};
+    const legacyAmountPaid = Number(legacySource.amountPaid);
+    if (!linkedPayments.length && Number.isFinite(legacyAmountPaid) && legacyAmountPaid > 0) {
+      const paidAt = String(legacySource.lastPaymentAt || legacySource.updatedAt || legacySource.date || invoice.createdAt);
+      linkedPayments = [{
+        id: `legacy-payment-${invoice.id}`, invoiceId: invoice.id, amount: legacyAmountPaid,
+        paidAt, date: paidAt.slice(0, 10), method: 'other', reference: 'Legacy balance',
+        notes: '', createdAt: String(legacySource.updatedAt || invoice.createdAt), createdBy: 'legacy',
+        operationId: `legacy-payment:${invoice.id}`, kind: 'payment',
+      }];
+      warnings.push({ field: `invoices.${index}.payments`, message: 'A legacy paid amount was preserved as an imported payment entry.', code: 'invoice.payment.legacyPreserved' });
+    }
+    const recalculated = recalculateInvoicePayments(invoice, linkedPayments);
+    return !recalculated.customerSnapshot && linkedCustomer ? { ...recalculated, customerSnapshot: customerSnapshot(linkedCustomer) } : recalculated;
   });
   const deliveryNotes = asArray(remote.deliveryNotes).map((entry) => {
     const note = normalizeDeliveryNote(entry as Partial<DeliveryNote> & Record<string, unknown>);
@@ -86,7 +109,7 @@ export function hydrateAppState(input: unknown): { value: AppState; warnings: Va
       customers,
       products: asArray(remote.products) as Product[],
       invoices,
-      payments: asArray(remote.payments) as Payment[],
+      payments: Array.from(new Map([...normalizedLedger, ...invoices.flatMap((invoice) => invoice.payments)].map((payment) => [payment.id, payment])).values()),
       expenses: asArray(remote.expenses) as Expense[],
       deliveryNotes,
       profile,
@@ -105,7 +128,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef(state);
   const [isLoaded, setIsLoaded] = useState(false);
   const [firebaseStatus] = useState<FirebaseStatus>(() => getFirebaseStatus());
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('loading');
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
@@ -153,7 +176,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     entityType = 'app',
     entityId?: string,
   ): Promise<MutationResult> => {
-    if (operation === 'delete') {
+    if (operation === 'delete' || entityType === 'payment') {
       try {
         await saveRecoverySnapshot({
           version: 1,
@@ -162,7 +185,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           remoteRevision: remoteRevision.current,
           updatedAt: new Date().toISOString(),
           dirty: dirtyRef.current,
-        }, `before-delete:${entityType}`);
+        }, operation === 'delete' ? `before-delete:${entityType}` : 'before-payment-change');
       } catch {
         const reference = errorReference('DELETE');
         setSyncStatus('action-required');
@@ -389,21 +412,91 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (normalized.errors.length) return { ok: false, id, errors: normalized.errors };
     invalidateDocumentPdf('invoice', id);
     invalidateDocumentPdf('quotation', id);
-    return commitState((current) => ({ ...current, invoices: current.invoices.map((entry) => entry.id === id ? normalized.value as Invoice : entry) }), 'update', existing.type === 'estimate' ? 'quotation' : 'invoice', id);
+    const now = new Date().toISOString();
+    const dueDateChanged = Object.prototype.hasOwnProperty.call(patch, 'dueDate') && patch.dueDate !== existing.dueDate;
+    return commitState((current) => ({
+      ...current,
+      invoices: current.invoices.map((entry) => entry.id === id ? normalized.value as Invoice : entry),
+      auditLogs: dueDateChanged && current.settings.enableAuditLog ? [{
+        id: generateId(), entityType: 'invoice', entityId: id, action: 'recalculated',
+        message: 'invoice due date changed and status recalculated', createdAt: now,
+        meta: { dueDate: patch.dueDate || '', authorizedUserId: user?.uid || 'unknown-admin' },
+      } as AuditLog, ...current.auditLogs].slice(0, 200) : current.auditLogs,
+    }), 'update', existing.type === 'estimate' ? 'quotation' : 'invoice', id);
   };
   const deleteInvoice = async (id: string) => commitState((current) => ({ ...current, invoices: current.invoices.map((entry) => entry.id === id ? { ...entry, deletedAt: new Date().toISOString() } : entry) }), 'delete', 'invoice', id);
 
-  const addPayment = async (payment: Omit<Payment, 'id' | 'createdAt'>) => {
+  const addPayment = async (payment: { invoiceId: string; amount: number; paidAt?: string; date?: string; method: PaymentMethod; reference?: string; notes: string; operationId?: string }) => {
+    if (!isAdmin) return { ok: false, errors: [{ field: 'authorization', message: 'Administrator access is required.', code: 'auth.admin.required' }] };
     const id = generateId();
+    const operationId = payment.operationId || generateId();
+    const paidAt = payment.paidAt || payment.date || '';
+    const invoice = stateRef.current.invoices.find((entry) => entry.id === payment.invoiceId);
+    if (!invoice) return { ok: false, errors: [{ field: 'invoiceId', message: 'Invoice could not be found.', code: 'payment.invoice.notFound' }] };
+    const errors = validateNewPayment({ amount: payment.amount, paidAt, method: payment.method, operationId }, invoice, invoice.payments);
+    if (errors.length) return { ok: false, errors: errors.map((message) => ({ field: 'payment', message, code: 'payment.invalid' })) };
+    const now = new Date().toISOString();
+    const entry: Payment = {
+      id, invoiceId: payment.invoiceId, amount: payment.amount, paidAt, date: paidAt.slice(0, 10),
+      method: payment.method, reference: payment.reference?.trim() || undefined, notes: payment.notes.trim(),
+      createdAt: now, createdBy: user?.uid || 'unknown-admin', operationId, kind: 'payment',
+    };
     return commitState((current) => {
-      const invoice = current.invoices.find((entry) => entry.id === payment.invoiceId);
-      const amountPaid = (invoice?.amountPaid || 0) + payment.amount;
+      const currentInvoice = current.invoices.find((entry) => entry.id === payment.invoiceId);
+      if (!currentInvoice || currentInvoice.payments.some((item) => item.operationId === operationId)) return current;
+      const payments = [...currentInvoice.payments, entry];
+      const updatedInvoice = recalculateInvoicePayments(currentInvoice, payments);
       return {
         ...current,
-        payments: [...current.payments, { ...payment, id, createdAt: new Date().toISOString() }],
-        invoices: current.invoices.map((entry) => entry.id === payment.invoiceId ? { ...entry, amountPaid, status: amountPaid >= entry.total ? 'paid' : amountPaid > 0 ? 'partial' : 'unpaid' } : entry),
+        payments: [...current.payments, entry],
+        invoices: current.invoices.map((item) => item.id === payment.invoiceId ? updatedInvoice : item),
+        auditLogs: current.settings.enableAuditLog ? [{
+          id: generateId(), entityType: 'payment', entityId: id, action: 'recorded',
+          message: 'payment recorded', createdAt: now,
+          meta: { invoiceId: payment.invoiceId, reference: entry.reference, authorizedUserId: entry.createdBy },
+        } as AuditLog, ...current.auditLogs].slice(0, 200) : current.auditLogs,
       };
     }, 'create', 'payment', id);
+  };
+  const reversePayment = async (invoiceId: string, paymentId: string, reason: string, suppliedOperationId?: string) => {
+    if (!isAdmin) return { ok: false, errors: [{ field: 'authorization', message: 'Administrator access is required.', code: 'auth.admin.required' }] };
+    const cleanReason = reason.trim();
+    if (!cleanReason) return { ok: false, errors: [{ field: 'reason', message: 'A reversal reason is required.', code: 'payment.reversal.reason' }] };
+    const operationId = suppliedOperationId || generateId();
+    const id = generateId();
+    const now = new Date().toISOString();
+    const source = stateRef.current.invoices.find((invoice) => invoice.id === invoiceId)?.payments.find((payment) => payment.id === paymentId);
+    if (!source || source.kind === 'reversal') return { ok: false, errors: [{ field: 'paymentId', message: 'The original payment could not be found.', code: 'payment.notFound' }] };
+    const reversal: Payment = { ...source, id, kind: 'reversal', originalPaymentId: source.id, reason: cleanReason, notes: '', reference: source.reference, createdAt: now, paidAt: now, date: now.slice(0, 10), createdBy: user?.uid || 'unknown-admin', operationId };
+    return commitState((current) => {
+      const invoice = current.invoices.find((entry) => entry.id === invoiceId);
+      if (!invoice || invoice.payments.some((payment) => payment.operationId === operationId || (payment.kind === 'reversal' && payment.originalPaymentId === paymentId))) return current;
+      const payments = [...invoice.payments, reversal];
+      return {
+        ...current,
+        payments: [...current.payments, reversal],
+        invoices: current.invoices.map((entry) => entry.id === invoiceId ? recalculateInvoicePayments(entry, payments) : entry),
+        auditLogs: current.settings.enableAuditLog ? [{ id: generateId(), entityType: 'payment', entityId: id, action: 'reversed', message: 'payment reversed', createdAt: now, meta: { invoiceId, originalPaymentId: paymentId, reason: cleanReason, authorizedUserId: reversal.createdBy } } as AuditLog, ...current.auditLogs].slice(0, 200) : current.auditLogs,
+      };
+    }, 'create', 'payment', id);
+  };
+  const correctPayment = async (invoiceId: string, paymentId: string, replacement: { amount: number; paidAt: string; method: PaymentMethod; reference?: string; notes: string }, reason: string, suppliedOperationId?: string) => {
+    if (!isAdmin) return { ok: false, errors: [{ field: 'authorization', message: 'Administrator access is required.', code: 'auth.admin.required' }] };
+    const operationRoot = suppliedOperationId || generateId();
+    const reversed = await reversePayment(invoiceId, paymentId, `Correction: ${reason.trim()}`, `${operationRoot}:reverse`);
+    if (!reversed.ok) return reversed;
+    return addPayment({ invoiceId, ...replacement, operationId: `${operationRoot}:replacement` });
+  };
+  const cancelInvoice = async (invoiceId: string, reason: string) => {
+    if (!isAdmin) return { ok: false, errors: [{ field: 'authorization', message: 'Administrator access is required.', code: 'auth.admin.required' }] };
+    const cleanReason = reason.trim();
+    if (!cleanReason) return { ok: false, errors: [{ field: 'reason', message: 'A cancellation reason is required.', code: 'invoice.cancellation.reason' }] };
+    const now = new Date().toISOString();
+    return commitState((current) => ({
+      ...current,
+      invoices: current.invoices.map((invoice) => invoice.id === invoiceId ? { ...invoice, paymentStatus: 'cancelled', status: 'cancelled', updatedAt: now } : invoice),
+      auditLogs: current.settings.enableAuditLog ? [{ id: generateId(), entityType: 'invoice', entityId: invoiceId, action: 'cancelled', message: 'invoice cancelled', createdAt: now, meta: { reason: cleanReason, authorizedUserId: user?.uid || 'unknown-admin' } } as AuditLog, ...current.auditLogs].slice(0, 200) : current.auditLogs,
+    }), 'update', 'invoice', invoiceId);
   };
   const addExpense = async (expense: Omit<Expense, 'id' | 'createdAt'>) => {
     const id = generateId();
@@ -451,7 +544,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       },
       firebaseStatus, syncStatus, saveIndicator: syncStatus, lastSavedAt, syncNotice, retrySync,
       addCustomer, updateCustomer, deleteCustomer, addProduct, updateProduct, deleteProduct,
-      addInvoice, updateInvoice, deleteInvoice, addPayment, addExpense, deleteExpense,
+      addInvoice, updateInvoice, deleteInvoice, addPayment, reversePayment, correctPayment, cancelInvoice, addExpense, deleteExpense,
       addDeliveryNote, updateDeliveryNote, deleteDeliveryNote, updateProfile, updateSettings, addAuditLog,
     }}>
       {children}

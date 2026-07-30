@@ -7,6 +7,7 @@ import {
 import { useData } from '../context/DataContext';
 import { formatCurrency } from '../lib/utils';
 import { useLanguage } from '../context/LanguageContext';
+import { calculateBillingMetrics } from '../services/paymentService';
 
 export default function Dashboard() {
   const { state, syncStatus, lastSavedAt } = useData();
@@ -21,6 +22,7 @@ export default function Dashboard() {
     const invoices = state.invoices.filter((document) => document.type === 'invoice');
     const quotations = state.invoices.filter((document) => document.type === 'estimate');
     const monthlyInvoices = invoices.filter((document) => thisMonth(document.date || document.createdAt));
+    const metrics = calculateBillingMetrics(state);
     const customerName = (id: string) => state.customers.find((customer) => customer.id === id)?.name
       || state.invoices.find((document) => document.customerId === id)?.customerSnapshot?.name
       || state.deliveryNotes.find((document) => document.customerId === id)?.customerSnapshot?.name
@@ -51,6 +53,7 @@ export default function Dashboard() {
       invoiceCount: monthlyInvoices.length,
       pendingQuotations: quotations.filter((quotation) => quotation.status !== 'paid').length,
       outstanding: invoices.reduce((total, invoice) => total + Math.max(0, invoice.total - invoice.amountPaid), 0),
+      metrics,
       recentDocuments,
       recentCustomers: [...state.customers].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5),
     };
@@ -93,10 +96,14 @@ export default function Dashboard() {
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Business summary">
         {[
-          [language === 'ta' ? 'இந்த மாத வருவாய்' : 'Revenue this month', formatCurrency(summary.revenue)],
-          [language === 'ta' ? 'இந்த மாத விலைப்பட்டியல்கள்' : 'Invoices this month', summary.invoiceCount.toString()],
-          [language === 'ta' ? 'நிலுவை விலைமதிப்பீடுகள்' : 'Pending quotations', summary.pendingQuotations.toString()],
-          [language === 'ta' ? 'நிலுவைத் தொகை' : 'Outstanding amount', formatCurrency(summary.outstanding)],
+          [language === 'ta' ? 'மொத்த விலைப்பட்டியல்' : 'Total invoiced', formatCurrency(summary.metrics.totalInvoiced)],
+          [language === 'ta' ? 'மொத்த வசூல்' : 'Total collected', formatCurrency(summary.metrics.totalCollected)],
+          [language === 'ta' ? 'மொத்த நிலுவை' : 'Total outstanding', formatCurrency(summary.metrics.totalOutstanding)],
+          [language === 'ta' ? 'காலாவதியான தொகை' : 'Overdue amount', formatCurrency(summary.metrics.overdueAmount)],
+          [language === 'ta' ? 'செலுத்தியவை' : 'Paid invoices', summary.metrics.paidInvoicesCount.toString()],
+          [language === 'ta' ? 'செலுத்தாதவை' : 'Unpaid invoices', summary.metrics.unpaidInvoicesCount.toString()],
+          [language === 'ta' ? 'பகுதி செலுத்தியவை' : 'Partially paid', summary.metrics.partiallyPaidInvoicesCount.toString()],
+          [language === 'ta' ? 'காலாவதியானவை' : 'Overdue invoices', summary.metrics.overdueInvoicesCount.toString()],
         ].map(([label, value]) => (
           <article key={label} className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
             <p className="text-xs font-semibold text-stone-500 sm:text-sm">{label}</p>

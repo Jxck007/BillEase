@@ -81,7 +81,10 @@ export default function InvoiceForm() {
     adjustment: 0,
     roundOff: 0,
     total: 0,
+    payments: [],
     amountPaid: 0,
+    balanceDue: 0,
+    paymentStatus: 'unpaid',
     status: 'unpaid' as Invoice['status'],
     notes: '',
     terms: '',
@@ -222,7 +225,7 @@ export default function InvoiceForm() {
       invoiceNumber: draft.invoiceNumber || buildDefaultInvoiceNumber(state.settings.invoicePrefix, state.settings.invoiceStartingNumber, invoiceType),
       customerId: draft.customerId,
       date: draft.date || new Date().toISOString().split('T')[0],
-      dueDate: undefined,
+      dueDate: isEstimate ? undefined : (draft.dueDate || undefined),
       poNumber: draft.poNumber || '',
       poDate: draft.poDate || '',
       poMode: draft.poMode || '',
@@ -241,8 +244,11 @@ export default function InvoiceForm() {
       adjustment: isEstimate ? 0 : roundMoney(viewDraft.adjustment || 0),
       roundOff: roundMoney(viewDraft.roundOff || 0),
       total: roundMoney(viewDraft.total || 0),
+      payments: isEstimate ? [] : (draft.payments || []),
       amountPaid: isEstimate ? 0 : roundMoney(draft.amountPaid || 0),
-      status: isEstimate ? 'unpaid' : ((draft.amountPaid || 0) >= (viewDraft.total || 0) ? 'paid' : (draft.amountPaid || 0) > 0 ? 'partial' : 'unpaid'),
+      balanceDue: isEstimate ? roundMoney(viewDraft.total || 0) : roundMoney(Math.max(0, (viewDraft.total || 0) - (draft.amountPaid || 0))),
+      paymentStatus: isEstimate ? 'unpaid' : (draft.paymentStatus || 'unpaid'),
+      status: isEstimate ? 'unpaid' : (draft.status || 'unpaid'),
       notes: draft.notes || '',
       terms: draft.terms || state.settings.template.footerText,
       type: invoiceType,
@@ -448,8 +454,8 @@ export default function InvoiceForm() {
                 ) : null}
                 {!isEstimate ? (
                   <div>
-                    <Label english={language === 'en' ? 'Amount Paid' : 'பணம் வந்த தொகை'} tamil="வந்த தொகை" />
-                    <input type="text" inputMode="decimal" value={draft.amountPaid || 0} onChange={(event) => updateDraft({ amountPaid: Number(event.target.value) || 0 })} title={language === 'en' ? 'Amount paid' : 'பணம் வந்த தொகை'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-right outline-none focus:ring-2 focus:ring-emerald-500" />
+                    <Label english={t('dueDate')} tamil="கடைசி தேதி" helper={language === 'en' ? 'Required only when overdue tracking is needed.' : 'காலாவதி கண்காணிப்பு தேவைப்பட்டால் மட்டும் அமைக்கவும்.'} />
+                    <input type="date" value={draft.dueDate || ''} min={draft.date || undefined} onChange={(event) => updateDraft({ dueDate: event.target.value || undefined })} title={t('dueDate')} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
                   </div>
                 ) : null}
                 {!isEstimate ? (

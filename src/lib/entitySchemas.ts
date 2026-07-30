@@ -1,4 +1,5 @@
 import { Customer, CustomerSnapshot, DeliveryNote, Invoice, InvoiceItem } from './types';
+import { legacyStatus, normalizePayment, recalculateInvoicePayments } from '../services/paymentService';
 
 export type ValidationIssue = {
   field: string;
@@ -132,6 +133,12 @@ export function normalizeInvoice(input: unknown): NormalizationResult<Invoice> {
   if (rawItems.length === 0) errors.push(issue('items', 'Add at least one valid line item.', 'invoice.items.required'));
   const total = finite(source.total);
   if (total < 0) errors.push(issue('total', 'Invoice total cannot be negative.', 'invoice.total.invalid'));
+  const legacyPaymentStatus = source.paymentStatus === 'cancelled' || source.status === 'cancelled'
+    ? 'cancelled'
+    : 'unpaid';
+  const normalizedPayments = (Array.isArray(source.payments) ? source.payments : [])
+    .map((payment) => normalizePayment(payment as Record<string, unknown>, id))
+    .filter((payment): payment is NonNullable<typeof payment> => Boolean(payment));
   const value = {
     ...source,
     id,
@@ -147,8 +154,11 @@ export function normalizeInvoice(input: unknown): NormalizationResult<Invoice> {
     igstTotal: finite(source.igstTotal),
     discountTotal: finite(source.discountTotal),
     total,
-    amountPaid: finite(source.amountPaid),
-    status: source.status === 'paid' || source.status === 'partial' ? source.status : 'unpaid',
+    payments: normalizedPayments,
+    amountPaid: 0,
+    balanceDue: total,
+    paymentStatus: legacyPaymentStatus,
+    status: legacyStatus(legacyPaymentStatus),
     notes: text(source.notes),
     terms: text(source.terms),
     createdAt: text(source.createdAt) || new Date().toISOString(),
@@ -163,7 +173,7 @@ export function normalizeInvoice(input: unknown): NormalizationResult<Invoice> {
       email: text(snapshotSource.email),
     } : undefined,
   } as Invoice;
-  return { value, warnings, errors };
+  return { value: recalculateInvoicePayments(value, normalizedPayments), warnings, errors };
 }
 
 export function validateDeliveryNote(input: Partial<DeliveryNote>): NormalizationResult<Partial<DeliveryNote>> {

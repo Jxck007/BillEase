@@ -19,10 +19,11 @@ function mmToPx(mm: number) {
 
 export function downloadBlob(blob: Blob, fileName: string) {
   const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
+  const objectUrl = URL.createObjectURL(blob);
+  link.href = objectUrl;
   link.download = fileName;
   link.click();
-  URL.revokeObjectURL(link.href);
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
 }
 
 function measureExportRootSize(element: HTMLElement, targetWidth: number) {
@@ -131,6 +132,18 @@ async function waitForExportAssets(clone: HTMLElement) {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
 
+function alignFinalFooterToPage(clone: HTMLElement) {
+  const footer = clone.querySelector<HTMLElement>('.document-final-footer');
+  if (!footer) return;
+  footer.style.marginTop = '0px';
+  const pageHeight = clone.clientWidth * (A4_HEIGHT_MM / A4_WIDTH_MM);
+  const bottomMargin = Number.parseFloat(window.getComputedStyle(clone).paddingBottom) || 0;
+  const contentBottom = footer.getBoundingClientRect().bottom - clone.getBoundingClientRect().top;
+  const pages = Math.max(1, Math.ceil((contentBottom + bottomMargin - PAGE_ROUNDING_TOLERANCE_CSS_PX) / pageHeight));
+  const gap = Math.max(0, (pages * pageHeight) - bottomMargin - contentBottom);
+  footer.style.marginTop = `${gap}px`;
+}
+
 export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {
   const html2canvas = (await import('html2canvas')).default;
   await new Promise((resolve) => setTimeout(resolve, 100));
@@ -140,6 +153,7 @@ export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDT
   try {
     const safeScale = scale ?? getSafeExportScale();
     await waitForExportAssets(clone);
+    alignFinalFooterToPage(clone);
     sanitizeForHtml2Canvas(clone);
     clone.style.background = '#ffffff';
     clone.style.color = '#111111';

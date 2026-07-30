@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { BusinessProfile, Customer, Invoice } from '../../lib/types';
 import { formatCurrency } from '../../lib/utils';
+import { buildUpiUri } from '../../services/paymentService';
 import { withDefaultCustomerFieldVisibility } from '../../lib/invoiceCustomerFields';
 import InvoiceAuthorizationAssets from '../documents/InvoiceAuthorizationAssets';
 import ComputerGeneratedFooter from '../documents/ComputerGeneratedFooter';
@@ -57,30 +58,32 @@ type Props = {
   profile?: BusinessProfile;
   customer?: Customer | null;
   showQr?: boolean;
+  showPaymentSummary?: boolean;
   copyLabel?: string;
 };
 
 function UpiPaymentQr({ invoice, profile }: { invoice: Invoice; profile: BusinessProfile }) {
   const { language } = useLanguage();
   const [image, setImage] = useState('');
-  const amount = Math.max(0, invoice.total - invoice.amountPaid);
-  const enabled = profile.enableUpiQr && profile.upiId?.trim() && profile.upiPayeeName?.trim();
+  const amount = invoice.balanceDue;
+  const uri = profile.showUpiQrOnInvoice !== false && profile.enableUpiQr
+    ? buildUpiUri(invoice, profile.upiId || '', profile.upiPayeeName || '')
+    : null;
+  const enabled = Boolean(uri);
   useEffect(() => {
     if (!enabled) { setImage(''); return; }
-    const params = new URLSearchParams({ pa: profile.upiId!.trim(), pn: profile.upiPayeeName!.trim(), cu: 'INR', tn: `${invoice.invoiceNumber} ${profile.upiPaymentNote || ''}`.trim() });
-    if (profile.showUpiAmount) params.set('am', amount.toFixed(2));
     let active = true;
     import('qrcode')
-      .then(({ default: QRCode }) => QRCode.toDataURL(`upi://pay?${params.toString()}`, { width: 180, margin: 1, errorCorrectionLevel: 'M' }))
+      .then(({ default: QRCode }) => QRCode.toDataURL(uri!, { width: 180, margin: 1, errorCorrectionLevel: 'M' }))
       .then((dataUrl) => { if (active) setImage(dataUrl); })
       .catch(() => { if (active) setImage(''); });
     return () => { active = false; };
-  }, [enabled, profile.upiId, profile.upiPayeeName, profile.upiPaymentNote, profile.showUpiAmount, invoice.invoiceNumber, amount]);
+  }, [enabled, uri]);
   if (!enabled || !image) return null;
-  return <div className="tv-upi"><img src={image} alt={language === 'ta' ? 'UPI கட்டண QR' : 'Scan to pay by UPI'} className="tv-qr" /><div><strong>{language === 'ta' ? 'பணம் செலுத்த ஸ்கேன் செய்யவும்' : 'Scan to Pay'}</strong><br />UPI ID: {profile.upiId}<br />{language === 'ta' ? 'தொகை' : 'Amount'}: {formatCurrency(amount)}<br />{language === 'ta' ? 'விலைப்பட்டியல்' : 'Invoice'}: {invoice.invoiceNumber}</div></div>;
+  return <div className="tv-upi"><img src={image} alt={language === 'ta' ? 'UPI கட்டண QR' : 'Scan to pay by UPI'} className="tv-qr" /><div><strong>{language === 'ta' ? 'பணம் செலுத்த ஸ்கேன் செய்யவும்' : 'Scan to Pay'}</strong><br />UPI ID: {profile.upiId}<br />{language === 'ta' ? 'தொகை' : 'Amount'}: {formatCurrency(amount)}<br />{language === 'ta' ? 'விலைப்பட்டியல்' : 'Invoice'}: {invoice.invoiceNumber}<br /><span>{language === 'ta' ? 'பணம் செலுத்திய பிறகு, UPI பரிவர்த்தனைக் குறிப்பைப் பகிரவும்.' : 'After payment, please share the UPI transaction reference.'}</span></div></div>;
 }
 
-export function CanonicalInvoiceDocument({ invoice, profile, customer, showQr = true, copyLabel = '' }: Props) {
+export function CanonicalInvoiceDocument({ invoice, profile, customer, showQr = true, showPaymentSummary = true, copyLabel = '' }: Props) {
   const { language, t } = useLanguage();
   const seller = profile || ({
     name: 'My Business', address: '-', gst: '-', email: '-', phone: '-', logo: '', bankDetails: '-',
@@ -158,6 +161,15 @@ export function CanonicalInvoiceDocument({ invoice, profile, customer, showQr = 
           </table>
         </section>
 
+        {showPaymentSummary ? <section className="payment-summary document-keep-together">
+          <div><span>{language === 'ta' ? 'கட்டண நிலை' : 'Payment Status'}</span><strong>{t(invoice.paymentStatus)}</strong></div>
+          <div><span>{language === 'ta' ? 'மொத்தத் தொகை' : 'Total Amount'}</span><strong>{formatCurrency(invoice.total)}</strong></div>
+          <div><span>{language === 'ta' ? 'செலுத்திய தொகை' : 'Amount Paid'}</span><strong>{formatCurrency(invoice.amountPaid)}</strong></div>
+          <div><span>{language === 'ta' ? 'நிலுவைத் தொகை' : 'Balance Due'}</span><strong>{formatCurrency(invoice.balanceDue)}</strong></div>
+          {invoice.dueDate ? <div><span>{t('dueDate')}</span><strong>{format(new Date(invoice.dueDate), 'dd/MM/yyyy')}</strong></div> : null}
+          {invoice.paymentStatus === 'paid' ? <span className="paid-badge">PAID</span> : null}
+        </section> : null}
+
         <div className="document-final-section">
           <section className="tv-bottom">
             <div className="tv-bank">
@@ -175,9 +187,8 @@ export function CanonicalInvoiceDocument({ invoice, profile, customer, showQr = 
               </div>
             </div>
           </section>
-          <ComputerGeneratedFooter />
         </div>
-
+        <ComputerGeneratedFooter />
       </div>
     </div>
   );

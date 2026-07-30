@@ -370,6 +370,8 @@ export default function Settings() {
             updateProfileField('enableUpiQr', checked);
           }} label={text('Enable UPI QR on documents', 'ஆவணங்களில் UPI QR-ஐ இயக்கு')} />
           <Switch checked={Boolean(state.profile.showUpiAmount)} onChange={(checked) => updateProfileField('showUpiAmount', checked)} label={text('Show payment amount in QR', 'QR-ல் கட்டணத் தொகையைக் காட்டு')} />
+          <Switch checked={state.profile.showUpiQrOnInvoice !== false} onChange={(checked) => updateProfileField('showUpiQrOnInvoice', checked)} label={text('Show UPI QR on invoices', 'விலைப்பட்டியலில் UPI QR-ஐக் காட்டு')} />
+          <Switch checked={state.settings.showPaymentSummaryOnPdf !== false} onChange={(checked) => updateSettings({ showPaymentSummaryOnPdf: checked })} label={text('Show payment summary on customer PDF', 'வாடிக்கையாளர் PDF-ல் கட்டணச் சுருக்கத்தைக் காட்டு')} />
           <Field label={text('Optional fixed payment QR', 'விருப்பமான நிலையான கட்டண QR')} className="md:col-span-2">
             <div className="flex flex-wrap items-center gap-3">
               <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => loadSimpleImage(event.target.files?.[0] || null, 'qr')} className="min-h-12 min-w-0 flex-1 rounded-xl border border-stone-200 p-2" />
@@ -380,6 +382,7 @@ export default function Settings() {
           </Field>
         </div>
         {state.profile.enableUpiQr && !state.profile.upiPayeeName?.trim() && <p className="mt-3 text-sm text-rose-700">{text('Enter a payee name before enabling the UPI QR.', 'UPI QR-ஐ இயக்குவதற்கு முன் பெறுநர் பெயரை உள்ளிடவும்.')}</p>}
+        <p className="mt-3 text-sm text-stone-600">{text('Static UPI QR only pre-fills payment details. Scanning or returning to the browser never marks an invoice paid; an authorized admin must record verified payment manually.', 'நிலையான UPI QR கட்டண விவரங்களை மட்டும் நிரப்புகிறது. ஸ்கேன் செய்வது அல்லது உலாவிக்குத் திரும்புவது விலைப்பட்டியலை செலுத்தியதாகக் குறிக்காது; அங்கீகரிக்கப்பட்ட நிர்வாகி சரிபார்த்த கட்டணத்தை கைமுறையாகப் பதிவு செய்ய வேண்டும்.')}</p>
       </Panel>
     </div>
   );

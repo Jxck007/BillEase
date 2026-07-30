@@ -14,7 +14,7 @@ import {
 import DocumentDeliveryModal from './DocumentDeliveryModal';
 import { useLanguage } from '../../context/LanguageContext';
 
-export type DocumentType = 'invoice' | 'quotation' | 'delivery-note';
+export type DocumentType = 'invoice' | 'quotation' | 'delivery-note' | 'payment-receipt';
 interface ExportPanelProps {
   isOpen: boolean;
   onClose: () => void;

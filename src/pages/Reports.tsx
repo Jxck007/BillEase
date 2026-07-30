@@ -4,15 +4,26 @@ import { formatCurrency } from '../lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ChartTooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { calculateBillingMetrics } from '../services/paymentService';
+import { useState } from 'react';
 
 export default function Reports() {
   const { state } = useData();
   const { t, language } = useLanguage();
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [customerFilter, setCustomerFilter] = useState('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
-  const totalInvoices = state.invoices.filter(i => i.type === 'invoice');
-  
-  const totalSales = totalInvoices.reduce((sum, inv) => sum + inv.total, 0);
-  const totalReceived = state.payments.reduce((sum, p) => sum + p.amount, 0);
+  const filteredInvoices = state.invoices.filter((invoice) => invoice.type === 'invoice'
+    && (statusFilter === 'all' || invoice.paymentStatus === statusFilter)
+    && (customerFilter === 'all' || invoice.customerId === customerFilter)
+    && (!fromDate || invoice.date >= fromDate)
+    && (!toDate || invoice.date <= toDate));
+  const totalInvoices = filteredInvoices.filter((invoice) => invoice.paymentStatus !== 'cancelled');
+  const metrics = calculateBillingMetrics({ invoices: filteredInvoices });
+  const totalSales = metrics.totalInvoiced;
+  const totalReceived = metrics.totalCollected;
   const totalExpenses = state.expenses.reduce((sum, e) => sum + e.amount, 0);
   const netEarnings = totalReceived - totalExpenses;
 
@@ -44,24 +55,26 @@ export default function Reports() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100">
-           <p className="text-sm font-medium text-stone-500 mb-2">{language === 'en' ? 'Total Billed' : 'மொத்த பில்'}</p>
-           <h3 className="text-2xl font-bold text-stone-800">{formatCurrency(totalSales)}</h3>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-green-100">
-           <p className="text-sm font-medium text-green-600 mb-2">{language === 'en' ? 'Total Received' : 'மொத்த வரவு'}</p>
-           <h3 className="text-2xl font-bold text-green-700">{formatCurrency(totalReceived)}</h3>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-red-100">
-           <p className="text-sm font-medium text-red-600 mb-2">{language === 'en' ? 'Total Expenses' : 'மொத்த செலவு'}</p>
-           <h3 className="text-2xl font-bold text-red-700">{formatCurrency(totalExpenses)}</h3>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100">
-           <p className="text-sm font-medium text-emerald-600 mb-2">{language === 'en' ? 'Net Earnings' : 'நிகர லாபம் / பணம்'}</p>
-           <h3 className="text-2xl font-bold text-emerald-700">{formatCurrency(netEarnings)}</h3>
-        </div>
+      <div className="grid gap-3 rounded-2xl border bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border p-3"><option value="all">All statuses</option><option value="paid">Paid</option><option value="unpaid">Unpaid</option><option value="partially_paid">Partially Paid</option><option value="overdue">Overdue</option><option value="cancelled">Cancelled</option></select>
+        <select value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)} className="rounded-xl border p-3"><option value="all">All customers</option>{state.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>
+        <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} aria-label="Report from date" className="rounded-xl border p-3" />
+        <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} aria-label="Report to date" className="rounded-xl border p-3" />
       </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          [language === 'en' ? 'Total invoiced' : 'மொத்த விலைப்பட்டியல்', formatCurrency(metrics.totalInvoiced)],
+          [language === 'en' ? 'Total collected' : 'மொத்த வசூல்', formatCurrency(metrics.totalCollected)],
+          [language === 'en' ? 'Total outstanding' : 'மொத்த நிலுவை', formatCurrency(metrics.totalOutstanding)],
+          [language === 'en' ? 'Overdue amount' : 'காலாவதியான தொகை', formatCurrency(metrics.overdueAmount)],
+          [language === 'en' ? 'Paid invoices' : 'செலுத்திய விலைப்பட்டியல்கள்', String(metrics.paidInvoicesCount)],
+          [language === 'en' ? 'Unpaid invoices' : 'செலுத்தாத விலைப்பட்டியல்கள்', String(metrics.unpaidInvoicesCount)],
+          [language === 'en' ? 'Partially paid' : 'பகுதி செலுத்தப்பட்டது', String(metrics.partiallyPaidInvoicesCount)],
+          [language === 'en' ? 'Overdue invoices' : 'காலாவதியான விலைப்பட்டியல்கள்', String(metrics.overdueInvoicesCount)],
+        ].map(([label, value]) => <div key={label} className="bg-white p-5 rounded-2xl shadow-sm border border-stone-100"><p className="text-sm font-medium text-stone-500 mb-2">{label}</p><h3 className="text-2xl font-bold text-stone-800">{value}</h3></div>)}
+      </div>
+      <p className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">{language === 'ta' ? 'கணக்கீட்டு விதி: விலைமதிப்பீடுகள் மற்றும் விநியோகக் குறிப்புகள் வசூலாக எண்ணப்படாது. ரத்து செய்யப்பட்ட விலைப்பட்டியல்கள் வருவாய் மற்றும் நிலுவையிலிருந்து விலக்கப்படும்.' : 'Calculation rule: quotations and delivery notes are never collected revenue. Cancelled invoices are excluded from invoiced and collectible totals.'}</p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100">

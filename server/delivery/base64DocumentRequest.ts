@@ -77,7 +77,7 @@ export function parseBase64EmailRequest(body: unknown) {
     || !subject || subject.length > 200 || /[\r\n]/.test(subject)
     || !message || message.length > 3000
     || !FILENAME_PATTERN.test(filename)
-    || !['invoice', 'quotation', 'delivery-note'].includes(documentType)
+    || !['invoice', 'quotation', 'delivery-note', 'payment-receipt'].includes(documentType)
     || !['application/pdf', 'image/png'].includes(mimeType)
     || (mimeType === 'application/pdf') !== filename.toLowerCase().endsWith('.pdf')) {
     throw new HttpError(400, 'VALIDATION_FAILED', 'Invalid request');

@@ -2,22 +2,76 @@ import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, FileText, Trash2, Edit, Eye } from 'lucide-react';
+import { ArrowLeft, Plus, FileText, Trash2, Edit, Eye, Download, X } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { useToast } from '../context/ToastContext';
+import CanonicalInvoiceDocument from '../components/invoices/TraditionalTaxInvoice';
+import { MAX_BULK_PDFS, prepareBulkDownload } from '../services/bulkDownloadService';
 
 export default function Invoices() {
   const { state, deleteInvoice } = useData();
   const { t, language } = useLanguage();
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [customerFilter, setCustomerFilter] = useState('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [copyMode, setCopyMode] = useState<'current' | 'all'>('current');
+  const [bulkProgress, setBulkProgress] = useState('');
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const { showToast } = useToast();
   const navigate = useNavigate();
 
   const invoices = state.invoices.filter(i => i.type !== 'estimate');
 
-  const filteredInvoices = invoices;
+  const filteredInvoices = invoices.filter((invoice) =>
+    (statusFilter === 'all' || invoice.paymentStatus === statusFilter)
+    && (customerFilter === 'all' || invoice.customerId === customerFilter)
+    && (!fromDate || invoice.date >= fromDate)
+    && (!toDate || invoice.date <= toDate));
+  const selectedInvoices = invoices.filter((invoice) => selectedIds.has(invoice.id));
+  const copiesForInvoice = (invoice: typeof invoices[number]) => copyMode === 'all'
+    ? ['Original', 'Duplicate', 'Triplicate']
+    : [invoice.copyType?.includes('DUPLICATE') ? 'Duplicate' : invoice.copyType?.includes('TRIPLICATE') ? 'Triplicate' : 'Original'];
+  const toggleSelection = (id: string) => setSelectedIds((current) => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const downloadSelected = async () => {
+    const total = selectedInvoices.reduce((sum, invoice) => sum + copiesForInvoice(invoice).length, 0);
+    if (!total) { showToast('Select at least one invoice.', 'error'); return; }
+    if (total > MAX_BULK_PDFS) { showToast(`A batch can contain up to ${MAX_BULK_PDFS} PDFs.`, 'error'); return; }
+    const controller = new AbortController();
+    setAbortController(controller);
+    setBulkRunning(true);
+    try {
+      const { createPdfBlobFromElement } = await import('../services/exportService');
+      const requests = selectedInvoices.flatMap((invoice) => copiesForInvoice(invoice).map((copy) => ({
+        id: `${invoice.id}:${copy}`,
+        fileName: `Invoice-${invoice.invoiceNumber}-${copy}.pdf`,
+        generate: () => {
+          const root = document.querySelector<HTMLElement>(`[data-bulk-invoice="${CSS.escape(invoice.id)}"][data-bulk-copy="${copy}"]`);
+          if (!root) throw new Error('Invoice render was not available.');
+          return createPdfBlobFromElement(root);
+        },
+      })));
+      const result = await prepareBulkDownload(requests, `Invoices-${new Date().toISOString().slice(0, 10)}.zip`, (progress) => {
+        setBulkProgress(progress.stage === 'preparing' ? `Preparing ${progress.current} of ${progress.total}` : progress.stage === 'zipping' ? 'Creating ZIP' : 'Download ready');
+      }, controller.signal);
+      if (result.failed.length) showToast(`${result.prepared} of ${requests.length} documents were prepared. ${result.failed.length} document${result.failed.length === 1 ? '' : 's'} need attention.`, 'error');
+      else showToast('Download ready', 'success');
+    } catch (error) {
+      if ((error as Error).name !== 'AbortError') showToast((error as Error).message, 'error');
+    } finally {
+      setBulkRunning(false);
+      setAbortController(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -35,6 +89,21 @@ export default function Invoices() {
         </Link>
       </div>
 
+      <div className="grid gap-3 rounded-2xl border bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border p-3"><option value="all">All statuses</option><option value="paid">Paid</option><option value="unpaid">Unpaid</option><option value="partially_paid">Partially Paid</option><option value="overdue">Overdue</option><option value="cancelled">Cancelled</option></select>
+        <select value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)} className="rounded-xl border p-3"><option value="all">All customers</option>{state.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select>
+        <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} aria-label="From date" className="rounded-xl border p-3" />
+        <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} aria-label="To date" className="rounded-xl border p-3" />
+      </div>
+
+      {selectedIds.size ? <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-3">
+        <strong>{selectedIds.size} selected</strong>
+        <select value={copyMode} onChange={(event) => setCopyMode(event.target.value as 'current' | 'all')} className="rounded-xl border p-2"><option value="current">Download current copy</option><option value="all">Download all copies</option></select>
+        <button type="button" disabled={bulkRunning} onClick={downloadSelected} className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white disabled:opacity-50"><Download size={18} />Download Selected</button>
+        {bulkRunning ? <><span role="status" className="font-semibold text-blue-900">{bulkProgress}</span><button type="button" onClick={() => abortController?.abort()} className="inline-flex items-center gap-1 text-rose-700"><X size={17} />Cancel</button></> : null}
+        <span className="text-sm text-blue-800">Maximum {MAX_BULK_PDFS} PDFs per batch.</span>
+      </div> : null}
+
       <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
         {filteredInvoices.length > 0 ? (
           <>
@@ -44,15 +113,17 @@ export default function Invoices() {
                 return (
                   <article key={invoice.id} className="p-4">
                     <div className="flex items-start justify-between gap-3">
+                      <input type="checkbox" checked={selectedIds.has(invoice.id)} onChange={() => toggleSelection(invoice.id)} aria-label={`Select invoice ${invoice.invoiceNumber}`} className="mt-1 h-5 w-5" />
                       <div className="min-w-0">
                         <p className="font-bold text-stone-900">#{invoice.invoiceNumber}</p>
                         <p className="mt-1 truncate text-sm font-medium text-stone-700">{customer?.name || 'Unknown customer'}</p>
                       </div>
                       <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
-                        invoice.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
-                        invoice.status === 'partial' ? 'bg-amber-100 text-amber-700' :
+                        invoice.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' :
+                        invoice.paymentStatus === 'partially_paid' ? 'bg-amber-100 text-amber-700' :
+                        invoice.paymentStatus === 'cancelled' ? 'bg-stone-200 text-stone-700' :
                         'bg-rose-100 text-rose-700'
-                      }`}>{t(invoice.status)}</span>
+                      }`}>{t(invoice.paymentStatus)}</span>
                     </div>
                     <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                       <div><dt className="text-xs text-stone-500">{t('date')}</dt><dd className="mt-1 font-medium text-stone-800">{format(new Date(invoice.date), 'dd MMM yyyy')}</dd></div>
@@ -69,6 +140,7 @@ export default function Invoices() {
             <table className="w-full min-w-[700px] text-left text-sm">
               <thead className="bg-stone-50 text-stone-600 border-b border-stone-200">
                 <tr>
+                  <th className="px-3 py-3"><input type="checkbox" aria-label="Select all visible invoices" checked={filteredInvoices.length > 0 && filteredInvoices.every((invoice) => selectedIds.has(invoice.id))} onChange={(event) => setSelectedIds((current) => { const next = new Set(current); filteredInvoices.forEach((invoice) => event.target.checked ? next.add(invoice.id) : next.delete(invoice.id)); return next; })} /></th>
                   <th className="px-6 py-3 font-bold uppercase tracking-wider text-xs">{t('invoiceNumber')}</th>
                   <th className="px-6 py-3 font-bold uppercase tracking-wider text-xs">Customer {language === 'ta' && ' / வாடிக்கையாளர்'}</th>
                   <th className="px-6 py-3 font-bold uppercase tracking-wider text-xs">{t('date')}</th>
@@ -82,17 +154,19 @@ export default function Invoices() {
                   const customer = state.customers.find(c => c.id === invoice.customerId) || invoice.customerSnapshot;
                   return (
                     <tr key={invoice.id} className="hover:bg-emerald-50/50 cursor-pointer transition-colors" onClick={() => navigate(`/invoices/${invoice.id}`)}>
+                      <td className="px-3 py-4" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={selectedIds.has(invoice.id)} onChange={() => toggleSelection(invoice.id)} aria-label={`Select invoice ${invoice.invoiceNumber}`} /></td>
                       <td className="px-6 py-4 font-bold text-stone-800">#{invoice.invoiceNumber}</td>
                       <td className="px-6 py-4 font-bold text-stone-800">{customer?.name || 'Unknown'}</td>
                       <td className="px-6 py-4 font-medium">{format(new Date(invoice.date), 'MMM d, yyyy')}</td>
                       <td className="px-6 py-4 text-right font-bold text-stone-800">{formatCurrency(invoice.total)}</td>
                       <td className="px-6 py-4 text-center">
                         <span className={`text-xs px-3 py-1 rounded-full font-bold ${
-                          invoice.status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
-                          invoice.status === 'partial' ? 'bg-amber-100 text-amber-700' :
+                          invoice.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' :
+                          invoice.paymentStatus === 'partially_paid' ? 'bg-amber-100 text-amber-700' :
+                          invoice.paymentStatus === 'cancelled' ? 'bg-stone-200 text-stone-700' :
                           'bg-rose-100 text-rose-700'
                         }`}>
-                          {t(invoice.status)}
+                          {t(invoice.paymentStatus)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right space-x-2">
@@ -122,6 +196,12 @@ export default function Invoices() {
             </Link>
           </div>
         )}
+      </div>
+      <div aria-hidden="true" className="fixed left-[-20000px] top-0 w-[210mm]">
+        {selectedInvoices.flatMap((invoice) => copiesForInvoice(invoice).map((copy) => {
+          const customer = state.customers.find((entry) => entry.id === invoice.customerId) || invoice.customerSnapshot;
+          return <div key={`${invoice.id}:${copy}`} className="canonical-a4-document bg-white text-black" data-export-root="true" data-bulk-invoice={invoice.id} data-bulk-copy={copy}><CanonicalInvoiceDocument invoice={invoice} profile={state.profile} customer={customer as any} showQr showPaymentSummary={state.settings.showPaymentSummaryOnPdf !== false} copyLabel={`${copy.toUpperCase()} COPY`} /></div>;
+        }))}
       </div>
       <ConfirmDialog open={Boolean(pendingDeleteId)} title="Delete invoice?" message="This moves the invoice out of active records and preserves a recovery copy." onCancel={() => setPendingDeleteId(null)} onConfirm={async () => { if (pendingDeleteId) { const result = await deleteInvoice(pendingDeleteId); showToast(result.ok ? 'Invoice deleted' : 'The invoice could not be deleted. A recovery copy was not available.', result.ok ? 'success' : 'error'); } setPendingDeleteId(null); }} />
     </div>

@@ -91,11 +91,13 @@ export function whatsappChatUrl(number: string, text: string) {
 }
 
 export function documentExportFilename(
-  documentType: 'invoice' | 'quotation' | 'delivery-note',
+  documentType: 'invoice' | 'quotation' | 'delivery-note' | 'payment-receipt',
   documentNumber: string,
   extension: 'pdf' | 'png',
 ) {
-  const prefix = documentType === 'delivery-note'
+  const prefix = documentType === 'payment-receipt'
+    ? 'Payment-Receipt'
+    : documentType === 'delivery-note'
     ? 'Delivery-Note'
     : documentType === 'quotation' ? 'Quotation' : 'Invoice';
   const safeNumber = documentNumber
@@ -107,7 +109,7 @@ export function documentExportFilename(
 
 export function createDocumentExportFile(
   blob: Blob,
-  documentType: 'invoice' | 'quotation' | 'delivery-note',
+  documentType: 'invoice' | 'quotation' | 'delivery-note' | 'payment-receipt',
   documentNumber: string,
   extension: 'pdf' | 'png',
 ) {
@@ -123,7 +125,7 @@ export function createDocumentExportFile(
 
 export async function preparePdfShareFile(
   generatePdf: () => Promise<Blob>,
-  documentType: 'invoice' | 'quotation' | 'delivery-note',
+  documentType: 'invoice' | 'quotation' | 'delivery-note' | 'payment-receipt',
   documentNumber: string,
 ) {
   const blob = await generatePdf();

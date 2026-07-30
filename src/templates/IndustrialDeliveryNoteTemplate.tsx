@@ -187,8 +187,8 @@ export default function IndustrialDeliveryNoteTemplate({ note, profile, customer
               <InvoiceAuthorizationAssets documentType="deliveryNote" />
             </div>
           </div>
-          <ComputerGeneratedFooter />
         </div>
+        <ComputerGeneratedFooter />
       </div>
     </div>
   );

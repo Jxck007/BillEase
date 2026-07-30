@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Edit, Trash2, Eye } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, Eye, Download } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { useToast } from '../context/ToastContext';
+import IndustrialDeliveryNoteTemplate from '../templates/IndustrialDeliveryNoteTemplate';
+import { MAX_BULK_PDFS, prepareBulkDownload } from '../services/bulkDownloadService';
 
 export default function DeliveryNotes() {
   const navigate = useNavigate();
@@ -14,6 +16,10 @@ export default function DeliveryNotes() {
   const { language, t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [copyMode, setCopyMode] = useState<'current' | 'all'>('current');
+  const [bulkProgress, setBulkProgress] = useState('');
+  const [bulkRunning, setBulkRunning] = useState(false);
   const { showToast } = useToast();
 
   const deliveryNotes = state.deliveryNotes || [];
@@ -21,6 +27,23 @@ export default function DeliveryNotes() {
     note.deliveryNoteNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
     state.customers.find(c => c.id === note.customerId)?.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  const selected = deliveryNotes.filter((note) => selectedIds.has(note.id));
+  const copiesForNote = (note: typeof deliveryNotes[number]) => copyMode === 'all'
+    ? ['Original', 'Duplicate', 'Triplicate']
+    : [String(note.copyType).toLowerCase().includes('triplicate') ? 'Triplicate' : String(note.copyType).toLowerCase().includes('duplicate') ? 'Duplicate' : 'Original'];
+  const downloadSelected = async () => {
+    if (!selected.length) return;
+    setBulkRunning(true);
+    try {
+      const { createPdfBlobFromElement } = await import('../services/exportService');
+      const requests = selected.flatMap((note) => copiesForNote(note).map((copy) => ({
+        id: `${note.id}:${copy}`, fileName: `Delivery-Note-${note.deliveryNoteNumber}-${copy}.pdf`,
+        generate: () => createPdfBlobFromElement(document.querySelector<HTMLElement>(`[data-bulk-note="${CSS.escape(note.id)}"][data-bulk-copy="${copy}"]`)!),
+      })));
+      const result = await prepareBulkDownload(requests, `Delivery-Notes-${new Date().toISOString().slice(0, 10)}.zip`, (progress) => setBulkProgress(progress.stage === 'preparing' ? `Preparing ${progress.current} of ${progress.total}` : progress.stage === 'zipping' ? 'Creating ZIP' : 'Download ready'));
+      showToast(result.failed.length ? `${result.prepared} of ${requests.length} documents were prepared. ${result.failed.length} need attention.` : 'Download ready', result.failed.length ? 'error' : 'success');
+    } catch (error) { showToast((error as Error).message, 'error'); } finally { setBulkRunning(false); }
+  };
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-12">
@@ -39,6 +62,7 @@ export default function DeliveryNotes() {
         </button>
       </div>
 
+      {selectedIds.size ? <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-3"><strong>{selectedIds.size} selected</strong><select value={copyMode} onChange={(event) => setCopyMode(event.target.value as 'current' | 'all')} className="rounded-xl border p-2"><option value="current">Download current copy</option><option value="all">Download all copies</option></select><button disabled={bulkRunning} onClick={downloadSelected} className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-bold text-white"><Download size={18} />Download Selected</button><span role="status">{bulkProgress}</span><span className="text-sm">Maximum {MAX_BULK_PDFS} PDFs.</span></div> : null}
       <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
         <input
           type="text"
@@ -65,6 +89,7 @@ export default function DeliveryNotes() {
           <table className="w-full min-w-[600px] md:min-w-[750px] text-left text-sm">
             <thead className="bg-stone-50">
               <tr className="border-b border-stone-200">
+                <th className="px-3 py-3"><input type="checkbox" aria-label="Select all delivery notes" onChange={(event) => setSelectedIds(event.target.checked ? new Set(filtered.map((note) => note.id)) : new Set())} /></th>
                 <th className="px-4 py-3 font-bold text-stone-700">{language === 'en' ? 'DN Number' : 'DN எண்'}</th>
                 <th className="px-4 py-3 font-bold text-stone-700">{language === 'en' ? 'Customer' : 'வாடிக்கையாளர்'}</th>
                 <th className="px-4 py-3 font-bold text-stone-700">{language === 'en' ? 'Date' : 'தேதி'}</th>
@@ -79,6 +104,7 @@ export default function DeliveryNotes() {
                 const customer = state.customers.find(c => c.id === note.customerId);
                 return (
                   <tr key={note.id} className="hover:bg-stone-50">
+                    <td className="px-3 py-3"><input type="checkbox" checked={selectedIds.has(note.id)} onChange={() => setSelectedIds((current) => { const next = new Set(current); next.has(note.id) ? next.delete(note.id) : next.add(note.id); return next; })} /></td>
                     <td className="px-4 py-3 font-semibold text-stone-800">{note.deliveryNoteNumber}</td>
                     <td className="px-4 py-3 text-stone-700">{customer?.name || '-'}</td>
                     <td className="px-4 py-3 text-stone-600">{format(new Date(note.date), 'dd MMM yyyy')}</td>
@@ -124,6 +150,11 @@ export default function DeliveryNotes() {
           </table>
         </div>
       )}
+      <div aria-hidden="true" className="fixed left-[-20000px] top-0 w-[210mm]">{selected.flatMap((note) => copiesForNote(note).map((copy) => {
+        const customer = state.customers.find((entry) => entry.id === note.customerId) || note.customerSnapshot;
+        const copyType = copy === 'Original' ? 'ORIGINAL FOR CONSIGNEE' : copy === 'Duplicate' ? 'DUPLICATE FOR TRANSPORTER' : 'TRIPLICATE FOR SUPPLIER';
+        return <div key={`${note.id}:${copy}`} className="canonical-a4-document bg-white text-black" data-export-root="true" data-bulk-note={note.id} data-bulk-copy={copy}><IndustrialDeliveryNoteTemplate note={{ ...note, copyType }} profile={state.profile} customer={customer as any} /></div>;
+      }))}</div>
       <ConfirmDialog open={Boolean(pendingDeleteId)} title="Delete delivery note?" message="This moves the delivery note out of active records and preserves a recovery copy." onCancel={() => setPendingDeleteId(null)} onConfirm={async () => { if (pendingDeleteId) { const result = await deleteDeliveryNote(pendingDeleteId); showToast(result.ok ? 'Delivery Note deleted' : 'The delivery note could not be deleted.', result.ok ? 'success' : 'error'); } setPendingDeleteId(null); }} />
     </div>
   );
