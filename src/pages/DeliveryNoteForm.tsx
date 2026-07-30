@@ -15,6 +15,8 @@ import {
 } from '../lib/deliveryNoteUtils';
 import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { useAutosaveDraft } from '../hooks/useAutosaveDraft';
+import { deleteLocalDraft, loadLocalDraft } from '../services/localDataStore';
 
 function createDraftNumber(existingCount: number) {
   const currentYear = new Date().getFullYear();
@@ -37,6 +39,7 @@ export default function DeliveryNoteForm() {
       ? normalizeDeliveryNote(existingNote as Partial<DeliveryNote> & Record<string, unknown>)
       : {
           deliveryNoteNumber: createDraftNumber(state.deliveryNotes.length),
+          id: generateId(),
           dnNumber: createDraftNumber(state.deliveryNotes.length),
           date: new Date().toISOString().split('T')[0],
           copyType: 'Original for Consignee',
@@ -61,6 +64,9 @@ export default function DeliveryNoteForm() {
           draft: true,
         }
   );
+  const draftKey = `delivery-note:${id || 'new'}`;
+  const { flushDraft, draftSaveStatus, hasUnsavedDraft } = useAutosaveDraft(formData, state.settings.enableAutosave && state.settings.enableDrafts, draftKey, 'delivery-note');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!existingNote) return;
@@ -68,12 +74,21 @@ export default function DeliveryNoteForm() {
   }, [existingNote]);
 
   useEffect(() => {
+    if (existingNote || id) return;
+    let active = true;
+    loadLocalDraft<Partial<DeliveryNote>>(draftKey).then((saved) => {
+      if (active && saved?.value) setFormData((current) => ({ ...current, ...saved.value, id: saved.value.id || current.id }));
+    }).catch(() => showToast(language === 'en' ? 'Local draft recovery is unavailable. Keep this tab open while editing.' : 'உள்ளூர் வரைவு மீட்பு கிடைக்கவில்லை.', 'error'));
+    return () => { active = false; };
+  }, [draftKey, existingNote, id, language, showToast]);
+
+  useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (formData.customerId || (formData.items || []).some((item) => item.description.trim())) event.preventDefault();
+      if (hasUnsavedDraft) event.preventDefault();
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [formData.customerId, formData.items]);
+  }, [hasUnsavedDraft]);
 
   const selectedCustomer = useMemo(
     () => state.customers.find((customer) => customer.id === formData.customerId),
@@ -121,7 +136,8 @@ export default function DeliveryNoteForm() {
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (isSaving) return;
     if (!formData.customerId) {
       showToast(language === 'en' ? 'Please select a customer' : 'வாடிக்கையாளரைத் தேர்ந்தெடுக்கவும்', 'error');
       return;
@@ -164,10 +180,22 @@ export default function DeliveryNoteForm() {
       createdAt: existingNote?.createdAt || new Date().toISOString(),
     } as Partial<DeliveryNote> & Record<string, unknown>);
 
-    if (id) {
-      updateDeliveryNote(id, note);
-    } else {
-      addDeliveryNote(note);
+    setIsSaving(true);
+    if (!(await flushDraft())) {
+      showToast(language === 'en' ? 'Something went wrong while saving. Your work is still open as a draft.' : 'சேமிக்க முடியவில்லை. உங்கள் வரைவு திறந்தே உள்ளது.', 'error');
+      setIsSaving(false);
+      return;
+    }
+    const result = id ? await updateDeliveryNote(id, note) : await addDeliveryNote(note);
+    if (!result.ok) {
+      showToast(result.errors?.[0]?.message || (language === 'en' ? 'Something went wrong while saving. Your work has been kept as a draft.' : 'சேமிக்க முடியவில்லை.'), 'error');
+      setIsSaving(false);
+      return;
+    }
+    try {
+      await deleteLocalDraft(draftKey);
+    } catch {
+      showToast(language === 'en' ? 'The document is saved, but its old draft could not be removed.' : 'ஆவணம் சேமிக்கப்பட்டது; பழைய வரைவை அகற்ற முடியவில்லை.', 'info');
     }
 
     showToast(language === 'ta' ? 'விநியோகக் குறிப்பு சேமிக்கப்பட்டது' : 'Delivery Note saved', 'success');
@@ -193,7 +221,7 @@ export default function DeliveryNoteForm() {
           <h1 className="text-2xl font-black text-stone-800">
             {id ? (language === 'en' ? 'Edit Delivery Note' : 'டெலிவரி நோட்டைத் திருத்து') : (language === 'en' ? 'New Delivery Note' : 'புதிய டெலிவரி நோட்')}
           </h1>
-          <p className="mt-1 text-sm text-stone-500">{language === 'en' ? 'Transport / dispatch document' : 'பரிமாற்ற / டிஸ்பாட்ச் ஆவணம்'}</p>
+          <p className="mt-1 text-sm text-stone-500">{draftSaveStatus === 'saving' ? 'Saving draft…' : draftSaveStatus === 'saved-locally' ? 'Saved locally' : draftSaveStatus === 'failed' ? 'Action required — draft save failed' : language === 'en' ? 'Transport / dispatch document' : 'பரிமாற்ற / டிஸ்பாட்ச் ஆவணம்'}</p>
         </div>
       </div>
 
@@ -492,7 +520,7 @@ export default function DeliveryNoteForm() {
           <button type="button" onClick={() => { id ? navigate(`/delivery-notes/${id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info'); }} className="min-h-12 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">{language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
         </div>
       </div>
-      <ConfirmDialog open={Boolean(leaveTarget)} title={language === 'ta' ? 'இந்த விநியோகக் குறிப்பிலிருந்து வெளியேறவா?' : 'Leave this delivery note?'} message={language === 'ta' ? 'உங்கள் சமீபத்திய மாற்றங்கள் சாதனத்தில் மட்டுமே சேமிக்கப்பட்டிருக்கலாம். தொடரவா?' : 'Your latest changes may only be saved locally. Continue?'} confirmLabel={language === 'ta' ? 'வெளியேறு' : 'Leave'} onCancel={() => setLeaveTarget(null)} onConfirm={() => { const target = leaveTarget; setLeaveTarget(null); if (target) navigate(target); }} />
+      <ConfirmDialog open={Boolean(leaveTarget)} title={language === 'ta' ? 'இந்த விநியோகக் குறிப்பிலிருந்து வெளியேறவா?' : 'Leave this delivery note?'} message={hasUnsavedDraft ? 'BillEase will save a durable local draft before leaving.' : 'Your latest changes are saved locally.'} confirmLabel={language === 'ta' ? 'வெளியேறு' : 'Leave'} onCancel={() => setLeaveTarget(null)} onConfirm={async () => { const target = leaveTarget; if (!(await flushDraft())) { showToast('Could not save a recovery draft. Continue editing and try again.', 'error'); return; } setLeaveTarget(null); if (target) navigate(target); }} />
     </div>
   );
 }

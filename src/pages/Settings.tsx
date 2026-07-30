@@ -10,6 +10,7 @@ import {
   Palette,
   PlugZap,
   Save,
+  ShieldCheck,
   Trash2,
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
@@ -26,8 +27,10 @@ import {
 import { prepareDocumentAsset } from '../utils/imageAssets';
 import { useIntegrationAvailability } from '../hooks/useIntegrationAvailability';
 import PinLookupField from '../components/forms/PinLookupField';
+import { exportSafeLocalBackup } from '../services/localDataStore';
+import { exportDiagnostics } from '../services/diagnostics';
 
-type SettingsSectionId = 'company' | 'payment' | 'branding' | 'integrations';
+type SettingsSectionId = 'company' | 'payment' | 'branding' | 'integrations' | 'data';
 type BankDetailsForm = {
   bankName: string;
   accountHolderName: string;
@@ -44,6 +47,7 @@ const sectionDefinitions = [
   { id: 'payment' as const, label: 'Payment & Bank', icon: Landmark },
   { id: 'branding' as const, label: 'Branding & Documents', icon: Palette },
   { id: 'integrations' as const, label: 'Integrations', icon: PlugZap },
+  { id: 'data' as const, label: 'Backup & Diagnostics', icon: ShieldCheck },
 ];
 
 function parseBankDetails(raw?: string): BankDetailsForm {
@@ -215,6 +219,7 @@ export default function Settings() {
     payment: text('Payment & Bank', 'கட்டணம் மற்றும் வங்கி'),
     branding: text('Branding & Documents', 'அடையாளம் மற்றும் ஆவணங்கள்'),
     integrations: text('Integrations', 'ஒருங்கிணைப்புகள்'),
+    data: text('Backup & Diagnostics', 'காப்புப்பிரதி மற்றும் கண்டறிதல்'),
   }[id]);
   const { availability, status: availabilityStatus } = useIntegrationAvailability();
   const desktop = useDesktopSettingsLayout();
@@ -486,11 +491,36 @@ export default function Settings() {
     </Panel>
   );
 
+  const downloadText = (contents: string, fileName: string) => {
+    const url = URL.createObjectURL(new Blob([contents], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const dataContent = (
+    <Panel title={text('Backup & Diagnostics', 'காப்புப்பிரதி மற்றும் கண்டறிதல்')} description={text('Export a recovery copy or privacy-safe diagnostic history.', 'மீட்பு நகல் அல்லது தனியுரிமை பாதுகாப்பான கண்டறிதல் வரலாற்றை ஏற்றுமதி செய்யவும்.')}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button type="button" onClick={async () => {
+          try {
+            downloadText(await exportSafeLocalBackup(), `billease-backup-${new Date().toISOString().slice(0, 10)}.json`);
+          } catch {
+            window.alert(text('No local backup is available yet.', 'உள்ளூர் காப்புப்பிரதி இன்னும் கிடைக்கவில்லை.'));
+          }
+        }} className="min-h-12 rounded-xl bg-emerald-600 px-4 font-semibold text-white">{text('Export application backup', 'பயன்பாட்டு காப்புப்பிரதியை ஏற்றுமதி செய்')}</button>
+        <button type="button" onClick={() => downloadText(exportDiagnostics(), `billease-diagnostics-${new Date().toISOString().slice(0, 10)}.json`)} className="min-h-12 rounded-xl border border-stone-300 bg-white px-4 font-semibold text-stone-800">{text('Export safe diagnostics', 'பாதுகாப்பான கண்டறிதலை ஏற்றுமதி செய்')}</button>
+      </div>
+      <p className="mt-3 text-xs text-stone-500">{text('Diagnostics exclude customer names, addresses, phone numbers, emails, document contents, credentials and attachments.', 'கண்டறிதலில் வாடிக்கையாளர் தனிப்பட்ட தகவல், ஆவண உள்ளடக்கம் மற்றும் சான்றுகள் சேர்க்கப்படாது.')}</p>
+    </Panel>
+  );
+
   const contentBySection: Record<SettingsSectionId, ReactNode> = {
     company: companyContent,
     payment: paymentContent,
     branding: brandingContent,
     integrations: integrationsContent,
+    data: dataContent,
   };
 
   return (

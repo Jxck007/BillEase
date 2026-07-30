@@ -40,7 +40,7 @@ export default function Invoices() {
           <>
             <div className="divide-y divide-stone-100 sm:hidden">
               {filteredInvoices.map((invoice) => {
-                const customer = state.customers.find((entry) => entry.id === invoice.customerId);
+                const customer = state.customers.find((entry) => entry.id === invoice.customerId) || invoice.customerSnapshot;
                 return (
                   <article key={invoice.id} className="p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -79,7 +79,7 @@ export default function Invoices() {
               </thead>
               <tbody className="divide-y divide-stone-100 text-stone-700">
                 {filteredInvoices.map(invoice => {
-                  const customer = state.customers.find(c => c.id === invoice.customerId);
+                  const customer = state.customers.find(c => c.id === invoice.customerId) || invoice.customerSnapshot;
                   return (
                     <tr key={invoice.id} className="hover:bg-emerald-50/50 cursor-pointer transition-colors" onClick={() => navigate(`/invoices/${invoice.id}`)}>
                       <td className="px-6 py-4 font-bold text-stone-800">#{invoice.invoiceNumber}</td>
@@ -123,7 +123,7 @@ export default function Invoices() {
           </div>
         )}
       </div>
-      <ConfirmDialog open={Boolean(pendingDeleteId)} title="Delete invoice?" message="This removes the invoice from your records. This action cannot be undone." onCancel={() => setPendingDeleteId(null)} onConfirm={() => { if (pendingDeleteId) { deleteInvoice(pendingDeleteId); showToast('Invoice deleted', 'success'); } setPendingDeleteId(null); }} />
+      <ConfirmDialog open={Boolean(pendingDeleteId)} title="Delete invoice?" message="This moves the invoice out of active records and preserves a recovery copy." onCancel={() => setPendingDeleteId(null)} onConfirm={async () => { if (pendingDeleteId) { const result = await deleteInvoice(pendingDeleteId); showToast(result.ok ? 'Invoice deleted' : 'The invoice could not be deleted. A recovery copy was not available.', result.ok ? 'success' : 'error'); } setPendingDeleteId(null); }} />
     </div>
   );
 }

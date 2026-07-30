@@ -45,6 +45,10 @@ function RouteLoadingFallback() {
   return <LoadingSpinner fullScreen text={previewRoute ? 'Opening preview...' : 'Opening page...'} />;
 }
 
+function SafeArea({ area, restorePath, children }: { area: string; restorePath?: string; children: React.ReactNode }) {
+  return <AppErrorBoundary area={area} restorePath={restorePath}>{children}</AppErrorBoundary>;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -58,24 +62,24 @@ export default function App() {
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                  <Route index element={<Dashboard />} />
-                  <Route path="customers" element={<Customers />} />
+                  <Route index element={<SafeArea area="dashboard"><Dashboard /></SafeArea>} />
+                  <Route path="customers" element={<SafeArea area="customer list"><Customers /></SafeArea>} />
                   <Route path="products" element={<Products />} />
                   
-                  <Route path="invoices" element={<Invoices />} />
-                  <Route path="invoices/new" element={<InvoiceForm />} />
-                  <Route path="invoices/:id" element={<InvoicePreview />} />
-                  <Route path="invoices/:id/edit" element={<InvoiceForm />} />
+                  <Route path="invoices" element={<SafeArea area="invoice list"><Invoices /></SafeArea>} />
+                  <Route path="invoices/new" element={<SafeArea area="document editor" restorePath="/invoices/new"><InvoiceForm /></SafeArea>} />
+                  <Route path="invoices/:id" element={<SafeArea area="document preview" restorePath="/invoices/new"><InvoicePreview /></SafeArea>} />
+                  <Route path="invoices/:id/edit" element={<SafeArea area="document editor" restorePath="/invoices/new"><InvoiceForm /></SafeArea>} />
                   
-                  <Route path="estimates" element={<Estimates />} />
-                  <Route path="estimates/new" element={<InvoiceForm />} />
-                  <Route path="estimates/:id" element={<InvoicePreview />} />
-                  <Route path="estimates/:id/edit" element={<InvoiceForm />} />
+                  <Route path="estimates" element={<SafeArea area="quotation list"><Estimates /></SafeArea>} />
+                  <Route path="estimates/new" element={<SafeArea area="quotation editor" restorePath="/estimates/new"><InvoiceForm /></SafeArea>} />
+                  <Route path="estimates/:id" element={<SafeArea area="quotation preview" restorePath="/estimates/new"><InvoicePreview /></SafeArea>} />
+                  <Route path="estimates/:id/edit" element={<SafeArea area="quotation editor" restorePath="/estimates/new"><InvoiceForm /></SafeArea>} />
                   
-                  <Route path="delivery-notes" element={<DeliveryNotes />} />
-                  <Route path="delivery-notes/new" element={<DeliveryNoteForm />} />
-                  <Route path="delivery-notes/:id" element={<DeliveryNotePreview />} />
-                  <Route path="delivery-notes/:id/edit" element={<DeliveryNoteForm />} />
+                  <Route path="delivery-notes" element={<SafeArea area="delivery note list"><DeliveryNotes /></SafeArea>} />
+                  <Route path="delivery-notes/new" element={<SafeArea area="delivery note editor" restorePath="/delivery-notes/new"><DeliveryNoteForm /></SafeArea>} />
+                  <Route path="delivery-notes/:id" element={<SafeArea area="delivery note preview" restorePath="/delivery-notes/new"><DeliveryNotePreview /></SafeArea>} />
+                  <Route path="delivery-notes/:id/edit" element={<SafeArea area="delivery note editor" restorePath="/delivery-notes/new"><DeliveryNoteForm /></SafeArea>} />
                   
                   <Route path="payments" element={<Payments />} />
                   <Route path="expenses" element={<Expenses />} />

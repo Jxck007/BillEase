@@ -149,7 +149,7 @@ export default function Expenses() {
           </div>
         </form>
       </Modal>
-      <ConfirmDialog open={Boolean(pendingDeleteId)} title="Delete expense?" message="This removes the expense record. This action cannot be undone." onCancel={() => setPendingDeleteId(null)} onConfirm={() => { if (pendingDeleteId) { deleteExpense(pendingDeleteId); showToast('Expense deleted', 'success'); } setPendingDeleteId(null); }} />
+      <ConfirmDialog open={Boolean(pendingDeleteId)} title="Delete expense?" message="This removes the expense after preserving a recovery copy." onCancel={() => setPendingDeleteId(null)} onConfirm={async () => { if (pendingDeleteId) { const result = await deleteExpense(pendingDeleteId); showToast(result.ok ? 'Expense deleted' : 'The expense could not be deleted.', result.ok ? 'success' : 'error'); } setPendingDeleteId(null); }} />
 
     </div>
   );

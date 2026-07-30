@@ -15,7 +15,11 @@ export default function DeliveryNotePreview() {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const exportRootRef = useRef<HTMLDivElement>(null);
   const note = state.deliveryNotes.find(n => n.id === id);
-  const customer = state.customers.find(c => c.id === note?.customerId);
+  const customer = state.customers.find(c => c.id === note?.customerId) || (note?.customerSnapshot ? {
+    ...note.customerSnapshot,
+    createdAt: note.createdAt,
+    gstin: note.customerSnapshot.gstNumber,
+  } : undefined);
 
   if (!note) {
     return (

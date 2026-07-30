@@ -229,7 +229,9 @@ export default async function handler(request: any, response: any) {
     ));
   } catch (error) {
     if (deliveryReference && markFailed && !(isSafeHttpError(error) && error.code === 'DELIVERY_IN_PROGRESS')) {
-      await markFailed(deliveryReference).catch(() => undefined);
+      await markFailed(deliveryReference).catch(() => {
+        // The primary request failure is returned below; delivery status is best-effort.
+      });
     }
     console.warn('[email/send-document] request failed', {
       phase,

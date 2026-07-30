@@ -2,8 +2,10 @@
 /// <reference types="vite/client" />
 import { useEffect, useState } from 'react';
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { contentHash, sanitizeForFirestore } from '../services/firestoreSerialization';
+export { contentHash, sanitizeForFirestore } from '../services/firestoreSerialization';
 
 const enabled = import.meta.env.VITE_FIREBASE_ENABLED === 'true';
 const requiredEnvKeys = [
@@ -63,15 +65,16 @@ export function getFirebaseStatusMessage() {
 }
 
 const startupStatus = getFirebaseStatus();
+const developerLog = (...values: unknown[]) => { if (import.meta.env.DEV) console.info(...values); };
 
 if (startupStatus.enabled) {
   if (startupStatus.missingVariables.length > 0) {
-    console.warn('[Firebase Developer Warning] Missing environment variables for Firebase configuration:', startupStatus.missingVariables.join(', '));
+    developerLog('[Firebase] Missing configuration:', startupStatus.missingVariables.join(', '));
   } else {
-    console.log('[Firebase Developer Info] Firebase is enabled and environment variables are present.');
+    developerLog('[Firebase] Enabled and configured.');
   }
 } else {
-  console.log('[Firebase Developer Info] Firebase is disabled. Running in local-only mode.');
+  developerLog('[Firebase] Disabled; local-only mode.');
 }
 
 if (enabled && startupStatus.missingVariables.length === 0) {
@@ -91,13 +94,13 @@ if (enabled && startupStatus.missingVariables.length === 0) {
     try {
       db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
     } catch (cacheError) {
-      console.warn('[Firebase] Persistent cache unavailable; using memory cache.', cacheError);
+      developerLog('[Firebase] Persistent cache unavailable; using memory cache.', cacheError);
       db = initializeFirestore(app, {});
     }
     auth = getAuth(app);
-    console.log('[Firebase Developer Info] Firebase Services initialized successfully.');
+    developerLog('[Firebase] Initialized.');
   } catch (err) {
-    console.error('[Firebase Developer Error] Initialization failed: ', err);
+    developerLog('[Firebase] Initialization failed.', err);
     db = null;
     auth = null;
   }
@@ -158,7 +161,9 @@ export function useVisualAsset(name: VisualAssetName) {
       } else {
         setDataUrl(String(asset?.dataUrl || DEFAULT_VISUAL_ASSETS[name]));
       }
-    }).catch(() => undefined);
+    }).catch(() => {
+      if (active) setDataUrl(DEFAULT_VISUAL_ASSETS[name]);
+    });
     return () => { active = false; };
   }, [name]);
   return dataUrl;
@@ -177,42 +182,14 @@ export function getRecordTotal(counts: RecordCounts) {
   return counts.customers + counts.products + counts.invoices + counts.deliveryNotes;
 }
 
-function sanitizeForFirestore(value: unknown, seen = new WeakSet<object>()): unknown {
-  if (value === undefined) {
-    return null;
-  }
-
-  if (value === null) {
-    return null;
-  }
-
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((entry) => sanitizeForFirestore(entry, seen));
-  }
-
-  if (typeof value === 'object') {
-    if (seen.has(value as object)) {
-      return null;
-    }
-    seen.add(value as object);
-
-    const output: Record<string, unknown> = {};
-    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      if (entry !== undefined) {
-        output[key] = sanitizeForFirestore(entry, seen);
-      }
-    }
-    return output;
-  }
-
-  return value;
-}
-
-type WriteOperation = 'create' | 'update' | 'delete' | 'initial-hydration' | 'offline-replay';
+export type WriteOperation = 'create' | 'update' | 'delete' | 'initial-hydration' | 'offline-replay';
+export type AppDataEnvelope = {
+  data: any;
+  revision: number;
+  updatedAt: unknown;
+  clientOperationId: string;
+  sourceDeviceId: string;
+};
 
 async function saveRecoverySnapshot(current: unknown) {
   if (!db) return;
@@ -226,57 +203,83 @@ async function saveRecoverySnapshot(current: unknown) {
   if (old.length) { const batch = writeBatch(db as any); old.forEach((entry) => batch.delete(entry.ref)); await batch.commit(); }
 }
 
-export async function setAppDataBackup(data: unknown, options?: { operation?: WriteOperation }) {
+export async function setAppDataBackup(data: unknown, options?: {
+  operation?: WriteOperation;
+  baseRevision?: number;
+  clientOperationId?: string;
+  sourceDeviceId?: string;
+}): Promise<AppDataEnvelope> {
   if (!firebaseEnabled()) throw new Error('Firebase not enabled');
-  console.log('[Firestore] Operation: WRITE | Collection: billease | Path: billease/appData');
   try {
     const d = doc(db as any, 'billease', 'appData');
     const outboundCounts = getRecordCounts(data);
     const outboundTotal = getRecordTotal(outboundCounts);
-    const existing = await getDoc(d);
-    const existingData = existing.data()?.data;
-    const existingTotal = getRecordTotal(getRecordCounts(existingData));
     const isIntentionalDelete = options?.operation === 'delete';
-    if (existingTotal > 0 && outboundTotal === 0) {
-        const err = new Error('EMPTY_OVERWRITE_BLOCKED');
-        (err as Error & { name: string }).name = 'EmptyOverwriteBlockedError';
-      throw err;
-    }
-    // Never silently replace a populated cloud document with a materially smaller state.
-    if (!isIntentionalDelete && existingTotal > 0 && outboundTotal < existingTotal) {
-      const err = new Error('DESTRUCTIVE_OVERWRITE_BLOCKED');
-      err.name = 'DestructiveOverwriteBlockedError';
-      throw err;
-    }
-    if (isIntentionalDelete && outboundTotal < existingTotal) await saveRecoverySnapshot(existingData);
     const safeData = sanitizeForFirestore(data);
-    await setDoc(d, { data: safeData, updatedAt: new Date().toISOString() });
-    console.log('[Firestore] WRITE SUCCESS | Path: billease/appData');
+    const clientOperationId = options?.clientOperationId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `op_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+    const sourceDeviceId = options?.sourceDeviceId || 'unknown-device';
+    const envelope = await runTransaction(db as any, async (transaction) => {
+      const existing = await transaction.get(d);
+      const current = existing.data() || {};
+      const existingData = current.data;
+      const currentRevision = Number(current.revision || 0);
+      const existingTotal = getRecordTotal(getRecordCounts(existingData));
+      if (existingTotal > 0 && outboundTotal === 0) {
+        const error = new Error('EMPTY_OVERWRITE_BLOCKED');
+        error.name = 'EmptyOverwriteBlockedError';
+        throw error;
+      }
+      if (!isIntentionalDelete && existingTotal > 0 && outboundTotal < existingTotal) {
+        const error = new Error('DESTRUCTIVE_OVERWRITE_BLOCKED');
+        error.name = 'DestructiveOverwriteBlockedError';
+        throw error;
+      }
+      if (options?.baseRevision !== undefined && currentRevision > options.baseRevision) {
+        const error = new Error('REMOTE_REVISION_CONFLICT');
+        error.name = 'RemoteRevisionConflictError';
+        throw error;
+      }
+      if (current.clientOperationId === clientOperationId) {
+        return { ...current, data: existingData } as AppDataEnvelope;
+      }
+      const next: AppDataEnvelope = {
+        data: safeData,
+        revision: currentRevision + 1,
+        updatedAt: serverTimestamp(),
+        clientOperationId,
+        sourceDeviceId,
+      };
+      transaction.set(d, next);
+      return next;
+    });
+    return envelope;
   } catch (err: any) {
-    console.error(`[Firestore] WRITE FAILED | Path: billease/appData | Error: ${err.message}`);
+    throw err;
+  }
+}
+
+export async function getAppDataEnvelope(): Promise<AppDataEnvelope | null> {
+  if (!firebaseEnabled()) return null;
+  try {
+    const d = doc(db as any, 'billease', 'appData');
+    const snap = await getDoc(d);
+    if (!snap.exists()) return null;
+    const payload = snap.data();
+    return {
+      data: payload?.data ?? null,
+      revision: Number(payload?.revision || 0),
+      updatedAt: payload?.updatedAt || null,
+      clientOperationId: String(payload?.clientOperationId || ''),
+      sourceDeviceId: String(payload?.sourceDeviceId || ''),
+    };
+  } catch (err: any) {
     throw err;
   }
 }
 
 export async function getAppDataBackup(): Promise<any | null> {
-  if (!firebaseEnabled()) return null;
-  console.log('[Firestore] Operation: READ | Collection: billease | Path: billease/appData');
-  try {
-    const d = doc(db as any, 'billease', 'appData');
-    const snap = await getDoc(d);
-    if (!snap.exists()) {
-      console.log('[Firestore] READ SUCCESS | Path: billease/appData (Document does not exist)');
-      return null;
-    }
-    console.log('[Firestore] READ SUCCESS | Path: billease/appData');
-    const payload = snap.data();
-    return payload?.data ?? null;
-  } catch (err: any) {
-    console.error(`[Firestore] READ FAILED | Path: billease/appData | Error: ${err.message}`);
-    throw err;
-  }
+  return (await getAppDataEnvelope())?.data ?? null;
 }
-
 export async function deleteAppDataBackup() {
   if (!firebaseEnabled()) throw new Error('Firebase not enabled');
   const d = doc(db as any, 'billease', 'appData');
@@ -303,42 +306,60 @@ export function useFirestoreSync(
     onSuccess?: () => void;
     onError?: (error: Error) => void;
     getOperation?: () => WriteOperation;
+    getBaseRevision?: () => number;
+    getClientOperationId?: () => string;
+    getSourceDeviceId?: () => string;
+    onPersisted?: (envelope: AppDataEnvelope, hash: string) => void;
   },
 ) {
+  const lastPersistedHash = useState(() => ({ current: '' }))[0];
+  const writeQueue = useState(() => ({ current: Promise.resolve() as Promise<void> }))[0];
   useEffect(() => {
     if (!enabled || !firebaseEnabled()) return;
 
-    // Debounce sync to avoid excessive writes
-    const timeout = setTimeout(async () => {
+    const timeout = setTimeout(() => {
+      const hash = contentHash(state);
+      if (hash === lastPersistedHash.current) {
+        callbacks?.onSuccess?.();
+        return;
+      }
       // SAFETY GUARD: Prevent empty overwrites of non-empty cloud data
       const outboundTotal = getRecordTotal(recordCounts || getRecordCounts(state));
       if (outboundTotal === 0) {
+        callbacks?.onError?.(Object.assign(new Error('EMPTY_AUTOSYNC_BLOCKED'), { name: 'EmptyOverwriteBlockedError' }));
+        return;
+      }
+      const operation = callbacks?.getOperation?.() || 'update';
+      const clientOperationId = callbacks?.getClientOperationId?.() || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `op_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+      writeQueue.current = writeQueue.current.then(async () => {
         try {
-          const existingData = await getAppDataBackup();
-          if (existingData) {
-            const existingTotal = getRecordTotal(getRecordCounts(existingData));
-            if (existingTotal > 0) {
-              console.warn('[Firebase] SAFETY GUARD: Blocked empty overwrite — cloud has existing data. Skipping auto-sync.');
-              return;
+          let envelope: AppDataEnvelope | undefined;
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+              envelope = await setAppDataBackup(state, {
+                operation,
+                baseRevision: callbacks?.getBaseRevision?.(),
+                clientOperationId,
+                sourceDeviceId: callbacks?.getSourceDeviceId?.(),
+              });
+              break;
+            } catch (error) {
+              const code = String((error as { code?: string }).code || '');
+              const retryable = /unavailable|deadline-exceeded|aborted|resource-exhausted/.test(code);
+              if (!retryable || attempt === 2) throw error;
+              const backoff = 250 * (2 ** attempt) + Math.floor(Math.random() * 150);
+              await new Promise((resolve) => window.setTimeout(resolve, backoff));
             }
           }
-        } catch {
-          // If we can't read cloud, allow the write (fresh start)
+          if (!envelope) throw new Error('SYNC_RETRY_EXHAUSTED');
+          lastPersistedHash.current = hash;
+          callbacks?.onPersisted?.(envelope, hash);
+          callbacks?.onSuccess?.();
+        } catch (error) {
+          callbacks?.onError?.(error as Error);
         }
-      }
-
-      try {
-        await setAppDataBackup(state, { operation: callbacks?.getOperation?.() || 'update' });
-        callbacks?.onSuccess?.();
-      } catch (err) {
-        const errMsg = (err as Error).message;
-        // Suppress blocked-by-client errors (browser extension) as they're non-critical
-        if (!errMsg.includes('ERR_BLOCKED_BY_CLIENT') && !errMsg.includes('blocked')) {
-          console.warn('[Firebase] Auto-sync failed (non-critical):', errMsg);
-        }
-        callbacks?.onError?.(err as Error);
-      }
-    }, 2000); // 2 second debounce
+      });
+    }, 1000);
 
     return () => clearTimeout(timeout);
   }, [state, enabled, recordCounts?.customers, recordCounts?.products, recordCounts?.invoices, recordCounts?.deliveryNotes]);

@@ -66,6 +66,8 @@ export async function parseDocumentMultipart(request: any) {
     }
     throw new HttpError(400, 'INVALID_MULTIPART', 'Invalid document request');
   } finally {
-    if (temporaryPath) await unlink(temporaryPath).catch(() => undefined);
+    if (temporaryPath) await unlink(temporaryPath).catch(() => {
+      // Temporary-file cleanup failure must not replace the original parsing error.
+    });
   }
 }

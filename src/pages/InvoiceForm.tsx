@@ -14,6 +14,7 @@ import { CUSTOMER_FIELD_OPTIONS, DEFAULT_CUSTOMER_FIELD_VISIBILITY, withDefaultC
 import { ESTIMATE_COPY_TYPES, getEstimateDocumentName, getEstimateNumberLabel, normalizeEstimateCopyType } from '../lib/estimateUtils';
 import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { deleteLocalDraft, loadLocalDraft } from '../services/localDataStore';
 
 function Label({ english, tamil, helper }: { english: string; tamil: string; helper?: string }) {
   const { language } = useLanguage();
@@ -54,6 +55,7 @@ export default function InvoiceForm() {
   const invoiceType: Invoice['type'] = isEstimate ? 'estimate' : 'invoice';
 
   const createInitialDraft = (): Partial<Invoice> => ({
+    id: generateId(),
     invoiceNumber: getNextInvoiceNumber(state.invoices, state.settings.invoicePrefix, invoiceType),
     customerId: '',
     date: new Date().toISOString().split('T')[0],
@@ -96,6 +98,7 @@ export default function InvoiceForm() {
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(true);
   const [customerDraft, setCustomerDraft] = useState({ name: '', phone: '', email: '', address: '', gstNumber: '', stateCode: '' });
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const selectedCustomer = useMemo(
     () => state.customers.find((customer) => customer.id === draft.customerId),
@@ -105,7 +108,8 @@ export default function InvoiceForm() {
   const calculated = useMemo(() => calculateInvoiceFromDraft(draft, state.profile, selectedCustomer), [draft, state.profile, selectedCustomer]);
   const viewDraft = { ...draft, ...calculated } as Partial<Invoice>;
 
-  useAutosaveDraft(viewDraft, state.settings.enableAutosave && state.settings.enableDrafts && !isEditing);
+  const draftKey = `${invoiceType}:${isEditing ? id : 'new'}`;
+  const { flushDraft, draftSaveStatus, hasUnsavedDraft } = useAutosaveDraft(viewDraft, state.settings.enableAutosave && state.settings.enableDrafts, draftKey, isEstimate ? 'quotation' : 'invoice');
 
   useEffect(() => {
     if (isEditing) {
@@ -117,24 +121,36 @@ export default function InvoiceForm() {
       return;
     }
 
-    const saved = loadDraft();
-    if (saved && saved.type === invoiceType) {
-      setDraft({ ...createInitialDraft(), ...saved, type: invoiceType });
-      setCustomerSearch(state.customers.find((customer) => customer.id === saved.customerId)?.name || '');
-    } else {
-      const customer = state.customers.find((entry) => entry.id === preselectedCustomerId);
-      setDraft({ ...createInitialDraft(), customerId: customer?.id || '' });
-      setCustomerSearch(customer?.name || '');
-    }
+    let active = true;
+    const restore = async () => {
+      let saved = loadDraft();
+      try {
+        const durable = await loadLocalDraft<Partial<Invoice>>(draftKey);
+        if (durable?.value.type === invoiceType) saved = durable.value;
+      } catch {
+        showToast('Local draft recovery is unavailable. Keep this tab open while editing.', 'error');
+      }
+      if (!active) return;
+      if (saved && saved.type === invoiceType) {
+        setDraft({ ...createInitialDraft(), ...saved, id: saved.id || generateId(), type: invoiceType });
+        setCustomerSearch(state.customers.find((customer) => customer.id === saved.customerId)?.name || saved.customerSnapshot?.name || '');
+      } else {
+        const customer = state.customers.find((entry) => entry.id === preselectedCustomerId);
+        setDraft({ ...createInitialDraft(), customerId: customer?.id || '' });
+        setCustomerSearch(customer?.name || '');
+      }
+    };
+    void restore();
+    return () => { active = false; };
   }, [id, isEditing, invoiceType, preselectedCustomerId]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (draft.customerId || (draft.items || []).some((item) => item.name.trim())) event.preventDefault();
+      if (hasUnsavedDraft) event.preventDefault();
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [draft.customerId, draft.items]);
+  }, [hasUnsavedDraft]);
 
   useEffect(() => {
     if (selectedCustomer) {
@@ -187,7 +203,8 @@ export default function InvoiceForm() {
   const addItem = () => updateDraft({ items: [...(draft.items || []), blankItem()] });
   const removeItem = (itemId: string) => updateDraft({ items: (draft.items || []).filter((item) => item.id !== itemId) });
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (isSaving) return;
     if (!draft.customerId) {
       showToast(language === 'en' ? 'Select a customer first.' : 'முதலில் வாடிக்கையாளரைத் தேர்வு செய்யவும்.', 'error');
       return;
@@ -199,8 +216,9 @@ export default function InvoiceForm() {
       return;
     }
 
-    const payload: Omit<Invoice, 'id' | 'createdAt'> = {
-      ...(viewDraft as Omit<Invoice, 'id' | 'createdAt'>),
+    const payload: Omit<Invoice, 'createdAt'> = {
+      ...(viewDraft as Omit<Invoice, 'createdAt'>),
+      id: draft.id || generateId(),
       invoiceNumber: draft.invoiceNumber || buildDefaultInvoiceNumber(state.settings.invoicePrefix, state.settings.invoiceStartingNumber, invoiceType),
       customerId: draft.customerId,
       date: draft.date || new Date().toISOString().split('T')[0],
@@ -238,14 +256,28 @@ export default function InvoiceForm() {
       qrCodeData: draft.qrCodeData || '',
     };
 
-    if (isEditing && draft.id) {
-      updateInvoice(draft.id, payload);
-      addAuditLog({ entityType: 'invoice', entityId: draft.id, action: 'updated', message: `Updated invoice ${payload.invoiceNumber}` });
-    } else {
-      addInvoice(payload);
+    setIsSaving(true);
+    const draftSafe = await flushDraft();
+    if (!draftSafe) {
+      showToast('Something went wrong while saving. Your work is still open as a draft.', 'error');
+      setIsSaving(false);
+      return;
     }
-
-    clearDraft();
+    const result = isEditing && draft.id
+      ? await updateInvoice(draft.id, payload)
+      : await addInvoice(payload);
+    if (!result.ok) {
+      showToast(result.errors?.[0]?.message || 'Something went wrong while saving. Your work has been kept as a draft.', 'error');
+      setIsSaving(false);
+      return;
+    }
+    if (isEditing && draft.id) void addAuditLog({ entityType: 'invoice', entityId: draft.id, action: 'updated', message: 'Invoice updated' });
+    try {
+      await deleteLocalDraft(draftKey);
+      clearDraft();
+    } catch {
+      showToast('The document is saved, but its old draft could not be removed.', 'info');
+    }
     showToast(isEstimate ? 'Quotation saved' : 'Invoice saved', 'success');
     navigate(isEstimate ? '/estimates' : '/invoices');
   };
@@ -266,7 +298,7 @@ export default function InvoiceForm() {
             <h1 className="text-2xl font-black text-stone-800">{isEditing ? t('edit') : isEstimate ? (language === 'en' ? `Create ${getEstimateDocumentName(state.settings, language)}` : `புதிய ${getEstimateDocumentName(state.settings, language)}`) : t('createInvoice')}</h1>
             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">{invoiceType}</span>
           </div>
-          <p className="mt-1 text-sm text-stone-500">{language === 'en' ? 'Mobile-first GST invoice wizard with draft autosave' : 'Draft autosave உடன் mobile-first GST wizard'}</p>
+          <p className="mt-1 text-sm text-stone-500">{draftSaveStatus === 'saving' ? 'Saving draft…' : draftSaveStatus === 'saved-locally' ? 'Saved locally' : draftSaveStatus === 'failed' ? 'Action required — draft save failed' : language === 'en' ? 'Draft autosave is enabled' : 'Draft autosave இயக்கப்பட்டுள்ளது'}</p>
         </div>
       </div>
       <div className="grid grid-cols-1 items-start gap-6 min-[1180px]:grid-cols-[minmax(0,1fr)_280px]">
@@ -528,7 +560,7 @@ export default function InvoiceForm() {
           <div className="flex flex-wrap items-center justify-end gap-2">
             <button type="button" onClick={() => showToast(language === 'ta' ? 'வரைவு சாதனத்தில் சேமிக்கப்பட்டது' : 'Draft saved locally', 'success')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold text-stone-700 shadow-sm">{language === 'ta' ? 'வரைவைச் சேமி' : 'Save Draft'}</button>
             <button type="button" onClick={() => isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info')} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800"><Eye size={18} /> {language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
-            <button type="button" onClick={handleSave} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-sm"><Save size={18} />{language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}</button>
+            <button type="button" disabled={isSaving} onClick={handleSave} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-sm disabled:opacity-60"><Save size={18} />{isSaving ? 'Saving…' : language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}</button>
           </div>
         </div>
       </div>
@@ -540,7 +572,7 @@ export default function InvoiceForm() {
         </div>
         <div className="grid grid-cols-3 gap-2">
           <button type="button" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="min-h-12 rounded-xl border border-stone-200 font-semibold text-stone-700">{t('back')}</button>
-          <button type="button" onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 font-semibold text-white">{t('save')}</button>
+          <button type="button" disabled={isSaving} onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 font-semibold text-white disabled:opacity-60">{isSaving ? 'Saving…' : t('save')}</button>
           <button type="button" onClick={() => { isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info'); }} className="min-h-12 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">{language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
         </div>
       </div>
@@ -552,19 +584,19 @@ export default function InvoiceForm() {
             <input value={customerDraft.name} onChange={(event) => setCustomerDraft((current) => ({ ...current, name: event.target.value }))} placeholder={t('customerName')} title={t('customerName')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
           <div>
-            <Label english={t('phone')} tamil="போன் எண்" />
+            <Label english="Phone (Optional)" tamil="போன் எண் (விருப்பம்)" />
             <input value={customerDraft.phone} onChange={(event) => setCustomerDraft((current) => ({ ...current, phone: event.target.value }))} placeholder={t('phone')} title={t('phone')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
           <div>
-            <Label english={t('email')} tamil="Email" />
+            <Label english="Email (Optional)" tamil="Email (விருப்பம்)" />
             <input value={customerDraft.email} onChange={(event) => setCustomerDraft((current) => ({ ...current, email: event.target.value }))} placeholder={t('email')} title={t('email')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
           <div>
-            <Label english={t('address')} tamil="Address" />
+            <Label english="Address (Optional)" tamil="முகவரி (விருப்பம்)" />
             <textarea value={customerDraft.address} onChange={(event) => setCustomerDraft((current) => ({ ...current, address: event.target.value }))} rows={2} placeholder={t('address')} title={t('address')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
           <div>
-            <Label english={t('gstNumber')} tamil="GST எண்" />
+            <Label english="GST Number (Optional)" tamil="GST எண் (விருப்பம்)" />
             <input value={customerDraft.gstNumber} onChange={(event) => setCustomerDraft((current) => ({ ...current, gstNumber: event.target.value.toUpperCase() }))} placeholder={t('gstNumber')} title={t('gstNumber')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 uppercase outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
           <div>
@@ -577,14 +609,17 @@ export default function InvoiceForm() {
           </div>
         </div>
       </Modal>
-      <ConfirmDialog open={Boolean(leaveTarget)} title="Leave this document?" message="Your latest form changes may only be saved as a local draft. Continue?" confirmLabel="Leave" onCancel={() => setLeaveTarget(null)} onConfirm={() => { const target = leaveTarget; setLeaveTarget(null); if (target) navigate(target); }} />
+      <ConfirmDialog open={Boolean(leaveTarget)} title="Leave this document?" message={hasUnsavedDraft ? 'BillEase will save a durable local draft before leaving.' : 'Your latest changes are saved locally.'} confirmLabel="Leave" onCancel={() => setLeaveTarget(null)} onConfirm={async () => { const target = leaveTarget; if (!(await flushDraft())) { showToast('Could not save a recovery draft. Continue editing and try again.', 'error'); return; } setLeaveTarget(null); if (target) navigate(target); }} />
     </div>
   );
 
-  function handleCreateCustomer() {
-    if (!customerDraft.name.trim()) return;
+  async function handleCreateCustomer() {
+    if (!customerDraft.name.trim()) {
+      showToast('Customer name is required.', 'error');
+      return;
+    }
     const stateCode = customerDraft.stateCode || state.profile.stateCode || getStateCodeFromGSTIN(state.profile.gst);
-    addCustomer({
+    const result = await addCustomer({
       name: customerDraft.name.trim(),
       phone: customerDraft.phone.trim(),
       email: customerDraft.email.trim(),
@@ -594,6 +629,10 @@ export default function InvoiceForm() {
       whatsapp: customerDraft.phone.trim(),
       notes: '',
     });
+    if (!result.ok) {
+      showToast(result.errors?.[0]?.message || 'Something went wrong while saving the customer.', 'error');
+      return;
+    }
     setCustomerDraft({ name: '', phone: '', email: '', address: '', gstNumber: '', stateCode: '' });
     setIsCustomerModalOpen(false);
   }

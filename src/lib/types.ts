@@ -33,6 +33,17 @@ export interface Customer {
   whatsapp?: string;
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
+  deletedAt?: string;
+}
+
+export interface CustomerSnapshot {
+  id: string;
+  name: string;
+  gstNumber: string;
+  address: string;
+  phone: string;
+  email: string;
 }
 
 export interface Product {
@@ -73,6 +84,7 @@ export interface Invoice {
   id: string;
   invoiceNumber: string;
   customerId: string;
+  customerSnapshot?: CustomerSnapshot;
   date: string;
   dueDate?: string;
   poNumber?: string;
@@ -106,6 +118,7 @@ export interface Invoice {
   createdAt: string;
   updatedAt?: string;
   type: InvoiceType;
+  deletedAt?: string;
 }
 
 export interface Payment {
@@ -255,6 +268,7 @@ export interface DeliveryNote {
   consigneeId: string;
   buyerId?: string;
   customerId: string;
+  customerSnapshot?: CustomerSnapshot;
   items: DeliveryNoteItem[];
   subtotal: number;
   taxTotal: number;
@@ -269,6 +283,7 @@ export interface DeliveryNote {
   draft?: boolean;
   createdAt: string;
   updatedAt?: string;
+  deletedAt?: string;
 }
 
 export interface AppState {

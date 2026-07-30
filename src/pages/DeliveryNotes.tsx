@@ -124,7 +124,7 @@ export default function DeliveryNotes() {
           </table>
         </div>
       )}
-      <ConfirmDialog open={Boolean(pendingDeleteId)} title="Delete delivery note?" message="This removes the delivery note from your records. This action cannot be undone." onCancel={() => setPendingDeleteId(null)} onConfirm={() => { if (pendingDeleteId) { deleteDeliveryNote(pendingDeleteId); showToast('Delivery Note deleted', 'success'); } setPendingDeleteId(null); }} />
+      <ConfirmDialog open={Boolean(pendingDeleteId)} title="Delete delivery note?" message="This moves the delivery note out of active records and preserves a recovery copy." onCancel={() => setPendingDeleteId(null)} onConfirm={async () => { if (pendingDeleteId) { const result = await deleteDeliveryNote(pendingDeleteId); showToast(result.ok ? 'Delivery Note deleted' : 'The delivery note could not be deleted.', result.ok ? 'success' : 'error'); } setPendingDeleteId(null); }} />
     </div>
   );
 }

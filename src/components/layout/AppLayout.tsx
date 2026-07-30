@@ -11,15 +11,23 @@ function SyncStatusBadge({ status }: { status: string }) {
     loading: 'bg-stone-100 text-stone-600 border-stone-200',
     online: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     syncing: 'bg-blue-50 text-blue-700 border-blue-200',
+    saving: 'bg-blue-50 text-blue-700 border-blue-200',
+    unsaved: 'bg-amber-50 text-amber-700 border-amber-200',
+    local: 'bg-violet-50 text-violet-700 border-violet-200',
     offline: 'bg-amber-50 text-amber-700 border-amber-200',
     failed: 'bg-rose-50 text-rose-700 border-rose-200',
+    'action-required': 'bg-rose-50 text-rose-800 border-rose-300',
   };
   const labels: Record<string, string> = {
     loading: 'Loading cloud data...',
     online: 'Saved',
     syncing: 'Saving...',
+    saving: 'Saving…',
+    unsaved: 'Unsaved changes',
+    local: 'Saved locally',
     offline: 'Offline',
     failed: 'Cloud sync failed',
+    'action-required': 'Action required',
   };
   return (
     <div className={`px-4 py-1 text-[10px] font-medium text-center border-b ${colors[status] || colors.offline}`}>
@@ -29,7 +37,7 @@ function SyncStatusBadge({ status }: { status: string }) {
 }
 
 export default function AppLayout() {
-  const { firebaseStatus, syncStatus, lastSavedAt } = useData();
+  const { firebaseStatus, syncStatus, lastSavedAt, syncNotice, retrySync } = useData();
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const openMobileDrawer = useCallback(() => setMobileDrawerOpen(true), []);
   const closeMobileDrawer = useCallback(() => setMobileDrawerOpen(false), []);
@@ -40,6 +48,12 @@ export default function AppLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Navbar />
         <SyncStatusBadge status={syncStatus} />
+        {syncNotice && (
+          <div role="alert" className="flex flex-wrap items-center justify-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-900">
+            <span>{syncNotice}</span>
+            {(syncStatus === 'failed' || syncStatus === 'action-required' || syncStatus === 'offline') && <button type="button" onClick={retrySync} className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-bold">Retry</button>}
+          </div>
+        )}
         {lastSavedAt && (
           <div className="border-b border-stone-200 bg-white/80 px-4 py-1 text-[11px] text-stone-500 md:px-8">
             Last saved: {new Date(lastSavedAt).toLocaleString()}

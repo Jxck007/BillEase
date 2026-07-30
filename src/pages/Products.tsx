@@ -136,7 +136,7 @@ export default function Products() {
           </div>
         </form>
       </Modal>
-      <ConfirmDialog open={Boolean(pendingDelete)} title={text('Delete product?', 'பொருளை நீக்கவா?')} message={language === 'ta' ? `${pendingDelete?.name || 'இந்த பொருளை'} நீக்கவா? ஏற்கனவே உள்ள ஆவணங்கள் மாறாது.` : `Delete ${pendingDelete?.name || 'this product'}? Existing documents will not be changed.`} onCancel={() => setPendingDelete(null)} onConfirm={() => { if (pendingDelete) { deleteProduct(pendingDelete.id); showToast(text('Product deleted', 'பொருள் நீக்கப்பட்டது'), 'success'); } setPendingDelete(null); }} />
+      <ConfirmDialog open={Boolean(pendingDelete)} title={text('Delete product?', 'பொருளை நீக்கவா?')} message={language === 'ta' ? `${pendingDelete?.name || 'இந்த பொருளை'} நீக்கவா? ஏற்கனவே உள்ள ஆவணங்கள் மாறாது.` : `Delete ${pendingDelete?.name || 'this product'}? Existing documents will not be changed.`} onCancel={() => setPendingDelete(null)} onConfirm={async () => { if (pendingDelete) { const result = await deleteProduct(pendingDelete.id); showToast(result.ok ? text('Product deleted', 'பொருள் நீக்கப்பட்டது') : text('The product could not be deleted.', 'பொருளை நீக்க முடியவில்லை.'), result.ok ? 'success' : 'error'); } setPendingDelete(null); }} />
     </div>
   );
 }

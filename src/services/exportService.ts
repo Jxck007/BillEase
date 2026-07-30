@@ -140,7 +140,9 @@ async function waitForExportAssets(clone: HTMLElement) {
   await Promise.all(images.map((img) => {
     if (img.complete && img.naturalWidth > 0) return Promise.resolve();
     if (typeof img.decode === 'function') {
-      return img.decode().catch(() => undefined);
+      return img.decode().catch(() => {
+        // The export continues and html2canvas will render the image fallback.
+      });
     }
     return new Promise<void>((resolve) => {
       img.addEventListener('load', () => resolve(), { once: true });

@@ -75,10 +75,17 @@ export default function Customers() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, state.customers]);
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (editingCustomer) updateCustomer(editingCustomer.id, formData);
-    else addCustomer(formData);
+    if (!formData.name.trim()) {
+      showToast(text('Customer name is required.', 'வாடிக்கையாளர் பெயர் தேவை.'), 'error');
+      return;
+    }
+    const result = editingCustomer ? await updateCustomer(editingCustomer.id, formData) : await addCustomer(formData);
+    if (!result.ok) {
+      showToast(result.errors?.[0]?.message || text('Something went wrong while saving the customer.', 'வாடிக்கையாளரைச் சேமிக்க முடியவில்லை.'), 'error');
+      return;
+    }
     setIsModalOpen(false);
     showToast(editingCustomer ? text('Customer updated', 'வாடிக்கையாளர் புதுப்பிக்கப்பட்டார்') : text('Customer saved', 'வாடிக்கையாளர் சேமிக்கப்பட்டார்'), 'success');
   };
@@ -155,8 +162,8 @@ export default function Customers() {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCustomer ? text('Edit customer', 'வாடிக்கையாளரைத் திருத்து') : t('addCustomer')} maxWidth="max-w-2xl">
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label={`${text('Customer or business name', 'வாடிக்கையாளர் அல்லது நிறுவனப் பெயர்')} *`}><input required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label={t('phone')}><input type="tel" value={formData.phone} onChange={(event) => setFormData({ ...formData, phone: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label={t('email')}><input type="email" value={formData.email} onChange={(event) => setFormData({ ...formData, email: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label="WhatsApp"><input type="tel" value={formData.whatsapp} onChange={(event) => setFormData({ ...formData, whatsapp: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label="GSTIN"><input value={formData.gstNumber} onChange={(event) => setFormData({ ...formData, gstNumber: event.target.value.toUpperCase() })} className="min-h-12 w-full rounded-xl border p-3 uppercase" /></Field></div>
-          <Field label={text('Billing address', 'பில்லிங் முகவரி')}><textarea value={formData.address} onChange={(event) => setFormData({ ...formData, address: event.target.value })} rows={2} className="w-full rounded-xl border p-3" /></Field>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label={text('Phone (Optional)', 'போன் (விருப்பம்)')}><input type="tel" value={formData.phone} onChange={(event) => setFormData({ ...formData, phone: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label={text('Email (Optional)', 'Email (விருப்பம்)')}><input type="email" value={formData.email} onChange={(event) => setFormData({ ...formData, email: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label="WhatsApp (Optional)"><input type="tel" value={formData.whatsapp} onChange={(event) => setFormData({ ...formData, whatsapp: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label="GST Number (Optional)"><input value={formData.gstNumber} onChange={(event) => setFormData({ ...formData, gstNumber: event.target.value.toUpperCase() })} className="min-h-12 w-full rounded-xl border p-3 uppercase" /></Field></div>
+          <Field label={text('Address (Optional)', 'முகவரி (விருப்பம்)')}><textarea value={formData.address} onChange={(event) => setFormData({ ...formData, address: event.target.value })} rows={2} className="w-full rounded-xl border p-3" /></Field>
           <PinLookupField value={formData.billingPin} enabled={availability.postal && state.settings.integrations.pinLookup} onChange={(billingPin) => setFormData({ ...formData, billingPin })} onApply={(result) => setFormData({ ...formData, address: `${result.locality}, ${result.district}, ${result.state}` })} />
           <Field label={text('Shipping address', 'அனுப்பும் முகவரி')}><textarea value={formData.shippingAddress} onChange={(event) => setFormData({ ...formData, shippingAddress: event.target.value })} rows={2} className="w-full rounded-xl border p-3" /></Field>
           <PinLookupField value={formData.shippingPin} enabled={availability.postal && state.settings.integrations.pinLookup} onChange={(shippingPin) => setFormData({ ...formData, shippingPin })} onApply={(result) => setFormData({ ...formData, shippingAddress: `${result.locality}, ${result.district}, ${result.state}` })} />
@@ -164,7 +171,7 @@ export default function Customers() {
           <div className="flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={() => setIsModalOpen(false)} className="min-h-12 rounded-xl border px-5 font-semibold">{t('cancel')}</button><button type="submit" className="min-h-12 rounded-xl bg-emerald-600 px-5 font-semibold text-white">{t('saveCustomer')}</button></div>
         </form>
       </Modal>
-      <ConfirmDialog open={Boolean(pendingDelete)} title={text('Delete customer?', 'வாடிக்கையாளரை நீக்கவா?')} message={language === 'ta' ? `${pendingDelete?.name || 'இந்த வாடிக்கையாளரை'} நீக்கவா? ஏற்கனவே உள்ள ஆவணங்கள் மாறாது.` : `Delete ${pendingDelete?.name || 'this customer'}? Existing documents will remain unchanged.`} onCancel={() => setPendingDelete(null)} onConfirm={() => { if (pendingDelete) { deleteCustomer(pendingDelete.id); showToast(text('Customer deleted', 'வாடிக்கையாளர் நீக்கப்பட்டார்'), 'success'); } setPendingDelete(null); }} />
+      <ConfirmDialog open={Boolean(pendingDelete)} title={text('Delete customer?', 'வாடிக்கையாளரை நீக்கவா?')} message={language === 'ta' ? `${pendingDelete?.name || 'இந்த வாடிக்கையாளரை'} நீக்கவா? ஏற்கனவே உள்ள ஆவணங்கள் மாறாது.` : `Delete ${pendingDelete?.name || 'this customer'}? Existing documents and a recovery copy remain unchanged.`} onCancel={() => setPendingDelete(null)} onConfirm={async () => { if (pendingDelete) { const result = await deleteCustomer(pendingDelete.id); showToast(result.ok ? text('Customer deleted', 'வாடிக்கையாளர் நீக்கப்பட்டார்') : text('The customer could not be deleted.', 'வாடிக்கையாளரை நீக்க முடியவில்லை.'), result.ok ? 'success' : 'error'); } setPendingDelete(null); }} />
     </div>
   );
 }

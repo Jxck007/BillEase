@@ -143,6 +143,14 @@ export function normalizeDeliveryNote(note: Partial<DeliveryNote> & Record<strin
     consigneeId: String(note.consigneeId || note.customerId || ''),
     buyerId: typeof note.buyerId === 'string' ? note.buyerId : undefined,
     customerId: String(note.customerId || note.consigneeId || ''),
+    customerSnapshot: note.customerSnapshot ? {
+      id: String(note.customerSnapshot.id || note.customerId || ''),
+      name: String(note.customerSnapshot.name || ''),
+      gstNumber: String(note.customerSnapshot.gstNumber || ''),
+      address: String(note.customerSnapshot.address || ''),
+      phone: String(note.customerSnapshot.phone || ''),
+      email: String(note.customerSnapshot.email || ''),
+    } : undefined,
     items,
     subtotal: Number(note.subtotal || 0),
     taxTotal: Number(note.taxTotal || 0),
@@ -156,5 +164,7 @@ export function normalizeDeliveryNote(note: Partial<DeliveryNote> & Record<strin
     remarks: typeof note.remarks === 'string' ? note.remarks : '',
     draft: Boolean(note.draft),
     createdAt: String(note.createdAt || new Date().toISOString()),
+    updatedAt: typeof note.updatedAt === 'string' ? note.updatedAt : undefined,
+    deletedAt: typeof note.deletedAt === 'string' ? note.deletedAt : undefined,
   };
 }

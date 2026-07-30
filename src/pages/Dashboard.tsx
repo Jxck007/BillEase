@@ -21,7 +21,10 @@ export default function Dashboard() {
     const invoices = state.invoices.filter((document) => document.type === 'invoice');
     const quotations = state.invoices.filter((document) => document.type === 'estimate');
     const monthlyInvoices = invoices.filter((document) => thisMonth(document.date || document.createdAt));
-    const customerName = (id: string) => state.customers.find((customer) => customer.id === id)?.name || (language === 'ta' ? 'தெரியாத வாடிக்கையாளர்' : 'Unknown customer');
+    const customerName = (id: string) => state.customers.find((customer) => customer.id === id)?.name
+      || state.invoices.find((document) => document.customerId === id)?.customerSnapshot?.name
+      || state.deliveryNotes.find((document) => document.customerId === id)?.customerSnapshot?.name
+      || (language === 'ta' ? 'தெரியாத வாடிக்கையாளர்' : 'Unknown customer');
     const recentDocuments = [
       ...state.invoices.map((document) => ({
         id: document.id,
@@ -61,8 +64,8 @@ export default function Dashboard() {
   ];
 
   const statusLabel = language === 'ta'
-    ? syncStatus === 'online' ? 'ஒத்திசைக்கப்பட்டது' : syncStatus === 'syncing' ? 'ஒத்திசைக்கப்படுகிறது' : syncStatus === 'failed' ? 'ஒத்திசைவு தோல்வி' : syncStatus === 'loading' ? 'ஏற்றப்படுகிறது' : 'இணையமின்றி'
-    : syncStatus === 'online' ? 'Synced' : syncStatus === 'syncing' ? 'Syncing' : syncStatus === 'failed' ? 'Sync failed' : syncStatus === 'loading' ? 'Loading' : 'Offline';
+    ? syncStatus === 'online' ? 'ஒத்திசைக்கப்பட்டது' : syncStatus === 'saving' ? 'ஒத்திசைக்கப்படுகிறது' : syncStatus === 'failed' ? 'ஒத்திசைவு தோல்வி' : syncStatus === 'loading' ? 'ஏற்றப்படுகிறது' : 'சாதனத்தில் சேமிக்கப்பட்டது'
+    : syncStatus === 'online' ? 'Synced' : syncStatus === 'saving' ? 'Syncing' : syncStatus === 'failed' ? 'Sync failed' : syncStatus === 'loading' ? 'Loading' : 'Saved locally';
 
   return (
     <div className="space-y-7">

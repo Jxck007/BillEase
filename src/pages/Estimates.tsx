@@ -23,7 +23,7 @@ export default function Estimates() {
   const navLabel = getEstimatesNavLabel(state.settings, language);
 
   const filteredEstimates = estimates.filter(i => {
-    const customer = state.customers.find(c => c.id === i.customerId);
+    const customer = state.customers.find(c => c.id === i.customerId) || i.customerSnapshot;
     return i.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
            (customer && customer.name.toLowerCase().includes(searchTerm.toLowerCase()));
   });
@@ -72,7 +72,7 @@ export default function Estimates() {
               </thead>
               <tbody className="divide-y divide-stone-100 text-stone-700">
                 {filteredEstimates.map(invoice => {
-                  const customer = state.customers.find(c => c.id === invoice.customerId);
+                  const customer = state.customers.find(c => c.id === invoice.customerId) || invoice.customerSnapshot;
                   return (
                     <tr key={invoice.id} className="hover:bg-emerald-50/50 cursor-pointer transition-colors" onClick={() => navigate(`/estimates/${invoice.id}`)}>
                       <td className="px-6 py-4 font-bold text-stone-800">#{invoice.invoiceNumber}</td>
@@ -106,7 +106,7 @@ export default function Estimates() {
           </div>
         )}
       </div>
-      <ConfirmDialog open={Boolean(pendingDeleteId)} title={`Delete ${documentName.toLowerCase()}?`} message="This removes the document from your records. This action cannot be undone." onCancel={() => setPendingDeleteId(null)} onConfirm={() => { if (pendingDeleteId) { deleteInvoice(pendingDeleteId); showToast(`${documentName} deleted`, 'success'); } setPendingDeleteId(null); }} />
+      <ConfirmDialog open={Boolean(pendingDeleteId)} title={`Delete ${documentName.toLowerCase()}?`} message="This moves the document out of active records and preserves a recovery copy." onCancel={() => setPendingDeleteId(null)} onConfirm={async () => { if (pendingDeleteId) { const result = await deleteInvoice(pendingDeleteId); showToast(result.ok ? `${documentName} deleted` : `The ${documentName.toLowerCase()} could not be deleted.`, result.ok ? 'success' : 'error'); } setPendingDeleteId(null); }} />
     </div>
   );
 }

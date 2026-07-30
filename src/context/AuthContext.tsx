@@ -20,16 +20,19 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
   clearError: () => {},
 });
+const localTestMode = import.meta.env.DEV && import.meta.env.VITE_LOCAL_TEST_MODE === 'true';
+const localTestUser = { uid: 'local-test-user' } as User;
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(localTestMode ? localTestUser : null);
+  const [isAdmin, setIsAdmin] = useState(localTestMode);
+  const [loading, setLoading] = useState(!localTestMode);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (localTestMode) return;
     if (!auth) {
       setLoading(false);
       return;
@@ -91,6 +94,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const handleLogout = async () => {
+    if (localTestMode) {
+      setUser(null);
+      setIsAdmin(false);
+      return;
+    }
     if (auth) {
       await signOut(auth);
     }

@@ -16,7 +16,9 @@ function reportIntegrationFailure(integration: string, category: string, token: 
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(report),
     keepalive: true,
-  }).catch(() => undefined);
+  }).catch(() => {
+    // Reporting is best-effort; the originating operation already returns a user-safe failure.
+  });
 }
 
 async function call<T>(url: string, token: string, init: RequestInit, retry = true, integration = 'unknown'): Promise<Result<T>> {
@@ -40,7 +42,9 @@ export const postalProvider: PostalLookupProvider = {
     const normalized = pin.replace(/\D/g, '');
     if (!/^\d{6}$/.test(normalized)) return { ok: false, message: 'Enter a six-digit PIN.' };
     const key = `billease.pin.${normalized}`;
-    try { const cached = localStorage.getItem(key); if (cached) return { ok: true, value: JSON.parse(cached) }; } catch {}
+    try { const cached = localStorage.getItem(key); if (cached) return { ok: true, value: JSON.parse(cached) }; } catch {
+      // A malformed optional lookup cache must not block the live lookup.
+    }
     const result = await call<PostalResult[]>('/api/postal/lookup', token, { method: 'POST', body: JSON.stringify({ pin: normalized }) }, true, 'pin-lookup');
     if (result.ok) {
       try { localStorage.setItem(key, JSON.stringify(result.value)); } catch { /* Cache is optional. */ }
