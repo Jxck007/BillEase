@@ -16,7 +16,7 @@ export default function PaymentReceiptTemplate({ payment, invoice, profile, cust
         <p className="whitespace-pre-wrap">{profile.address}</p>
         <p>{profile.phone} · {profile.email}</p>
       </header>
-      <main className="flex-1 pt-8">
+      <main className="pt-8">
         <div className="grid grid-cols-2 gap-4 rounded border border-black p-4">
           <div><span className="text-stone-600">{text('Receipt number', 'ரசீது எண்')}</span><strong className="mt-1 block">R-{payment.id}</strong></div>
           <div className="text-right"><span className="text-stone-600">{text('Payment date', 'கட்டண தேதி')}</span><strong className="mt-1 block">{format(new Date(payment.paidAt), 'dd MMM yyyy')}</strong></div>
@@ -34,6 +34,7 @@ export default function PaymentReceiptTemplate({ payment, invoice, profile, cust
         </dl>
       </main>
       <div className="document-final-section ml-auto w-[90mm]"><InvoiceAuthorizationAssets documentType="invoice" /></div>
+      <div className="flex-1" aria-hidden="true" />
       <ComputerGeneratedFooter />
     </div>
   );

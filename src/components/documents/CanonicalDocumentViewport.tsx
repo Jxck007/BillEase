@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
+import { FileText, Maximize2, Minimize2, ScanLine, ZoomIn, ZoomOut } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
 const MM_TO_PX = 96 / 25.4;
@@ -17,6 +17,7 @@ export default function CanonicalDocumentViewport({ children, documentRef }: Pro
   const viewportRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [fullScreen, setFullScreen] = useState(false);
+  const [viewMode, setViewMode] = useState<'content' | 'page'>('content');
   const [preview, setPreview] = useState({ scale: 1, height: 0, width: 0 });
 
   const updatePreview = useCallback(() => {
@@ -24,10 +25,12 @@ export default function CanonicalDocumentViewport({ children, documentRef }: Pro
     const documentRoot = documentRef.current;
     if (!viewport || !documentRoot) return;
     const footer = documentRoot.querySelector<HTMLElement>('.document-final-footer');
+    let contentHeight = documentRoot.scrollHeight;
     if (footer) {
       footer.style.marginTop = '0px';
       const pageHeight = documentRoot.clientWidth * (297 / 210);
       const bottomMargin = Number.parseFloat(window.getComputedStyle(documentRoot).paddingBottom) || 0;
+      contentHeight = footer.offsetTop;
       const contentBottom = footer.getBoundingClientRect().bottom - documentRoot.getBoundingClientRect().top;
       const pages = Math.max(1, Math.ceil((contentBottom + bottomMargin - 2) / pageHeight));
       const gap = Math.max(0, (pages * pageHeight) - bottomMargin - contentBottom);
@@ -41,10 +44,10 @@ export default function CanonicalDocumentViewport({ children, documentRef }: Pro
     const scale = Math.min(maximumScale, Math.max(0.25, fitScale * zoom));
     setPreview({
       scale,
-      height: Math.ceil(documentRoot.scrollHeight * scale),
+      height: Math.ceil((viewMode === 'content' && !fullScreen ? contentHeight : documentRoot.scrollHeight) * scale),
       width: Math.ceil(Math.max(viewport.clientWidth, documentWidth * scale)),
     });
-  }, [documentRef, fullScreen, zoom]);
+  }, [documentRef, fullScreen, viewMode, zoom]);
 
   useEffect(() => {
     updatePreview();
@@ -92,8 +95,9 @@ export default function CanonicalDocumentViewport({ children, documentRef }: Pro
         : 'canonical-preview-stage'}
     >
       <div className="canonical-preview-toolbar flex flex-wrap items-center gap-2 print:hidden">
-        <button type="button" onClick={() => setZoom(1)} className="preview-control">{text('Fit Width', 'அகலத்திற்குப் பொருத்து')}</button>
-        <button type="button" onClick={() => fullScreen ? closePreview() : setFullScreen(true)} className="preview-control">
+        <button type="button" onClick={() => { setZoom(1); setViewMode('content'); }} className={`preview-control ${viewMode === 'content' ? 'preview-control-active' : ''}`} aria-pressed={viewMode === 'content'}><ScanLine size={17} />{text('Fit Content', 'உள்ளடக்கத்தைப் பொருத்து')}</button>
+        <button type="button" onClick={() => { setZoom(1); setViewMode('page'); }} className={`preview-control ${viewMode === 'page' ? 'preview-control-active' : ''}`} aria-pressed={viewMode === 'page'}><FileText size={17} />{text('Full A4', 'முழு A4')}</button>
+        <button type="button" onClick={() => { if (fullScreen) closePreview(); else { setViewMode('page'); setFullScreen(true); } }} className="preview-control">
           {fullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
           {fullScreen ? text('Close Full Screen', 'முழுத்திரையை மூடு') : text('Full Screen', 'முழுத்திரை')}
         </button>

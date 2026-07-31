@@ -25,7 +25,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = 'ma
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6">
           <motion.div 
             initial={reduceMotion ? false : { opacity: 0 }}
             animate={reduceMotion ? { opacity: 1 } : { opacity: 1 }}
@@ -37,7 +37,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = 'ma
             initial={reduceMotion ? false : { opacity: 0, scale: 0.95, y: 10 }}
             animate={reduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
             exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: 10 }}
-            className={`bg-white rounded-2xl shadow-xl w-full ${maxWidth} flex flex-col relative z-50 max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)] overflow-hidden`}
+            className={`bg-white rounded-2xl shadow-xl w-full ${maxWidth} flex flex-col relative z-[81] max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)] overflow-hidden`}
           >
             <div className="flex items-center justify-between p-4 border-b">
               <h2 className="text-xl font-bold text-stone-800">{title}</h2>

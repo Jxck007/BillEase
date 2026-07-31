@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Noto Sans Tamil", "Latha", "Vijaya", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 @layer components {
@@ -47,6 +47,56 @@
     font-weight: 600;
     color: var(--color-stone-700);
   }
+  .preview-control-active {
+    border-color: var(--color-emerald-300);
+    background: var(--color-emerald-50);
+    color: var(--color-emerald-800);
+  }
+  .primary-action-button {
+    display: inline-flex;
+    min-height: 50px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.75rem;
+    background: var(--color-emerald-600);
+    padding: 0.65rem 1rem;
+    font-weight: 700;
+    color: white;
+    white-space: nowrap;
+  }
+  .primary-action-button:hover { background: var(--color-emerald-700); }
+  .secondary-action-button {
+    display: inline-flex;
+    min-height: 46px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px solid var(--color-stone-200);
+    border-radius: 0.75rem;
+    background: white;
+    padding: 0.55rem 0.9rem;
+    font-weight: 650;
+    color: var(--color-stone-700);
+    white-space: nowrap;
+  }
+  .secondary-action-button:hover { background: var(--color-stone-50); }
+  .report-filter-field { display: block; min-width: 0; }
+  .report-filter-field > span { display: block; margin-bottom: 0.35rem; font-size: 0.75rem; font-weight: 700; color: var(--color-stone-600); }
+  .report-filter-field > select {
+    width: 100%; min-height: 46px; border: 1px solid var(--color-stone-200); border-radius: 0.75rem;
+    background: white; padding: 0.55rem 2rem 0.55rem 0.75rem; color: var(--color-stone-800); outline: none;
+  }
+  .report-filter-field > select:focus, .report-date-input:focus-within { border-color: var(--color-emerald-500); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-emerald-500) 20%, transparent); }
+  .report-filter-field > small { display: block; margin-top: 0.3rem; font-size: 0.7rem; color: var(--color-stone-500); }
+  .report-date-input { display: flex; min-height: 46px; align-items: center; gap: 0.5rem; border: 1px solid var(--color-stone-200); border-radius: 0.75rem; padding: 0 0.7rem; color: var(--color-stone-500); }
+  .report-date-input input { min-width: 0; flex: 1; color: var(--color-stone-800); outline: none; }
+  .report-date-input button { display: inline-flex; min-height: 44px; min-width: 44px; align-items: center; justify-content: center; }
+  .report-primary-action, .report-secondary-action { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; border-radius: 0.75rem; padding: 0.55rem 1rem; font-size: 0.875rem; font-weight: 700; white-space: nowrap; }
+  .report-primary-action { background: var(--color-emerald-600); color: white; }
+  .report-primary-action:hover { background: var(--color-emerald-700); }
+  .report-secondary-action { border: 1px solid var(--color-stone-200); background: white; color: var(--color-stone-700); }
+  .report-filter-chip { display: inline-flex; min-height: 36px; align-items: center; gap: 0.4rem; border-radius: 999px; background: var(--color-emerald-50); padding: 0.35rem 0.7rem; font-size: 0.75rem; font-weight: 700; color: var(--color-emerald-800); }
   .form-section {
     border: 1px solid var(--color-stone-200);
     border-radius: 0.9rem;
@@ -81,7 +131,7 @@
   #root { min-height: 100dvh; }
   html { overflow-x: hidden; }
   html[lang='ta'] body {
-  font-family: "Noto Sans Tamil", "Latha", "Vijaya", "Nirmala UI", system-ui, sans-serif;
+  font-family: "Noto Sans Tamil", "Latha", system-ui, sans-serif;
   }
 
   input[type='number'] {
@@ -210,7 +260,7 @@
       width: 100%;
       min-height: auto;
       margin: 0;
-      padding: 0 0 8mm;
+      padding: 0;
       box-shadow: none;
       background: white;
       box-sizing: border-box;
@@ -229,7 +279,7 @@
   /* print preview styling for the traditional invoice */
   .invoice-print-page {
     box-sizing: border-box;
-    padding-bottom: 8mm;
+    padding-bottom: 0;
   }
   .invoice-print-page .tv-container { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; width: 100%; max-width: 190mm; margin: 0 auto; padding: 0 1mm; box-sizing: border-box; }
   .invoice-print-page .tv-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
@@ -247,7 +297,7 @@
   .invoice-print-page .tv-td-right { text-align:right; }
   .invoice-print-page .tv-td-center { text-align:center; }
   .invoice-print-page .tv-total { font-weight:800; }
-  .invoice-print-page .tv-bottom { display:flex; justify-content:space-between; gap:16px; margin-top:14px; min-height: 120px; }
+  .invoice-print-page .tv-bottom { display:flex; justify-content:space-between; gap:16px; margin-top:14px; }
   .invoice-print-page .tv-right { margin-left: auto; width: 45%; text-align: right; }
   .invoice-print-page .tv-bank { width: 50%; }
   .invoice-print-page .bank-pre { white-space:pre-wrap; font-size:12px; }
@@ -259,7 +309,7 @@
   .invoice-print-page .paid-badge { position: absolute; right: 8px; top: -12px; border: 2px solid #047857; border-radius: 4px; padding: 2px 8px; color: #047857; font-weight: 900; letter-spacing: .12em; transform: rotate(-4deg); background: #fff; }
   .invoice-print-page .amount-words-label { margin-top: 12px; font-weight: 600; }
   .invoice-print-page .amount-words { margin-top: 8px; line-height: 1.5; }
-  .invoice-print-page .signature { margin-top:24px; text-align:right; }
+  .invoice-print-page .signature { margin-top:12px; text-align:right; }
   .invoice-print-page .authorization-for { font-weight: 600; }
   .invoice-print-page .authorization-assets {
     display: grid;
@@ -278,10 +328,10 @@
     align-items: center;
     justify-content: center;
   }
-  .invoice-print-page .company-seal-column { min-height: 30mm; }
+  .invoice-print-page .company-seal-column { min-height: 22mm; }
   .invoice-print-page .signature-column {
     width: 46mm;
-    min-height: 30mm;
+    min-height: 22mm;
     flex-direction: column;
     text-align: center;
   }
@@ -347,7 +397,7 @@
   .dn-export-page .company-seal-column,
   .dn-export-page .signature-column {
     display: flex;
-    min-height: 30mm;
+    min-height: 22mm;
     align-items: center;
     justify-content: center;
   }
@@ -486,6 +536,12 @@
   .mobile-navigation-drawer button,
   .mobile-navigation-drawer a {
     min-height: 48px;
+  }
+  .mobile-bottom-nav button > span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
