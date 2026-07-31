@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { Children, cloneElement, isValidElement, ReactElement, ReactNode, useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -86,13 +86,27 @@ function Field({ label, secondary, children, className = '' }: {
   children: ReactNode;
   className?: string;
 }) {
+  const labelId = useId();
+  const descriptionId = useId();
+  const connectLabels = (node: ReactNode): ReactNode => Children.map(node, (child) => {
+    if (!isValidElement(child)) return child;
+    const element = child as ReactElement<Record<string, unknown>>;
+    const props = element.props;
+    if (typeof element.type === 'string' && ['input', 'select', 'textarea'].includes(element.type)) {
+      const labelledBy = props['aria-label'] || props['aria-labelledby'] ? props['aria-labelledby'] : labelId;
+      const describedBy = [props['aria-describedby'], secondary ? descriptionId : undefined].filter(Boolean).join(' ') || undefined;
+      return cloneElement(element, { 'aria-labelledby': labelledBy, 'aria-describedby': describedBy });
+    }
+    return props.children ? cloneElement(element, undefined, connectLabels(props.children as ReactNode)) : child;
+  });
+
   return (
     <div className={className}>
-      <label className="mb-1.5 block text-sm font-semibold text-stone-800">
+      <div id={labelId} className="mb-1.5 block text-sm font-semibold text-stone-800">
         {label}
-        {secondary && <span className="ml-2 text-xs font-normal text-stone-500">{secondary}</span>}
-      </label>
-      {children}
+        {secondary && <span id={descriptionId} className="ml-2 text-xs font-normal text-stone-500">{secondary}</span>}
+      </div>
+      {connectLabels(children)}
     </div>
   );
 }

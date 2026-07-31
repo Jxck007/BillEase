@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   FilePlus2,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAccessibleOverlay } from '../../hooks/useAccessibleOverlay';
 
 type SheetName = 'records' | 'create' | null;
 
@@ -35,43 +37,20 @@ function ActionSheet({ title, links, onClose }: {
   links: typeof records;
   onClose: () => void;
 }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const sheetRef = useRef<HTMLElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    closeButtonRef.current?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-      if (event.key !== 'Tab') return;
-      const focusable = Array.from(sheetRef.current?.querySelectorAll<HTMLElement>('button, a[href]') || []);
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [onClose]);
+  useAccessibleOverlay({ open: true, containerRef: overlayRef, initialFocusRef: closeButtonRef, onClose });
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/35 p-3 pb-[calc(5.75rem+env(safe-area-inset-bottom))] lg:hidden" role="presentation" onMouseDown={(event) => {
+  return createPortal(
+    <div ref={overlayRef} className="fixed inset-0 z-[100] flex items-end justify-center bg-black/35 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] lg:hidden" role="presentation" onMouseDown={(event) => {
       if (event.currentTarget === event.target) onClose();
     }}>
-      <section ref={sheetRef} className="mobile-action-sheet w-full max-w-lg rounded-3xl border border-stone-200 bg-white p-4 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="mobile-action-sheet-title">
+      <section className="mobile-action-sheet max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-3xl border border-stone-200 bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-xl" role="dialog" aria-modal="true" aria-labelledby="mobile-action-sheet-title">
         <div className="mb-3 flex min-h-12 items-center justify-between gap-3">
           <h2 id="mobile-action-sheet-title" className="text-lg font-bold text-stone-900">{title}</h2>
-          <button ref={closeButtonRef} type="button" onClick={onClose} className="flex min-h-12 min-w-12 items-center justify-center rounded-xl bg-stone-100 text-stone-700" aria-label={`Close ${title}`}>
+          <button ref={closeButtonRef} type="button" onClick={onClose} className="flex min-h-12 min-w-12 items-center justify-center rounded-xl bg-stone-100 text-stone-700" aria-label={language === 'ta' ? `${title} பட்டியலை மூடு` : `Close ${title}`}>
             <X size={24} />
           </button>
         </div>
@@ -84,7 +63,8 @@ function ActionSheet({ title, links, onClose }: {
           ))}
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

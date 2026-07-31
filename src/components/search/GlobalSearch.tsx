@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { FileText, Package, Search, Truck, Users, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAccessibleOverlay } from '../../hooks/useAccessibleOverlay';
 
 interface SearchResult {
   id: string;
@@ -24,15 +26,21 @@ export default function GlobalSearch() {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const mobileDialogRef = useRef<HTMLDivElement>(null);
+  const closeSearch = useCallback(() => setOpen(false), []);
+  const mobileOpen = open && typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+
+  useAccessibleOverlay({
+    open: mobileOpen,
+    containerRef: mobileDialogRef,
+    initialFocusRef: inputRef,
+    onClose: closeSearch,
+  });
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedQuery(query.trim().toLowerCase()), 140);
     return () => window.clearTimeout(timeout);
   }, [query]);
-
-  useEffect(() => {
-    if (open) window.setTimeout(() => inputRef.current?.focus(), 0);
-  }, [open]);
 
   const allResults = useMemo<SearchResult[]>(() => [
     ...state.invoices.map((document) => {
@@ -116,7 +124,7 @@ export default function GlobalSearch() {
     }
   };
 
-  const searchInput = (
+  const renderSearchInput = () => (
     <div className="relative w-full">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={19} />
       <input
@@ -137,7 +145,7 @@ export default function GlobalSearch() {
   return (
     <>
       <div className="relative hidden w-full max-w-xl md:block">
-        {searchInput}
+        {renderSearchInput()}
         {open && query && (
           <SearchResults groups={groups} results={results} activeIndex={activeIndex} query={query} onChoose={choose} language={language} />
         )}
@@ -146,19 +154,21 @@ export default function GlobalSearch() {
         <Search size={20} />
         <span className="hidden min-[390px]:inline">{text('Search', 'தேடு')}</span>
       </button>
-      {open && (
-        <div className="fixed inset-0 z-[70] bg-white p-4 md:hidden" role="dialog" aria-modal="true" aria-label={text('Search records', 'பதிவுகளைத் தேடு')}>
+      {mobileOpen && createPortal(
+        <div ref={mobileDialogRef} className="fixed inset-0 z-[100] bg-white p-4 md:hidden" role="dialog" aria-modal="true" aria-labelledby="global-search-title" tabIndex={-1}>
           <div className="mx-auto flex h-full max-w-2xl flex-col">
+            <h2 id="global-search-title" className="sr-only">{text('Search records', 'பதிவுகளைத் தேடு')}</h2>
             <div className="flex items-center gap-2">
-              {searchInput}
-              <button type="button" onClick={() => setOpen(false)} className="flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-stone-200" aria-label={text('Close search', 'தேடலை மூடு')}><X size={22} /></button>
+              {renderSearchInput()}
+              <button type="button" onClick={closeSearch} className="flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-stone-200" aria-label={text('Close search', 'தேடலை மூடு')}><X size={22} /></button>
             </div>
             <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
               {query && <SearchResults groups={groups} results={results} activeIndex={activeIndex} query={query} onChoose={choose} language={language} inline />}
               {!query && <p className="py-12 text-center text-sm text-stone-500">{text('Type a number, customer, GSTIN, phone, product or HSN/SAC.', 'எண், வாடிக்கையாளர், GSTIN, தொலைபேசி, பொருள் அல்லது HSN/SAC-ஐ உள்ளிடவும்.')}</p>}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

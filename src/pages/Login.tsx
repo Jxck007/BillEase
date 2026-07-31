@@ -6,8 +6,11 @@ import { auth } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'motion/react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Login() {
+  const { language, setLanguage } = useLanguage();
+  const text = (english: string, tamil: string) => language === 'ta' ? tamil : english;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,7 +33,7 @@ export default function Login() {
     setLoading(true);
 
     if (!auth) {
-      setLocalError("Firebase Authentication is not initialized.");
+      setLocalError(text('Sign-in is temporarily unavailable. Check your internet connection and try again.', 'உள்நுழைவு தற்போது கிடைக்கவில்லை. இணைய இணைப்பைச் சரிபார்த்து மீண்டும் முயலவும்.'));
       setLoading(false);
       return;
     }
@@ -42,19 +45,26 @@ export default function Login() {
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-        setLocalError("Invalid email or password.");
+        setLocalError(text('The email or password is incorrect. Check both fields and try again.', 'மின்னஞ்சல் அல்லது கடவுச்சொல் தவறாக உள்ளது. இரண்டையும் சரிபார்த்து மீண்டும் முயலவும்.'));
       } else {
-        setLocalError("Failed to login. Please try again.");
+        setLocalError(text('Sign-in failed. Check your connection and try again.', 'உள்நுழைய முடியவில்லை. இணைய இணைப்பைச் சரிபார்த்து மீண்டும் முயலவும்.'));
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const error = localError || contextError;
+  const rawError = localError || contextError;
+  const error = rawError && /firebase|auth\//i.test(rawError)
+    ? text('Sign-in is temporarily unavailable. Check your internet connection and try again.', 'உள்நுழைவு தற்போது கிடைக்கவில்லை. இணைய இணைப்பைச் சரிபார்த்து மீண்டும் முயலவும்.')
+    : rawError;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-stone-900 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-stone-800 via-stone-900 to-black px-4 py-12 sm:px-6 lg:px-8">
+      <div className="absolute right-4 top-4 z-20 flex rounded-xl border border-white/20 bg-black/20 p-1" aria-label={text('Choose language', 'மொழியைத் தேர்ந்தெடுக்கவும்')}>
+        <button type="button" onClick={() => setLanguage('en')} className={`min-h-11 rounded-lg px-3 text-sm font-semibold ${language === 'en' ? 'bg-white text-stone-900' : 'text-white'}`} aria-pressed={language === 'en'}>English</button>
+        <button type="button" onClick={() => setLanguage('ta')} className={`min-h-11 rounded-lg px-3 text-sm font-semibold ${language === 'ta' ? 'bg-white text-stone-900' : 'text-white'}`} aria-pressed={language === 'ta'}>தமிழ்</button>
+      </div>
       
       {/* Decorative background elements */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -73,10 +83,10 @@ export default function Login() {
             <LogIn className="h-10 w-10 text-white" />
           </div>
           <h2 className="mt-8 text-center text-3xl font-black tracking-tight text-white">
-            Secure Access
+            {text('Secure access', 'பாதுகாப்பான உள்நுழைவு')}
           </h2>
           <p className="mt-2 text-center text-sm text-stone-400">
-            Login to continue to BillEase
+            {text('Sign in to continue to BillEase', 'BillEase-ஐத் தொடர உள்நுழையவும்')}
           </p>
         </div>
 
@@ -86,6 +96,8 @@ export default function Login() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               className="flex items-center gap-3 rounded-2xl bg-rose-500/10 p-4 text-rose-400 border border-rose-500/20"
+              role="alert"
+              aria-live="assertive"
             >
               <AlertCircle size={20} className="shrink-0" />
               <p className="text-sm font-medium">{error}</p>
@@ -94,7 +106,7 @@ export default function Login() {
 
           <div className="space-y-4 rounded-md shadow-sm">
             <div className="relative">
-              <label htmlFor="email-address" className="sr-only">Email address</label>
+              <label htmlFor="email-address" className="sr-only">{text('Email address', 'மின்னஞ்சல் முகவரி')}</label>
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
                 <Mail className="h-5 w-5 text-stone-400" />
               </div>
@@ -107,11 +119,11 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="block w-full rounded-2xl border border-white/10 bg-white/5 py-4 pl-12 pr-4 text-white placeholder-stone-400 backdrop-blur-sm transition-all focus:border-emerald-500 focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-emerald-500 sm:text-sm"
-                placeholder="Email address"
+                placeholder={text('Email address', 'மின்னஞ்சல் முகவரி')}
               />
             </div>
             <div className="relative">
-              <label htmlFor="password" className="sr-only">Password</label>
+              <label htmlFor="password" className="sr-only">{text('Password', 'கடவுச்சொல்')}</label>
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
                 <Lock className="h-5 w-5 text-stone-400" />
               </div>
@@ -124,13 +136,13 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="block w-full rounded-2xl border border-white/10 bg-white/5 py-4 pl-12 pr-12 text-white placeholder-stone-400 backdrop-blur-sm transition-all focus:border-emerald-500 focus:bg-white/10 focus:outline-none focus:ring-1 focus:ring-emerald-500 sm:text-sm"
-                placeholder="Password"
+                placeholder={text('Password', 'கடவுச்சொல்')}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute inset-y-0 right-0 flex items-center pr-4 text-stone-400 hover:text-white transition-colors focus:outline-none"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? text('Hide password', 'கடவுச்சொல்லை மறை') : text('Show password', 'கடவுச்சொல்லைக் காட்டு')}
               >
                 {showPassword ? (
                   <EyeOff className="h-5 w-5" />
@@ -150,7 +162,7 @@ export default function Login() {
               {loading ? (
                 <LoadingSpinner inline size={5} light />
               ) : (
-                'Login'
+                text('Sign in', 'உள்நுழை')
               )}
             </button>
           </div>

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { FileText, Maximize2, Minimize2, ScanLine, ZoomIn, ZoomOut } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAccessibleOverlay } from '../../hooks/useAccessibleOverlay';
 
 const MM_TO_PX = 96 / 25.4;
 
@@ -14,6 +16,7 @@ export default function CanonicalDocumentViewport({ children, documentRef }: Pro
   const { language } = useLanguage();
   const text = (english: string, tamil: string) => language === 'ta' ? tamil : english;
   const stageRef = useRef<HTMLDivElement>(null);
+  const closeFullScreenRef = useRef<HTMLButtonElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [fullScreen, setFullScreen] = useState(false);
@@ -62,29 +65,25 @@ export default function CanonicalDocumentViewport({ children, documentRef }: Pro
     else setFullScreen(false);
   }, []);
 
+  useAccessibleOverlay({
+    open: fullScreen,
+    containerRef: stageRef,
+    initialFocusRef: closeFullScreenRef,
+    onClose: closePreview,
+  });
+
   useEffect(() => {
     if (!fullScreen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     window.history.pushState({ ...window.history.state, billEaseDocumentPreview: true }, '');
 
     const closeFromHistory = () => setFullScreen(false);
-    const closeFromEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        closePreview();
-      }
-    };
     window.addEventListener('popstate', closeFromHistory);
-    document.addEventListener('keydown', closeFromEscape);
     return () => {
-      document.body.style.overflow = previousOverflow;
       window.removeEventListener('popstate', closeFromHistory);
-      document.removeEventListener('keydown', closeFromEscape);
     };
-  }, [closePreview, fullScreen]);
+  }, [fullScreen]);
 
-  return (
+  const previewStage = (
     <section
       ref={stageRef}
       role={fullScreen ? 'dialog' : undefined}
@@ -97,7 +96,7 @@ export default function CanonicalDocumentViewport({ children, documentRef }: Pro
       <div className="canonical-preview-toolbar flex flex-wrap items-center gap-2 print:hidden">
         <button type="button" onClick={() => { setZoom(1); setViewMode('content'); }} className={`preview-control ${viewMode === 'content' ? 'preview-control-active' : ''}`} aria-pressed={viewMode === 'content'}><ScanLine size={17} />{text('Fit Content', 'உள்ளடக்கத்தைப் பொருத்து')}</button>
         <button type="button" onClick={() => { setZoom(1); setViewMode('page'); }} className={`preview-control ${viewMode === 'page' ? 'preview-control-active' : ''}`} aria-pressed={viewMode === 'page'}><FileText size={17} />{text('Full A4', 'முழு A4')}</button>
-        <button type="button" onClick={() => { if (fullScreen) closePreview(); else { setViewMode('page'); setFullScreen(true); } }} className="preview-control">
+        <button ref={fullScreen ? closeFullScreenRef : undefined} type="button" onClick={() => { if (fullScreen) closePreview(); else { setViewMode('page'); setFullScreen(true); } }} className="preview-control">
           {fullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
           {fullScreen ? text('Close Full Screen', 'முழுத்திரையை மூடு') : text('Full Screen', 'முழுத்திரை')}
         </button>
@@ -121,4 +120,6 @@ export default function CanonicalDocumentViewport({ children, documentRef }: Pro
       </div>
     </section>
   );
+
+  return fullScreen ? createPortal(previewStage, document.body) : previewStage;
 }

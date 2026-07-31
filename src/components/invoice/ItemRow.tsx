@@ -144,7 +144,7 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">{text('Amount', 'தொகை')}</div>
             <div className="flex min-h-12 items-center justify-between rounded-xl bg-stone-50 px-3 py-2">
               <div className="text-sm font-bold text-stone-900">{formatCurrency(lineTotal)}</div>
-              <button type="button" onClick={onRemove} aria-label="Delete item" className="opacity-70 transition-all duration-200 hover:text-rose-600 md:opacity-100 p-2 -mr-2 text-stone-500 hover:bg-stone-100 rounded-lg flex items-center justify-center">
+              <button type="button" onClick={onRemove} aria-label={text(`Delete ${item.name || 'item'}`, `${item.name || 'பொருளை'} நீக்கு`)} className="-mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-lg text-stone-500 opacity-70 transition-all duration-200 hover:bg-stone-100 hover:text-rose-600 md:opacity-100">
                 <Trash2 size={16} />
               </button>
             </div>
@@ -241,14 +241,14 @@ const ItemRow = React.memo(function ItemRow({ item, productMatches, activeMatche
             <div className="min-w-0">
               <div className="text-sm font-bold text-stone-900">{formatCurrency(lineTotal)}</div>
             </div>
-            <button type="button" onClick={onRemove} aria-label="Delete item" className="opacity-100 md:opacity-0 transition-all duration-200 md:group-hover:opacity-100 hover:translate-x-0.5 hover:text-rose-600 md:opacity-70 p-2 -mr-2 text-stone-500 hover:bg-stone-100 rounded-lg shrink-0 flex items-center justify-center">
+            <button type="button" onClick={onRemove} aria-label={text(`Delete ${item.name || 'item'}`, `${item.name || 'பொருளை'} நீக்கு`)} className="-mr-2 flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-stone-500 opacity-100 transition-all duration-200 hover:bg-stone-100 hover:text-rose-600 md:opacity-70 md:group-hover:opacity-100">
               <Trash2 size={16} />
             </button>
           </div>
         </div>
 
         <div className="md:col-span-2 min-[1180px]:col-span-12">
-          <button type="button" onClick={() => setExpanded((value) => !value)} className="text-xs font-medium text-stone-500 hover:text-stone-700">
+          <button type="button" onClick={() => setExpanded((value) => !value)} className="inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-800" aria-expanded={expanded}>
             {expanded ? text('Hide details', 'விவரங்களை மறை') : text('Details', 'விவரங்கள்')}
           </button>
           <div className={`mt-2 space-y-3 ${expanded ? 'block' : 'hidden'}`}>

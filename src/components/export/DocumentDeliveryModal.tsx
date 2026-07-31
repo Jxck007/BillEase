@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertCircle, CheckCircle2, Loader2, Mail, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { sendDocumentByEmail } from '../../services/documentDeliveryService';
+import { useAccessibleOverlay } from '../../hooks/useAccessibleOverlay';
 
 type Props = {
   open: boolean;
@@ -42,6 +44,8 @@ export default function DocumentDeliveryModal(props: Props) {
   const [attachment, setAttachment] = useState<File | null>(null);
   const [preparingAttachment, setPreparingAttachment] = useState(false);
   const inFlight = useRef(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const idempotencyKey = useRef(createRequestId());
 
   useEffect(() => {
@@ -74,6 +78,13 @@ export default function DocumentDeliveryModal(props: Props) {
       });
     return () => { cancelled = true; };
   }, [props.getAttachmentFile, props.open, t]);
+
+  useAccessibleOverlay({
+    open: props.open,
+    containerRef: overlayRef,
+    initialFocusRef: closeButtonRef,
+    onClose: props.onClose,
+  });
 
   if (!props.open) return null;
   const validationError = !EMAIL_PATTERN.test(form.recipientEmail.trim())
@@ -131,16 +142,15 @@ export default function DocumentDeliveryModal(props: Props) {
     }
   };
 
-  return (
-    <>
-      <button type="button" className="fixed inset-0 z-[100] bg-black/35" onClick={props.onClose} aria-label={t('closeDeliveryComposer')} />
-      <div role="dialog" aria-modal="true" aria-labelledby="delivery-compose-title" className="fixed inset-x-3 top-1/2 z-[110] mx-auto max-h-[90dvh] max-w-xl -translate-y-1/2 overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+  return createPortal(
+    <div ref={overlayRef} className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 p-3" onMouseDown={(event) => { if (event.currentTarget === event.target) props.onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="delivery-compose-title" aria-describedby="delivery-compose-description" className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 id="delivery-compose-title" className="text-lg font-bold">{t('sendDocumentByEmail')}</h2>
-            <p className="text-xs text-stone-500">{t('reviewRecipientMessage')}</p>
+            <p id="delivery-compose-description" className="text-xs text-stone-500">{t('reviewRecipientMessage')}</p>
           </div>
-          <button type="button" onClick={props.onClose} className="min-h-12 min-w-12 rounded-xl hover:bg-stone-100" aria-label={t('closeDeliveryComposer')}><X className="mx-auto" /></button>
+          <button ref={closeButtonRef} type="button" onClick={props.onClose} className="min-h-12 min-w-12 rounded-xl hover:bg-stone-100" aria-label={t('closeDeliveryComposer')}><X className="mx-auto" /></button>
         </div>
 
         <div className="grid gap-3">
@@ -169,7 +179,8 @@ export default function DocumentDeliveryModal(props: Props) {
           </div>
         </div>
       </div>
-    </>
+    </div>,
+    document.body,
   );
 }
 

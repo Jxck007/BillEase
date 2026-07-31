@@ -120,24 +120,27 @@ export default function DeliveryNotes() {
                         <button
                           type="button"
                           onClick={() => navigate(`/delivery-notes/${note.id}`)}
-                          className="rounded-lg border border-stone-200 bg-white p-2 text-stone-600 hover:bg-stone-50"
+                          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 hover:bg-stone-50"
                           title={language === 'en' ? 'View' : 'பார்க்க'}
+                          aria-label={language === 'en' ? `View delivery note ${note.deliveryNoteNumber || note.dnNumber}` : `${note.deliveryNoteNumber || note.dnNumber} விநியோகக் குறிப்பைப் பார்க்க`}
                         >
                           <Eye size={16} />
                         </button>
                         <button
                           type="button"
                           onClick={() => navigate(`/delivery-notes/${note.id}/edit`)}
-                          className="rounded-lg border border-stone-200 bg-white p-2 text-stone-600 hover:bg-stone-50"
+                          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-600 hover:bg-stone-50"
                           title={language === 'en' ? 'Edit' : 'திருத்து'}
+                          aria-label={language === 'en' ? `Edit delivery note ${note.deliveryNoteNumber || note.dnNumber}` : `${note.deliveryNoteNumber || note.dnNumber} விநியோகக் குறிப்பைத் திருத்து`}
                         >
                           <Edit size={16} />
                         </button>
                         <button
                           type="button"
                           onClick={() => setPendingDeleteId(note.id)}
-                          className="rounded-lg border border-red-200 bg-white p-2 text-red-600 hover:bg-red-50"
+                          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"
                           title={language === 'en' ? 'Delete' : 'நீக்கு'}
+                          aria-label={language === 'en' ? `Delete delivery note ${note.deliveryNoteNumber || note.dnNumber}` : `${note.deliveryNoteNumber || note.dnNumber} விநியோகக் குறிப்பை நீக்கு`}
                         >
                           <Trash2 size={16} />
                         </button>

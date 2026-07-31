@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertCircle, CheckCircle, FileDown, Image, Info, Loader2, Mail, MessageCircle, Printer, Share2, X } from 'lucide-react';
 import type { RefObject } from 'react';
 import { useIntegrationAvailability } from '../../hooks/useIntegrationAvailability';
@@ -13,6 +14,7 @@ import {
 } from '../../services/documentShareService';
 import DocumentDeliveryModal from './DocumentDeliveryModal';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAccessibleOverlay } from '../../hooks/useAccessibleOverlay';
 
 export type DocumentType = 'invoice' | 'quotation' | 'delivery-note' | 'payment-receipt';
 interface ExportPanelProps {
@@ -57,6 +59,8 @@ export default function ExportPanel({
   widthMm = 190,
 }: ExportPanelProps) {
   const { language, t } = useLanguage();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [status, setStatus] = useState<{ type: 'idle' | 'generating' | 'success' | 'info' | 'failed'; text: string }>({ type: 'idle', text: '' });
   const [active, setActive] = useState<string | null>(null);
   const [emailComposerOpen, setEmailComposerOpen] = useState(false);
@@ -69,12 +73,12 @@ export default function ExportPanel({
   const validCustomerNumber = isValidWhatsAppNumber(customerNumber);
   const emailReady = emailEnabled && availabilityStatus === 'configured' && availability.email;
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previousOverflow; };
-  }, [isOpen]);
+  useAccessibleOverlay({
+    open: isOpen,
+    containerRef: panelRef,
+    initialFocusRef: closeButtonRef,
+    onClose,
+  });
 
   const setMessage = (type: typeof status.type, text: string, action: string | null = null) => {
     setStatus({ type, text });
@@ -211,11 +215,11 @@ export default function ExportPanel({
 
   return (
     <>
-      <button type="button" onClick={onClose} className="fixed inset-0 z-[70] bg-black/30" aria-label={language === 'ta' ? 'ஏற்றுமதி சாளரத்தை மூடு' : 'Close export panel'} />
-      <div role="dialog" aria-modal="true" aria-labelledby="export-share-title" className="fixed inset-x-0 bottom-0 z-[80] mx-auto max-h-[calc(100dvh-1rem)] max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-2xl lg:inset-0 lg:my-auto lg:h-fit lg:max-h-[calc(100dvh-3rem)] lg:rounded-3xl lg:pb-5">
+      {createPortal(<div ref={panelRef} className="fixed inset-0 z-[100] flex items-end justify-center bg-black/30 lg:items-center" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="export-share-title" className="max-h-[calc(100dvh-1rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-3xl bg-white p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-2xl lg:max-h-[calc(100dvh-3rem)] lg:rounded-3xl lg:pb-5">
         <div className="mb-5 flex items-center justify-between">
           <div><h3 id="export-share-title" className="text-lg font-bold text-stone-800">{t('exportShare')}</h3><p className="text-xs text-stone-500">{documentLabel} #{documentNumber}</p></div>
-          <button onClick={onClose} className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl text-stone-600 hover:bg-stone-100" aria-label={t('cancel')}><X /></button>
+          <button ref={closeButtonRef} onClick={onClose} className="inline-flex min-h-[48px] min-w-[48px] items-center justify-center rounded-xl text-stone-600 hover:bg-stone-100" aria-label={language === 'ta' ? 'ஏற்றுமதி மற்றும் பகிர்வு சாளரத்தை மூடு' : 'Close export and share dialog'}><X /></button>
         </div>
         {!nativeAvailable && <p className="mb-4 rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm text-stone-600">{t('systemFileSharingUnavailable')}</p>}
         {status.text && (
@@ -246,7 +250,7 @@ export default function ExportPanel({
           </a>
         )}
         {availabilityStatus !== 'configured' && <p className="mt-3 text-xs text-amber-800">{t('providerStatusFallbacks')}</p>}
-      </div>
+      </div></div>, document.body)}
       <DocumentDeliveryModal
         open={emailComposerOpen}
         onClose={() => setEmailComposerOpen(false)}

@@ -95,17 +95,17 @@ export default function Estimates() {
                   const customer = state.customers.find(c => c.id === invoice.customerId) || invoice.customerSnapshot;
                   return (
                     <tr key={invoice.id} className="hover:bg-emerald-50/50 cursor-pointer transition-colors" onClick={() => navigate(`/estimates/${invoice.id}`)}>
-                      <td className="px-3 py-4" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={selectedIds.has(invoice.id)} onChange={() => setSelectedIds((current) => { const next = new Set(current); next.has(invoice.id) ? next.delete(invoice.id) : next.add(invoice.id); return next; })} /></td>
+                      <td className="px-3 py-4" onClick={(event) => event.stopPropagation()}><input type="checkbox" checked={selectedIds.has(invoice.id)} onChange={() => setSelectedIds((current) => { const next = new Set(current); next.has(invoice.id) ? next.delete(invoice.id) : next.add(invoice.id); return next; })} aria-label={language === 'ta' ? `${invoice.invoiceNumber} விலைமதிப்பீட்டைத் தேர்ந்தெடு` : `Select quotation ${invoice.invoiceNumber}`} /></td>
                       <td className="px-6 py-4 font-bold text-stone-800">#{invoice.invoiceNumber}</td>
                       <td className="px-6 py-4 font-bold text-stone-800">{customer?.name || 'Unknown'}</td>
                       <td className="px-6 py-4 font-medium">{format(new Date(invoice.date), 'MMM d, yyyy')}</td>
                       <td className="px-6 py-4 text-right font-bold text-stone-800">{formatCurrency(invoice.total)}</td>
                       <td className="px-6 py-4 text-right space-x-2">
-                        <button onClick={(e) => { e.stopPropagation(); navigate(`/estimates/${invoice.id}/edit`); }} className="text-emerald-600 hover:text-emerald-800 p-2 bg-emerald-50 rounded-lg"><Edit size={16} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); navigate(`/estimates/${invoice.id}/edit`); }} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 hover:text-emerald-800" aria-label={language === 'ta' ? `${invoice.invoiceNumber} விலைமதிப்பீட்டைத் திருத்து` : `Edit quotation ${invoice.invoiceNumber}`} title={language === 'ta' ? 'திருத்து' : 'Edit'}><Edit size={16} /></button>
                         <button onClick={(e) => {
                           e.stopPropagation();
                           setPendingDeleteId(invoice.id);
-                        }} className="text-rose-500 hover:text-rose-700 p-2 bg-rose-50 rounded-lg"><Trash2 size={16} /></button>
+                        }} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-rose-50 text-rose-500 hover:text-rose-700" aria-label={language === 'ta' ? `${invoice.invoiceNumber} விலைமதிப்பீட்டை நீக்கு` : `Delete quotation ${invoice.invoiceNumber}`} title={language === 'ta' ? 'நீக்கு' : 'Delete'}><Trash2 size={16} /></button>
                        </td>
                     </tr>
                   )

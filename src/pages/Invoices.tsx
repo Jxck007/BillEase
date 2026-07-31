@@ -170,11 +170,11 @@ export default function Invoices() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right space-x-2">
-                        <button onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${invoice.id}/edit`); }} className="text-emerald-600 hover:text-emerald-800 p-2 bg-emerald-50 rounded-lg"><Edit size={16} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${invoice.id}/edit`); }} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 hover:text-emerald-800" aria-label={language === 'ta' ? `${invoice.invoiceNumber} விலைப்பட்டியலைத் திருத்து` : `Edit invoice ${invoice.invoiceNumber}`} title={language === 'ta' ? 'திருத்து' : 'Edit'}><Edit size={16} /></button>
                         <button onClick={(e) => {
                           e.stopPropagation();
                           setPendingDeleteId(invoice.id);
-                        }} className="text-rose-500 hover:text-rose-700 p-2 bg-rose-50 rounded-lg"><Trash2 size={16} /></button>
+                        }} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-rose-50 text-rose-500 hover:text-rose-700" aria-label={language === 'ta' ? `${invoice.invoiceNumber} விலைப்பட்டியலை நீக்கு` : `Delete invoice ${invoice.invoiceNumber}`} title={language === 'ta' ? 'நீக்கு' : 'Delete'}><Trash2 size={16} /></button>
                       </td>
                     </tr>
                   )

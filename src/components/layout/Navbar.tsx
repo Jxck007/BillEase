@@ -24,6 +24,7 @@ export default function Navbar() {
           type="button"
           onClick={() => openHelp()}
           className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-700"
+          aria-label={t('help')}
         >
           <HelpCircle size={19} />
           <span className="hidden min-[390px]:inline">{t('help')}</span>
