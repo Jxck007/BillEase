@@ -94,7 +94,20 @@ export default function Payments() {
         </div>
 
         {filteredPayments.length > 0 ? (
-          <div className="overflow-x-auto">
+          <>
+          <div className="grid gap-3 p-3 md:hidden">
+            {filteredPayments.map((payment) => {
+              const invoice = state.invoices.find((entry) => entry.id === payment.invoiceId);
+              const customer = invoice ? state.customers.find((entry) => entry.id === invoice.customerId) : null;
+              return <article key={payment.id} className="rounded-2xl border border-stone-200 p-4">
+                <div className="flex items-start justify-between gap-3"><div><p className={`text-xl font-black ${payment.kind === 'reversal' ? 'text-rose-700' : 'text-emerald-700'}`}>{payment.kind === 'reversal' ? '−' : '+'}{formatCurrency(payment.amount)}</p><p className="mt-1 text-sm font-semibold text-stone-800">#{invoice?.invoiceNumber || '-'} · {customer?.name || '-'}</p></div><span className="rounded-full bg-stone-100 px-2 py-1 text-xs font-bold">{payment.kind === 'reversal' ? (language === 'ta' ? 'மாற்றப்பட்டது' : 'Reversed') : (language === 'ta' ? 'செயலில்' : 'Active')}</span></div>
+                <dl className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-stone-500">{t('date')}</dt><dd className="font-semibold">{new Date(payment.paidAt).toLocaleDateString(language === 'ta' ? 'ta-IN' : 'en-IN')}</dd></div><div><dt className="text-stone-500">{language === 'ta' ? 'கட்டண முறை' : 'Method'}</dt><dd className="font-semibold">{paymentMethodLabel(payment.method, language)}</dd></div></dl>
+                {payment.reference && <p className="mt-3 break-all text-sm text-stone-600">{language === 'ta' ? 'குறிப்பு' : 'Reference'}: {payment.reference}</p>}
+                {payment.kind === 'payment' && <button onClick={() => setReceiptPayment(payment)} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border font-semibold"><Receipt size={17} />{language === 'ta' ? 'ரசீது' : 'Receipt'}</button>}
+              </article>;
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[500px] md:min-w-[600px] text-left text-sm">
                <thead className="bg-stone-50 text-stone-600 border-b border-stone-200">
                 <tr>
@@ -117,7 +130,7 @@ export default function Payments() {
                       <td className="px-6 py-4 font-medium">{format(new Date(payment.paidAt), 'MMM d, yyyy')}</td>
                       <td className="px-6 py-4 font-bold text-stone-800">#{invoice?.invoiceNumber || '-'}</td>
                       <td className="px-6 py-4 font-bold text-stone-800">{customer?.name || '-'}</td>
-                      <td className="px-6 py-4 font-medium">{payment.method}</td>
+                      <td className="px-6 py-4 font-medium">{paymentMethodLabel(payment.method, language)}</td>
                       <td className={`px-6 py-4 font-bold text-right ${payment.kind === 'reversal' ? 'text-rose-600' : 'text-emerald-600'}`}>{payment.kind === 'reversal' ? '-' : '+'}{formatCurrency(payment.amount)}</td>
                       <td className="px-6 py-4 text-right">{payment.kind === 'payment' ? <button onClick={() => setReceiptPayment(payment)} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2"><Receipt size={16} />Receipt</button> : null}</td>
                     </tr>
@@ -126,6 +139,7 @@ export default function Payments() {
               </tbody>
             </table>
           </div>
+          </>
         ) : (
           <div className="text-center py-16 px-4">
             <div className="bg-stone-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600 border border-emerald-100">
@@ -182,12 +196,12 @@ export default function Payments() {
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">Payment Method</label>
             <select value={formData.method} onChange={e => setFormData({...formData, method: e.target.value as PaymentMethod})} className="w-full p-2 border rounded-xl focus:ring-2 focus:ring-emerald-500">
-              <option value="cash">Cash (ரொக்கம்)</option>
+              <option value="cash">{paymentMethodLabel('cash', language)}</option>
               <option value="UPI">UPI / GPay / PhonePe</option>
-              <option value="bank_transfer">Bank Transfer (வங்கி)</option>
-              <option value="cheque">Cheque (காசோலை)</option>
-              <option value="card">Card</option>
-              <option value="other">Other</option>
+              <option value="bank_transfer">{paymentMethodLabel('bank_transfer', language)}</option>
+              <option value="cheque">{paymentMethodLabel('cheque', language)}</option>
+              <option value="card">{paymentMethodLabel('card', language)}</option>
+              <option value="other">{paymentMethodLabel('other', language)}</option>
             </select>
           </div>
           
@@ -199,4 +213,11 @@ export default function Payments() {
       </Modal>
     </div>
   );
+}
+
+function paymentMethodLabel(method: PaymentMethod, language: 'en' | 'ta') {
+  const labels = language === 'ta'
+    ? { cash: 'ரொக்கம்', UPI: 'UPI', bank_transfer: 'வங்கிப் பரிமாற்றம்', cheque: 'காசோலை', card: 'அட்டை', other: 'மற்றவை' }
+    : { cash: 'Cash', UPI: 'UPI', bank_transfer: 'Bank transfer', cheque: 'Cheque', card: 'Card', other: 'Other' };
+  return labels[method];
 }

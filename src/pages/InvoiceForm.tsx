@@ -98,7 +98,8 @@ export default function InvoiceForm() {
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(true);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [customerDetailsOpen, setCustomerDetailsOpen] = useState(false);
   const [customerDraft, setCustomerDraft] = useState({ name: '', phone: '', email: '', address: '', gstNumber: '', stateCode: '' });
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -426,7 +427,7 @@ export default function InvoiceForm() {
             </details>
 
             <button type="button" onClick={() => setIsAdvancedOpen((current) => !current)} className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 font-semibold text-stone-800">
-              <span>{language === 'en' ? '4. Review & advanced options' : '4. Review & advanced options'}</span>
+              <span>{language === 'en' ? '4. Totals and additional options' : '4. மொத்தம் மற்றும் கூடுதல் விருப்பங்கள்'}</span>
               {isAdvancedOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
             </button>
 
@@ -564,7 +565,6 @@ export default function InvoiceForm() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
           <button type="button" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-5 py-3 font-semibold text-stone-700 shadow-sm">{t('back')}</button>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <button type="button" onClick={() => showToast(language === 'ta' ? 'வரைவு சாதனத்தில் சேமிக்கப்பட்டது' : 'Draft saved locally', 'success')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-4 py-3 font-semibold text-stone-700 shadow-sm">{language === 'ta' ? 'வரைவைச் சேமி' : 'Save Draft'}</button>
             <button type="button" onClick={() => isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info')} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800"><Eye size={18} /> {language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
             <button type="button" disabled={isSaving} onClick={handleSave} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-sm disabled:opacity-60"><Save size={18} />{isSaving ? 'Saving…' : language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}</button>
           </div>
@@ -576,10 +576,9 @@ export default function InvoiceForm() {
           <span className="font-medium text-stone-600">{t('total')}</span>
           <span className="font-black text-emerald-700">{formatCurrency(viewDraft.total || 0)}</span>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <button type="button" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="min-h-12 rounded-xl border border-stone-200 font-semibold text-stone-700">{t('back')}</button>
-          <button type="button" disabled={isSaving} onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 font-semibold text-white disabled:opacity-60">{isSaving ? 'Saving…' : t('save')}</button>
+        <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={() => { isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info'); }} className="min-h-12 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">{language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
+          <button type="button" disabled={isSaving} onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 px-2 font-semibold text-white disabled:opacity-60">{isSaving ? (language === 'ta' ? 'சேமிக்கிறது…' : 'Saving…') : language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}</button>
         </div>
       </div>
 
@@ -589,6 +588,8 @@ export default function InvoiceForm() {
             <Label english={t('customerName')} tamil="வாடிக்கையாளர் பெயர்" />
             <input value={customerDraft.name} onChange={(event) => setCustomerDraft((current) => ({ ...current, name: event.target.value }))} placeholder={t('customerName')} title={t('customerName')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
+          <button type="button" onClick={() => setCustomerDetailsOpen((current) => !current)} className="flex min-h-12 w-full items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-4 font-semibold" aria-expanded={customerDetailsOpen}>{language === 'ta' ? 'கூடுதல் விவரங்கள் (விருப்பம்)' : 'More customer details (optional)'}<ChevronDown size={18} className={customerDetailsOpen ? 'rotate-180' : ''} /></button>
+          {customerDetailsOpen && <div className="space-y-4 rounded-2xl border border-stone-200 p-4">
           <div>
             <Label english="Phone (Optional)" tamil="போன் எண் (விருப்பம்)" />
             <input value={customerDraft.phone} onChange={(event) => setCustomerDraft((current) => ({ ...current, phone: event.target.value }))} placeholder={t('phone')} title={t('phone')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
@@ -609,6 +610,7 @@ export default function InvoiceForm() {
             <Label english={language === 'en' ? 'State code' : 'மாநில code'} tamil="State code" />
             <input value={customerDraft.stateCode} onChange={(event) => setCustomerDraft((current) => ({ ...current, stateCode: event.target.value }))} placeholder={language === 'en' ? 'State code' : 'மாநில code'} title={language === 'en' ? 'State code' : 'மாநில code'} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
+          </div>}
           <div className="flex justify-end gap-3 border-t pt-4">
             <button type="button" onClick={() => setIsCustomerModalOpen(false)} className="rounded-xl border border-stone-200 px-4 py-2 text-stone-700">{t('cancel')}</button>
             <button type="button" onClick={handleCreateCustomer} className="rounded-xl bg-emerald-600 px-4 py-2 font-semibold text-white">{t('saveCustomer')}</button>

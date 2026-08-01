@@ -499,7 +499,6 @@ export default function DeliveryNoteForm() {
         >
           {language === 'ta' ? 'பின்செல்' : 'Back'}
         </button>
-        <button type="button" onClick={() => showToast(language === 'ta' ? 'வரைவு சாதனத்தில் சேமிக்கப்பட்டது' : 'Draft saved locally', 'success')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-6 py-3 font-semibold text-stone-700 shadow-sm">{language === 'ta' ? 'வரைவைச் சேமி' : 'Save Draft'}</button>
         <button type="button" onClick={() => id ? navigate(`/delivery-notes/${id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info')} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-6 py-3 font-semibold text-emerald-800"><Eye size={18} /> {language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
         <button
           type="button"
@@ -514,10 +513,9 @@ export default function DeliveryNoteForm() {
           <span className="font-medium text-stone-600">{language === 'ta' ? 'தோராயமான மொத்தம்' : 'Approximate total'}</span>
           <span className="font-black text-emerald-700">{formatCurrency(Number(formData.approximateValue || 0))}</span>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <button type="button" onClick={() => setLeaveTarget('/delivery-notes')} className="min-h-12 rounded-xl border border-stone-200 font-semibold text-stone-700">{language === 'ta' ? 'பின்செல்' : 'Back'}</button>
-          <button type="button" onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 font-semibold text-white">{language === 'ta' ? 'சேமி' : 'Save'}</button>
+        <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={() => { id ? navigate(`/delivery-notes/${id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info'); }} className="min-h-12 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">{language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
+          <button type="button" onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 px-2 font-semibold text-white">{language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}</button>
         </div>
       </div>
       <ConfirmDialog open={Boolean(leaveTarget)} title={language === 'ta' ? 'இந்த விநியோகக் குறிப்பிலிருந்து வெளியேறவா?' : 'Leave this delivery note?'} message={hasUnsavedDraft ? 'BillEase will save a durable local draft before leaving.' : 'Your latest changes are saved locally.'} confirmLabel={language === 'ta' ? 'வெளியேறு' : 'Leave'} onCancel={() => setLeaveTarget(null)} onConfirm={async () => { const target = leaveTarget; if (!(await flushDraft())) { showToast('Could not save a recovery draft. Continue editing and try again.', 'error'); return; } setLeaveTarget(null); if (target) navigate(target); }} />

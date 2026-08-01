@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Edit2, FilePlus2, Plus, Search, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Edit2, Eye, FilePlus2, MoreHorizontal, Plus, Search, Trash2, Users } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Customer } from '../lib/types';
@@ -25,6 +25,8 @@ export default function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Customer | null>(null);
+  const [expandedCustomerId, setExpandedCustomerId] = useState('');
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [formData, setFormData] = useState(emptyForm);
 
   const customerSummaries = useMemo(() => {
@@ -60,6 +62,7 @@ export default function Customers() {
       shippingPin: customer.shippingPin || '', gstNumber: customer.gstNumber || customer.gstin || '',
       stateCode: customer.stateCode || '', whatsapp: customer.whatsapp || '', notes: customer.notes || '',
     } : emptyForm);
+    setShowMoreDetails(Boolean(customer));
     setIsModalOpen(true);
   };
 
@@ -139,7 +142,30 @@ export default function Customers() {
       <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
         <div className="border-b p-4"><div className="relative max-w-md"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={20} /><input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={text('Search name, phone or GSTIN', 'பெயர், தொலைபேசி அல்லது GSTIN தேடு')} className="min-h-12 w-full rounded-xl border pl-10 pr-4 focus:ring-2 focus:ring-emerald-500" /></div></div>
         {filteredCustomers.length ? (
-          <div className="overflow-x-auto">
+          <>
+          <div className="grid gap-3 p-3 lg:hidden">
+            {filteredCustomers.map((customer) => {
+              const summary = customerSummaries.get(customer.id);
+              const expanded = expandedCustomerId === customer.id;
+              return <article key={customer.id} className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0"><h2 className="break-words font-bold text-stone-900">{customer.name}</h2><p className="mt-1 text-sm text-stone-600">{customer.phone || customer.gstNumber || customer.gstin || text('Name-only customer', 'பெயர் மட்டும் உள்ள வாடிக்கையாளர்')}</p></div>
+                  <div className="shrink-0 text-right"><p className="text-xs font-semibold text-stone-500">{text('Outstanding', 'நிலுவை')}</p><p className={`font-black ${(summary?.outstanding || 0) > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{formatCurrency(summary?.outstanding || 0)}</p></div>
+                </div>
+                <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-stone-50 p-3 text-sm">
+                  <div><dt className="text-xs font-semibold text-stone-500">{text('Last invoice', 'கடைசி விலைப்பட்டியல்')}</dt><dd className="mt-1 font-semibold">{summary?.lastInvoice ? new Date(summary.lastInvoice).toLocaleDateString(language === 'ta' ? 'ta-IN' : 'en-IN') : text('Never', 'இதுவரை இல்லை')}</dd></div>
+                  <div><dt className="text-xs font-semibold text-stone-500">{text('Documents', 'ஆவணங்கள்')}</dt><dd className="mt-1 font-semibold">{summary?.documentCount || 0}</dd></div>
+                </dl>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <button type="button" onClick={() => setSelectedCustomer(customer)} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl bg-emerald-600 px-2 text-sm font-semibold text-white"><Eye size={17} />{text('View', 'பார்')}</button>
+                  <button type="button" onClick={() => openForm(customer)} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-stone-200 px-2 text-sm font-semibold"><Edit2 size={17} />{t('edit')}</button>
+                  <button type="button" onClick={() => setExpandedCustomerId(expanded ? '' : customer.id)} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-stone-200 px-2 text-sm font-semibold" aria-expanded={expanded} aria-label={text(`More actions for ${customer.name}`, `${customer.name}க்கான கூடுதல் செயல்கள்`)}><MoreHorizontal size={18} />{t('more')}</button>
+                </div>
+                {expanded && <div className="mt-2 rounded-xl border border-rose-100 bg-rose-50 p-2"><button type="button" onClick={() => setPendingDelete(customer)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg font-semibold text-rose-700"><Trash2 size={17} />{t('delete')}</button></div>}
+              </article>;
+            })}
+          </div>
+          <div className="hidden overflow-x-auto lg:block">
             <table className="w-full min-w-[1050px] text-left text-sm">
               <thead className="border-b bg-stone-50 text-xs uppercase tracking-wide text-stone-600"><tr><th className="px-5 py-3">{text('Name', 'பெயர்')}</th><th className="px-5 py-3">GSTIN</th><th className="px-5 py-3">{t('phone')}</th><th className="px-5 py-3">{text('Outstanding', 'நிலுவை')}</th><th className="px-5 py-3">{text('Last invoice', 'கடைசி விலைப்பட்டியல்')}</th><th className="px-5 py-3">{text('Total billed', 'மொத்த பில் தொகை')}</th><th className="px-5 py-3">{text('Documents', 'ஆவணங்கள்')}</th><th className="px-5 py-3">{text('Actions', 'செயல்கள்')}</th></tr></thead>
               <tbody className="divide-y divide-stone-100">
@@ -156,18 +182,22 @@ export default function Customers() {
               </tbody>
             </table>
           </div>
+          </>
         ) : <div className="px-4 py-16 text-center"><Users size={42} className="mx-auto text-emerald-600" /><h2 className="mt-4 text-xl font-bold">{text('No customers found', 'வாடிக்கையாளர்கள் இல்லை')}</h2><p className="mt-2 text-stone-500">{text('Add a customer to create documents faster.', 'ஆவணங்களை விரைவாக உருவாக்க வாடிக்கையாளரைச் சேர்க்கவும்.')}</p></div>}
       </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCustomer ? text('Edit customer', 'வாடிக்கையாளரைத் திருத்து') : t('addCustomer')} maxWidth="max-w-2xl">
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label={`${text('Customer or business name', 'வாடிக்கையாளர் அல்லது நிறுவனப் பெயர்')} *`}><input required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label={text('Phone (Optional)', 'போன் (விருப்பம்)')}><input type="tel" value={formData.phone} onChange={(event) => setFormData({ ...formData, phone: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label={text('Email (Optional)', 'Email (விருப்பம்)')}><input type="email" value={formData.email} onChange={(event) => setFormData({ ...formData, email: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label="WhatsApp (Optional)"><input type="tel" value={formData.whatsapp} onChange={(event) => setFormData({ ...formData, whatsapp: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label="GST Number (Optional)"><input value={formData.gstNumber} onChange={(event) => setFormData({ ...formData, gstNumber: event.target.value.toUpperCase() })} className="min-h-12 w-full rounded-xl border p-3 uppercase" /></Field></div>
+          <button type="button" onClick={() => setShowMoreDetails((current) => !current)} className="flex min-h-12 w-full items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-4 font-semibold text-stone-800" aria-expanded={showMoreDetails}>{text('More customer details (optional)', 'கூடுதல் வாடிக்கையாளர் விவரங்கள் (விருப்பம்)')}<ChevronDown size={20} className={showMoreDetails ? 'rotate-180' : ''} /></button>
+          {showMoreDetails && <div className="space-y-4 rounded-2xl border border-stone-200 p-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label={text('Phone (Optional)', 'போன் (விருப்பம்)')}><input type="tel" value={formData.phone} onChange={(event) => setFormData({ ...formData, phone: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label={text('Email (Optional)', 'மின்னஞ்சல் (விருப்பம்)')}><input type="email" value={formData.email} onChange={(event) => setFormData({ ...formData, email: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label={text('WhatsApp (Optional)', 'WhatsApp (விருப்பம்)')}><input type="tel" value={formData.whatsapp} onChange={(event) => setFormData({ ...formData, whatsapp: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label={text('GST number (Optional)', 'GST எண் (விருப்பம்)')}><input value={formData.gstNumber} onChange={(event) => setFormData({ ...formData, gstNumber: event.target.value.toUpperCase() })} className="min-h-12 w-full rounded-xl border p-3 uppercase" /></Field></div>
           <Field label={text('Address (Optional)', 'முகவரி (விருப்பம்)')}><textarea value={formData.address} onChange={(event) => setFormData({ ...formData, address: event.target.value })} rows={2} className="w-full rounded-xl border p-3" /></Field>
           <PinLookupField value={formData.billingPin} enabled={availability.postal && state.settings.integrations.pinLookup} onChange={(billingPin) => setFormData({ ...formData, billingPin })} onApply={(result) => setFormData({ ...formData, address: `${result.locality}, ${result.district}, ${result.state}` })} />
           <Field label={text('Shipping address', 'அனுப்பும் முகவரி')}><textarea value={formData.shippingAddress} onChange={(event) => setFormData({ ...formData, shippingAddress: event.target.value })} rows={2} className="w-full rounded-xl border p-3" /></Field>
           <PinLookupField value={formData.shippingPin} enabled={availability.postal && state.settings.integrations.pinLookup} onChange={(shippingPin) => setFormData({ ...formData, shippingPin })} onApply={(result) => setFormData({ ...formData, shippingAddress: `${result.locality}, ${result.district}, ${result.state}` })} />
           <Field label={text('State code', 'மாநிலக் குறியீடு')}><input value={formData.stateCode} onChange={(event) => setFormData({ ...formData, stateCode: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field>
+          </div>}
           <div className="flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={() => setIsModalOpen(false)} className="min-h-12 rounded-xl border px-5 font-semibold">{t('cancel')}</button><button type="submit" className="min-h-12 rounded-xl bg-emerald-600 px-5 font-semibold text-white">{t('saveCustomer')}</button></div>
         </form>
       </Modal>
