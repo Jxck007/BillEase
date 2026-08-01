@@ -11,7 +11,7 @@ import { useIntegrationAvailability } from '../hooks/useIntegrationAvailability'
 import { formatCurrency } from '../lib/utils';
 import { useToast } from '../context/ToastContext';
 
-const emptyForm = { name: '', phone: '', email: '', address: '', billingPin: '', shippingAddress: '', shippingPin: '', gstNumber: '', stateCode: '', whatsapp: '', notes: '' };
+const emptyForm = { name: '', phone: '', email: '', address: '', billingPin: '', shippingAddress: '', shippingPin: '', useDifferentShippingAddress: false, gstNumber: '', stateCode: '', whatsapp: '', notes: '' };
 
 export default function Customers() {
   const { state, addCustomer, updateCustomer, deleteCustomer } = useData();
@@ -30,8 +30,8 @@ export default function Customers() {
   const [formData, setFormData] = useState(emptyForm);
 
   const customerSummaries = useMemo(() => {
-    const summaries = new Map<string, { outstanding: number; totalBilled: number; lastInvoice: string; documentCount: number }>();
-    state.customers.forEach((customer) => summaries.set(customer.id, { outstanding: 0, totalBilled: 0, lastInvoice: '', documentCount: 0 }));
+    const summaries = new Map<string, { outstanding: number; totalBilled: number; amountPaid: number; paymentCount: number; lastInvoice: string; documentCount: number }>();
+    state.customers.forEach((customer) => summaries.set(customer.id, { outstanding: 0, totalBilled: 0, amountPaid: 0, paymentCount: 0, lastInvoice: '', documentCount: 0 }));
     state.invoices.forEach((document) => {
       const summary = summaries.get(document.customerId);
       if (!summary) return;
@@ -39,6 +39,8 @@ export default function Customers() {
       if (document.type === 'invoice') {
         summary.totalBilled += document.total;
         summary.outstanding += Math.max(0, document.total - document.amountPaid);
+        summary.amountPaid += document.amountPaid;
+        summary.paymentCount += document.payments.filter((payment) => payment.kind === 'payment').length;
         if (!summary.lastInvoice || new Date(document.date) > new Date(summary.lastInvoice)) summary.lastInvoice = document.date;
       }
     });
@@ -60,6 +62,7 @@ export default function Customers() {
       name: customer.name, phone: customer.phone, email: customer.email, address: customer.address,
       billingPin: customer.billingPin || '', shippingAddress: customer.shippingAddress || '',
       shippingPin: customer.shippingPin || '', gstNumber: customer.gstNumber || customer.gstin || '',
+      useDifferentShippingAddress: customer.useDifferentShippingAddress ?? Boolean(customer.shippingAddress && customer.shippingAddress !== customer.address),
       stateCode: customer.stateCode || '', whatsapp: customer.whatsapp || '', notes: customer.notes || '',
     } : emptyForm);
     setShowMoreDetails(Boolean(customer));
@@ -114,30 +117,6 @@ export default function Customers() {
         </div>
         <button type="button" onClick={() => openForm()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 font-semibold text-white"><Plus size={20} /> {t('addCustomer')}</button>
       </div>
-
-      {selectedCustomer && (
-        <section className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm sm:p-6" aria-label={`${selectedCustomer.name} details`}>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div><p className="text-xs font-bold uppercase tracking-wide text-emerald-700">{text('Customer details', 'வாடிக்கையாளர் விவரங்கள்')}</p><h2 className="mt-1 text-xl font-bold">{selectedCustomer.name}</h2><p className="mt-2 text-sm text-stone-600">{selectedCustomer.phone || text('No phone', 'தொலைபேசி இல்லை')} · {selectedCustomer.email || text('No email', 'மின்னஞ்சல் இல்லை')}</p></div>
-            <button type="button" onClick={() => setSelectedCustomer(null)} className="min-h-12 rounded-xl border px-4 font-semibold">{text('Close details', 'விவரங்களை மூடு')}</button>
-          </div>
-          <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <InfoBlock label={text('Billing address', 'பில்லிங் முகவரி')} value={selectedCustomer.address || text('Not provided', 'வழங்கப்படவில்லை')} />
-            <InfoBlock label={text('Shipping address', 'அனுப்பும் முகவரி')} value={selectedCustomer.shippingAddress || text('Same as billing / not provided', 'பில்லிங் முகவரி போன்றதே / வழங்கப்படவில்லை')} />
-            <InfoBlock label={text('GST information', 'GST விவரம்')} value={selectedCustomer.gstNumber || selectedCustomer.gstin || text('Not provided', 'வழங்கப்படவில்லை')} />
-            <InfoBlock label={text('Outstanding balance', 'நிலுவைத் தொகை')} value={formatCurrency(selectedSummary?.outstanding || 0)} />
-          </div>
-          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <CreateLink to={`/invoices/new?customer=${encodeURIComponent(selectedCustomer.id)}`} label={t('newInvoice')} />
-            <CreateLink to={`/estimates/new?customer=${encodeURIComponent(selectedCustomer.id)}`} label={t('newQuotation')} />
-            <CreateLink to={`/delivery-notes/new?customer=${encodeURIComponent(selectedCustomer.id)}`} label={t('newDeliveryNote')} />
-          </div>
-          <div className="mt-6 border-t pt-5">
-            <h3 className="font-bold">{text('Recent documents', 'சமீபத்திய ஆவணங்கள்')}</h3>
-            {recentForSelected.length ? <div className="mt-2 divide-y">{recentForSelected.map((document) => <Link key={`${document.to}-${document.id}`} to={document.to} className="flex min-h-12 items-center justify-between py-2 text-sm"><span className="font-semibold">{document.label}</span><span className="text-stone-500">{new Date(document.date).toLocaleDateString(language === 'ta' ? 'ta-IN' : 'en-IN')}</span></Link>)}</div> : <p className="mt-2 text-sm text-stone-500">{text('No documents for this customer.', 'இந்த வாடிக்கையாளருக்கு ஆவணங்கள் இல்லை.')}</p>}
-          </div>
-        </section>
-      )}
 
       <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
         <div className="border-b p-4"><div className="relative max-w-md"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={20} /><input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={text('Search name, phone or GSTIN', 'பெயர், தொலைபேசி அல்லது GSTIN தேடு')} className="min-h-12 w-full rounded-xl border pl-10 pr-4 focus:ring-2 focus:ring-emerald-500" /></div></div>
@@ -194,12 +173,29 @@ export default function Customers() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label={text('Phone (Optional)', 'போன் (விருப்பம்)')}><input type="tel" value={formData.phone} onChange={(event) => setFormData({ ...formData, phone: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label={text('Email (Optional)', 'மின்னஞ்சல் (விருப்பம்)')}><input type="email" value={formData.email} onChange={(event) => setFormData({ ...formData, email: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label={text('WhatsApp (Optional)', 'WhatsApp (விருப்பம்)')}><input type="tel" value={formData.whatsapp} onChange={(event) => setFormData({ ...formData, whatsapp: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label={text('GST number (Optional)', 'GST எண் (விருப்பம்)')}><input value={formData.gstNumber} onChange={(event) => setFormData({ ...formData, gstNumber: event.target.value.toUpperCase() })} className="min-h-12 w-full rounded-xl border p-3 uppercase" /></Field></div>
           <Field label={text('Address (Optional)', 'முகவரி (விருப்பம்)')}><textarea value={formData.address} onChange={(event) => setFormData({ ...formData, address: event.target.value })} rows={2} className="w-full rounded-xl border p-3" /></Field>
           <PinLookupField value={formData.billingPin} enabled={availability.postal && state.settings.integrations.pinLookup} onChange={(billingPin) => setFormData({ ...formData, billingPin })} onApply={(result) => setFormData({ ...formData, address: `${result.locality}, ${result.district}, ${result.state}` })} />
-          <Field label={text('Shipping address', 'அனுப்பும் முகவரி')}><textarea value={formData.shippingAddress} onChange={(event) => setFormData({ ...formData, shippingAddress: event.target.value })} rows={2} className="w-full rounded-xl border p-3" /></Field>
-          <PinLookupField value={formData.shippingPin} enabled={availability.postal && state.settings.integrations.pinLookup} onChange={(shippingPin) => setFormData({ ...formData, shippingPin })} onApply={(result) => setFormData({ ...formData, shippingAddress: `${result.locality}, ${result.district}, ${result.state}` })} />
+          <label className="flex min-h-12 items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 text-sm font-semibold text-stone-800"><input type="checkbox" checked={formData.useDifferentShippingAddress} onChange={(event) => setFormData({ ...formData, useDifferentShippingAddress: event.target.checked })} className="h-5 w-5" />{text('Use a different shipping address', 'வேறு அனுப்பும் முகவரியைப் பயன்படுத்து')}</label>
+          {formData.useDifferentShippingAddress && <div className="space-y-4 rounded-xl border border-stone-200 p-4"><Field label={text('Shipping address', 'அனுப்பும் முகவரி')}><textarea value={formData.shippingAddress} onChange={(event) => setFormData({ ...formData, shippingAddress: event.target.value })} rows={2} className="w-full rounded-xl border p-3" /></Field><PinLookupField value={formData.shippingPin} enabled={availability.postal && state.settings.integrations.pinLookup} onChange={(shippingPin) => setFormData({ ...formData, shippingPin })} onApply={(result) => setFormData({ ...formData, shippingAddress: `${result.locality}, ${result.district}, ${result.state}` })} /></div>}
           <Field label={text('State code', 'மாநிலக் குறியீடு')}><input value={formData.stateCode} onChange={(event) => setFormData({ ...formData, stateCode: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field>
           </div>}
           <div className="flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={() => setIsModalOpen(false)} className="min-h-12 rounded-xl border px-5 font-semibold">{t('cancel')}</button><button type="submit" className="min-h-12 rounded-xl bg-emerald-700 px-5 font-semibold text-white">{t('saveCustomer')}</button></div>
         </form>
+      </Modal>
+      <Modal isOpen={Boolean(selectedCustomer)} onClose={() => setSelectedCustomer(null)} title={text('Customer details', 'வாடிக்கையாளர் விவரங்கள்')} maxWidth="max-w-3xl" mobileSheet>
+        {selectedCustomer && <div className="space-y-5 font-sans">
+          <div><h2 className="break-words text-2xl font-bold text-stone-900">{selectedCustomer.name}</h2><p className="mt-2 break-words text-sm text-stone-600">{selectedCustomer.phone || text('No phone', 'தொலைபேசி இல்லை')} · {selectedCustomer.email || text('No email', 'மின்னஞ்சல் இல்லை')}</p></div>
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+            <InfoBlock label={text('GST number', 'GST எண்')} value={selectedCustomer.gstNumber || selectedCustomer.gstin || text('Not provided', 'வழங்கப்படவில்லை')} />
+            <InfoBlock label={text('Primary address', 'முதன்மை முகவரி')} value={selectedCustomer.address || text('Not provided', 'வழங்கப்படவில்லை')} />
+            {selectedCustomer.useDifferentShippingAddress && selectedCustomer.shippingAddress ? <InfoBlock label={text('Shipping address', 'அனுப்பும் முகவரி')} value={selectedCustomer.shippingAddress} /> : null}
+            <InfoBlock label={text('Outstanding balance', 'நிலுவைத் தொகை')} value={formatCurrency(selectedSummary?.outstanding || 0)} />
+            <InfoBlock label={text('Documents', 'ஆவணங்கள்')} value={String(selectedSummary?.documentCount || 0)} />
+            <InfoBlock label={text('Latest invoice', 'சமீபத்திய விலைப்பட்டியல்')} value={selectedSummary?.lastInvoice ? new Date(selectedSummary.lastInvoice).toLocaleDateString(language === 'ta' ? 'ta-IN' : 'en-IN') : text('None', 'இல்லை')} />
+            <InfoBlock label={text('Payments recorded', 'பதிவு செய்யப்பட்ட கட்டணங்கள்')} value={`${selectedSummary?.paymentCount || 0} · ${formatCurrency(selectedSummary?.amountPaid || 0)}`} />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => { const customer = selectedCustomer; setSelectedCustomer(null); window.setTimeout(() => openForm(customer), 0); }} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-stone-200 font-semibold"><Edit2 size={18} />{text('Edit Customer', 'வாடிக்கையாளரைத் திருத்து')}</button><Link to={`/invoices?customer=${encodeURIComponent(selectedCustomer.id)}`} className="flex min-h-12 items-center justify-center rounded-xl border border-stone-200 font-semibold">{text('View Documents', 'ஆவணங்களைப் பார்')}</Link><CreateLink to={`/invoices/new?customer=${encodeURIComponent(selectedCustomer.id)}`} label={t('newInvoice')} /><CreateLink to={`/estimates/new?customer=${encodeURIComponent(selectedCustomer.id)}`} label={t('newQuotation')} /><CreateLink to={`/delivery-notes/new?customer=${encodeURIComponent(selectedCustomer.id)}`} label={t('newDeliveryNote')} /></div>
+          {recentForSelected.length ? <div className="border-t pt-4"><h3 className="font-bold">{text('Recent documents', 'சமீபத்திய ஆவணங்கள்')}</h3><div className="mt-2 divide-y">{recentForSelected.map((document) => <Link key={`${document.to}-${document.id}`} to={document.to} className="flex min-h-12 min-w-0 items-center justify-between gap-3 py-2 text-sm"><span className="min-w-0 truncate font-semibold">{document.label}</span><span className="shrink-0 text-stone-500">{new Date(document.date).toLocaleDateString(language === 'ta' ? 'ta-IN' : 'en-IN')}</span></Link>)}</div></div> : null}
+          <div className="sticky bottom-0 border-t bg-white pt-3 pb-[env(safe-area-inset-bottom)]"><button type="button" onClick={() => setSelectedCustomer(null)} className="min-h-12 w-full rounded-xl border border-stone-300 font-semibold">{text('Close', 'மூடு')}</button></div>
+        </div>}
       </Modal>
       <ConfirmDialog open={Boolean(pendingDelete)} title={text('Delete customer?', 'வாடிக்கையாளரை நீக்கவா?')} message={language === 'ta' ? `${pendingDelete?.name || 'இந்த வாடிக்கையாளரை'} நீக்கவா? ஏற்கனவே உள்ள ஆவணங்கள் மாறாது.` : `Delete ${pendingDelete?.name || 'this customer'}? Existing documents and a recovery copy remain unchanged.`} onCancel={() => setPendingDelete(null)} onConfirm={async () => { if (pendingDelete) { const result = await deleteCustomer(pendingDelete.id); showToast(result.ok ? text('Customer deleted', 'வாடிக்கையாளர் நீக்கப்பட்டார்') : text('The customer could not be deleted.', 'வாடிக்கையாளரை நீக்க முடியவில்லை.'), result.ok ? 'success' : 'error'); } setPendingDelete(null); }} />
     </div>

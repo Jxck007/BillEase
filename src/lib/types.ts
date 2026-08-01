@@ -28,6 +28,7 @@ export interface Customer {
   billingPin?: string;
   shippingAddress?: string;
   shippingPin?: string;
+  useDifferentShippingAddress?: boolean;
   gstin?: string;
   gstNumber?: string;
   stateCode?: string;

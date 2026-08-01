@@ -58,9 +58,12 @@ export default function IndustrialDeliveryNoteTemplate({ note, profile, customer
     : formatDeliveryNoteCopyTypeDisplay(note.copyType);
   const customerGstin = getCustomerGstin(customer);
   const transportPurpose = normalizeTransportPurpose(note.transportPurpose || '');
+  const deliveryAddress = customer?.useDifferentShippingAddress && customer.shippingAddress
+    ? customer.shippingAddress
+    : customer?.address;
   const consigneeBlock = [
     customer?.name || '-',
-    customer?.address || '-',
+    deliveryAddress || '-',
     `GSTIN: ${customerGstin || '-'}`,
   ].join('\n');
 

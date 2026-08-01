@@ -48,16 +48,21 @@ export function normalizeCustomer(input: unknown): NormalizationResult<Customer>
   if (!id) errors.push(issue('id', 'Customer ID is required.', 'customer.id.required'));
   if (!name) errors.push(issue('name', 'Customer name is required.', 'customer.name.required'));
   const gstNumber = text(source.gstNumber || source.gstin).toUpperCase();
+  const address = text(source.address);
+  const shippingAddress = text(source.shippingAddress);
   const value: Customer = {
     ...source,
     id,
     name,
     phone: text(source.phone),
     email: text(source.email),
-    address: text(source.address),
+    address,
     billingPin: text(source.billingPin),
-    shippingAddress: text(source.shippingAddress),
+    shippingAddress,
     shippingPin: text(source.shippingPin),
+    useDifferentShippingAddress: typeof source.useDifferentShippingAddress === 'boolean'
+      ? source.useDifferentShippingAddress
+      : Boolean(shippingAddress && shippingAddress !== address),
     gstin: gstNumber,
     gstNumber,
     stateCode: text(source.stateCode),
@@ -69,6 +74,12 @@ export function normalizeCustomer(input: unknown): NormalizationResult<Customer>
   };
   if (value.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email)) {
     errors.push(issue('email', 'Enter a valid customer email address.', 'customer.email.invalid'));
+  }
+  if (value.billingPin && !/^\d{6}$/.test(value.billingPin)) {
+    errors.push(issue('billingPin', 'Enter a valid 6-digit PIN / postal code.', 'customer.pin.invalid'));
+  }
+  if (value.useDifferentShippingAddress && value.shippingPin && !/^\d{6}$/.test(value.shippingPin)) {
+    errors.push(issue('shippingPin', 'Enter a valid 6-digit shipping PIN / postal code.', 'customer.shippingPin.invalid'));
   }
   return { value, warnings, errors };
 }

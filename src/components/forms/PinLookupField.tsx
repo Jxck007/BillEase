@@ -28,7 +28,6 @@ export default function PinLookupField({ value, enabled, onChange, onApply }: Pr
     setLoading(false);
 
     if (!enabled) {
-      setStatus(text('PIN lookup is unavailable. Enter the address manually.', 'அஞ்சல் குறியீட்டுத் தேடல் கிடைக்கவில்லை. முகவரியை கைமுறையாக உள்ளிடவும்.'));
       return;
     }
     if (!/^\d{6}$/.test(value)) return;
@@ -78,9 +77,9 @@ export default function PinLookupField({ value, enabled, onChange, onApply }: Pr
           placeholder={text('Enter 6-digit PIN', '6 இலக்க அஞ்சல் குறியீட்டை உள்ளிடவும்')}
           aria-describedby={status ? statusId : undefined}
         />
-        {loading
+        {enabled && (loading
           ? <Loader2 className="absolute right-3 top-3 animate-spin text-stone-400" aria-label={text('Looking up PIN code', 'அஞ்சல் குறியீடு தேடப்படுகிறது')} />
-          : <MapPin className="absolute right-3 top-3 text-stone-400" size={20} aria-hidden="true" />}
+          : <MapPin className="absolute right-3 top-3 text-stone-400" size={20} aria-hidden="true" />)}
       </div>
 
       {status && <p id={statusId} className="mt-1 text-sm text-amber-700" role="status">{status}</p>}
