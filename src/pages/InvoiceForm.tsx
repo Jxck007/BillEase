@@ -85,6 +85,7 @@ export default function InvoiceForm() {
     amountPaid: 0,
     balanceDue: 0,
     paymentStatus: 'unpaid',
+    paymentStatusPdfVisibility: 'default',
     status: 'unpaid' as Invoice['status'],
     notes: '',
     terms: '',
@@ -486,6 +487,16 @@ export default function InvoiceForm() {
                   </select>
                 </div>
                                 ) : null}
+                {!isEstimate ? (
+                  <div>
+                    <Label english={language === 'en' ? 'Payment status on customer copy' : 'வாடிக்கையாளர் நகலில் கட்டண நிலை'} tamil="வாடிக்கையாளர் நகலில் கட்டண நிலை" helper={language === 'en' ? 'This changes only the PDF display, not the payment record.' : 'இது PDF காட்சியை மட்டும் மாற்றும்; கட்டணப் பதிவை மாற்றாது.'} />
+                    <select value={draft.paymentStatusPdfVisibility || 'default'} onChange={(event) => updateDraft({ paymentStatusPdfVisibility: event.target.value as Invoice['paymentStatusPdfVisibility'] })} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500">
+                      <option value="default">{language === 'en' ? 'Use company default' : 'நிறுவன இயல்புநிலையைப் பயன்படுத்து'}</option>
+                      <option value="show">{language === 'en' ? 'Show' : 'காட்டு'}</option>
+                      <option value="hide">{language === 'en' ? 'Hide' : 'மறை'}</option>
+                    </select>
+                  </div>
+                ) : null}
                 <div className="md:col-span-2">
                   <Label english={language === 'en' ? 'Customer details shown on document' : 'ஆவணத்தில் காட்டப்படும் வாடிக்கையாளர் விவரங்கள்'} tamil="வாடிக்கையாளர் விவரங்கள்" />
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 rounded-2xl border border-stone-200 bg-white p-3 text-sm">

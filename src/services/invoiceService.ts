@@ -28,6 +28,7 @@ export function getDefaultSettings(profile: BusinessProfile): AppSettings {
     sealVisibility: { invoice: true, quotation: true, deliveryNote: true },
     emailCcBusiness: false,
     showPaymentSummaryOnPdf: true,
+    showPaymentStatusOnInvoicePdf: false,
   };
 }
 
@@ -94,6 +95,7 @@ export function duplicateInvoice(source: Invoice, prefix: string, nextNumber: nu
     amountPaid: 0,
     balanceDue: source.total,
     paymentStatus: 'unpaid',
+    paymentStatusPdfVisibility: source.paymentStatusPdfVisibility || 'default',
     status: 'unpaid',
     lastPaymentAt: undefined,
     draft: true,

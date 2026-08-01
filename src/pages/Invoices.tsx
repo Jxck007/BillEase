@@ -221,7 +221,9 @@ export default function Invoices() {
       <div aria-hidden="true" className="fixed left-[-20000px] top-0 w-[210mm]">
         {selectedInvoices.flatMap((invoice) => copiesForInvoice(invoice).map((copy) => {
           const customer = state.customers.find((entry) => entry.id === invoice.customerId) || invoice.customerSnapshot;
-          return <div key={`${invoice.id}:${copy}`} className="canonical-a4-document bg-white text-black" data-export-root="true" data-bulk-invoice={invoice.id} data-bulk-copy={copy}><CanonicalInvoiceDocument invoice={invoice} profile={state.profile} customer={customer as any} showQr showPaymentSummary={state.settings.showPaymentSummaryOnPdf !== false} copyLabel={`${copy.toUpperCase()} COPY`} /></div>;
+          const showPaymentStatus = invoice.paymentStatusPdfVisibility === 'show'
+            || (invoice.paymentStatusPdfVisibility !== 'hide' && state.settings.showPaymentStatusOnInvoicePdf === true);
+          return <div key={`${invoice.id}:${copy}`} className="canonical-a4-document bg-white text-black" data-export-root="true" data-bulk-invoice={invoice.id} data-bulk-copy={copy}><CanonicalInvoiceDocument invoice={invoice} profile={state.profile} customer={customer as any} showQr showPaymentSummary={state.settings.showPaymentSummaryOnPdf !== false} showPaymentStatus={showPaymentStatus} copyLabel={`${copy.toUpperCase()} COPY`} /></div>;
         }))}
       </div>
       <ConfirmDialog open={Boolean(pendingDeleteId)} title="Delete invoice?" message="This moves the invoice out of active records and preserves a recovery copy." onCancel={() => setPendingDeleteId(null)} onConfirm={async () => { if (pendingDeleteId) { const result = await deleteInvoice(pendingDeleteId); showToast(result.ok ? 'Invoice deleted' : 'The invoice could not be deleted. A recovery copy was not available.', result.ok ? 'success' : 'error'); } setPendingDeleteId(null); }} />

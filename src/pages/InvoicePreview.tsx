@@ -39,6 +39,8 @@ export default function InvoicePreview() {
     gstin: invoice.customerSnapshot.gstNumber,
   } : undefined);
   const isEstimate = invoice?.type === 'estimate';
+  const showPaymentStatus = invoice?.paymentStatusPdfVisibility === 'show'
+    || (invoice?.paymentStatusPdfVisibility !== 'hide' && state.settings.showPaymentStatusOnInvoicePdf === true);
 
   const openReceipt = (payment: Payment) => {
     if (!document.querySelector('[aria-label="Full screen document preview"]')) {
@@ -138,7 +140,7 @@ export default function InvoicePreview() {
       </div>
 
       <CanonicalDocumentViewport documentRef={documentRef}>
-        {isEstimate ? <QuotationEstimateTemplate invoice={invoice} profile={state.profile} customer={customer} products={state.products} documentTitle={documentTitle} numberLabel={numberLabel} visibility={state.settings.template.visibility} /> : <CanonicalInvoiceDocument invoice={invoice} profile={state.profile} customer={customer} showQr showPaymentSummary={state.settings.showPaymentSummaryOnPdf !== false} />}
+        {isEstimate ? <QuotationEstimateTemplate invoice={invoice} profile={state.profile} customer={customer} products={state.products} documentTitle={documentTitle} numberLabel={numberLabel} visibility={state.settings.template.visibility} /> : <CanonicalInvoiceDocument invoice={invoice} profile={state.profile} customer={customer} showQr showPaymentSummary={state.settings.showPaymentSummaryOnPdf !== false} showPaymentStatus={showPaymentStatus} />}
       </CanonicalDocumentViewport>
 
       {!isEstimate && isAdmin ? (

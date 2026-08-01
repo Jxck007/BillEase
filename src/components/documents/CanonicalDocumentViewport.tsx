@@ -35,7 +35,7 @@ export default function CanonicalDocumentViewport({ children, documentRef, conta
     if (!viewport || !documentRoot) return;
     const footer = documentRoot.querySelector<HTMLElement>('.document-final-footer');
     let contentHeight = documentRoot.scrollHeight;
-    if (footer) {
+    if (footer && viewMode === 'page') {
       footer.style.marginTop = '0px';
       const pageHeight = documentRoot.clientWidth * (297 / 210);
       const bottomMargin = Number.parseFloat(window.getComputedStyle(documentRoot).paddingBottom) || 0;
@@ -44,7 +44,7 @@ export default function CanonicalDocumentViewport({ children, documentRef, conta
       const pages = Math.max(1, Math.ceil((contentBottom + bottomMargin - 2) / pageHeight));
       const gap = Math.max(0, (pages * pageHeight) - bottomMargin - contentBottom);
       footer.style.marginTop = `${gap}px`;
-    }
+    } else if (footer) footer.style.marginTop = '';
     const horizontalPadding = fullScreen ? 32 : 0;
     const availableWidth = Math.max(1, viewport.clientWidth - horizontalPadding);
     const documentWidth = 210 * MM_TO_PX;
@@ -128,7 +128,7 @@ export default function CanonicalDocumentViewport({ children, documentRef, conta
       >
         <div className="canonical-preview-canvas" style={{ height: preview.height || undefined, width: preview.width || undefined }}>
           <div className="canonical-preview-transform" style={{ transform: `translateX(-50%) scale(${preview.scale})` }}>
-            <div ref={documentRef} className="canonical-a4-document bg-white text-black" data-export-root="true">
+            <div ref={documentRef} className={`canonical-a4-document bg-white text-black ${viewMode === 'content' && !fullScreen ? 'preview-fit-content' : ''}`} data-export-root="true">
               {children}
             </div>
           </div>

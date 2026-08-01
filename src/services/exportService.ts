@@ -64,6 +64,7 @@ function prepareExportClone(element: HTMLElement, widthMm = A4_WIDTH_MM) {
   sandbox.style.isolation = 'isolate';
 
   const clone = element.cloneNode(true) as HTMLElement;
+  clone.classList.remove('preview-fit-content');
   clone.querySelectorAll('.hidden.print\\:block').forEach((el) => ((el as HTMLElement).style.display = 'none'));
   clone.style.width = `${targetWidthPx}px`;
   clone.style.minWidth = `${targetWidthPx}px`;
@@ -135,13 +136,16 @@ async function waitForExportAssets(clone: HTMLElement) {
 function alignFinalFooterToPage(clone: HTMLElement) {
   const footer = clone.querySelector<HTMLElement>('.document-final-footer');
   if (!footer) return;
+  const finalGroup = footer.closest<HTMLElement>('.document-authorization-group');
+  const gapTarget = finalGroup || footer;
   footer.style.marginTop = '0px';
+  if (finalGroup) finalGroup.style.marginTop = '0px';
   const pageHeight = clone.clientWidth * (A4_HEIGHT_MM / A4_WIDTH_MM);
   const bottomMargin = Number.parseFloat(window.getComputedStyle(clone).paddingBottom) || 0;
   const contentBottom = footer.getBoundingClientRect().bottom - clone.getBoundingClientRect().top;
   const pages = Math.max(1, Math.ceil((contentBottom + bottomMargin - PAGE_ROUNDING_TOLERANCE_CSS_PX) / pageHeight));
   const gap = Math.max(0, (pages * pageHeight) - bottomMargin - contentBottom);
-  footer.style.marginTop = `${gap}px`;
+  gapTarget.style.marginTop = `${gap}px`;
 }
 
 export async function renderExportCanvas(element: HTMLElement, widthMm = A4_WIDTH_MM, scale?: number) {

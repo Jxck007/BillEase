@@ -113,6 +113,7 @@ export interface Invoice {
   amountPaid: number;
   balanceDue: number;
   paymentStatus: PaymentStatus;
+  paymentStatusPdfVisibility?: 'default' | 'show' | 'hide';
   /** @deprecated Read-only compatibility mirror for older UI/data. */
   status: 'paid' | 'unpaid' | 'partial' | 'overdue' | 'cancelled';
   payments: Payment[];
@@ -230,6 +231,7 @@ export interface AppSettings {
   sealVisibility: { invoice: boolean; quotation: boolean; deliveryNote: boolean };
   emailCcBusiness: boolean;
   showPaymentSummaryOnPdf?: boolean;
+  showPaymentStatusOnInvoicePdf?: boolean;
 }
 
 export interface DeliveryNoteItem {
