@@ -10,9 +10,9 @@ test('shared overlays expose dialog semantics and isolate background focus', () 
   assert.match(modal, /aria-modal="true"/);
   assert.match(modal, /aria-labelledby/);
   assert.match(modal, /createPortal/);
-  assert.match(overlay, /element\.inert = true/);
+  assert.match(overlay, /element\.inert = !active/);
   assert.match(overlay, /event\.key !== 'Tab'/);
-  assert.match(overlay, /previouslyFocused\?\.focus/);
+  assert.match(overlay, /restoreFocus\?\.focus/);
 });
 
 test('mobile drawer is only mounted while open and uses shared focus isolation', () => {

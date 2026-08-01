@@ -13,6 +13,7 @@ export default function PaymentReceiptModal({ payment, invoice, onClose }: { pay
   const documentRef = useRef<HTMLDivElement>(null);
   const loggedPaymentId = useRef('');
   const [exportOpen, setExportOpen] = useState(false);
+  const [fullScreen, setFullScreen] = useState(false);
   const customer = invoice ? state.customers.find((entry) => entry.id === invoice.customerId) || invoice.customerSnapshot : null;
 
   useEffect(() => {
@@ -24,11 +25,11 @@ export default function PaymentReceiptModal({ payment, invoice, onClose }: { pay
   if (!payment || !invoice) return null;
   return (
     <>
-      <Modal isOpen onClose={onClose} title={language === 'ta' ? 'கட்டண ரசீது' : 'Payment receipt'}>
-        <div className="max-h-[70vh] overflow-auto">
-          <CanonicalDocumentViewport documentRef={documentRef}><PaymentReceiptTemplate payment={payment} invoice={invoice} profile={state.profile} customer={customer as any} /></CanonicalDocumentViewport>
+      <Modal isOpen onClose={() => { if (fullScreen) setFullScreen(false); else onClose(); }} title={language === 'ta' ? 'கட்டண ரசீது' : 'Payment receipt'} fullScreen={fullScreen} maxWidth="max-w-5xl">
+        <div className={fullScreen ? 'min-h-0 flex-1 overflow-hidden' : 'max-h-[70vh] overflow-auto'}>
+          <CanonicalDocumentViewport documentRef={documentRef} containedFullScreen onFullScreenChange={setFullScreen}><PaymentReceiptTemplate payment={payment} invoice={invoice} profile={state.profile} customer={customer as any} /></CanonicalDocumentViewport>
         </div>
-        <div className="mt-4 flex justify-end gap-2"><button onClick={onClose} className="rounded-xl px-4 py-3 font-semibold">{language === 'ta' ? 'மூடு' : 'Close'}</button><button onClick={() => setExportOpen(true)} className="rounded-xl bg-emerald-700 px-4 py-3 font-bold text-white">{language === 'ta' ? 'பதிவிறக்கு / பகிர்' : 'Download / share'}</button></div>
+        <div className="mt-4 flex shrink-0 justify-end gap-2"><button onClick={() => { if (fullScreen) setFullScreen(false); else onClose(); }} className="min-h-12 rounded-xl px-4 py-3 font-semibold">{fullScreen ? (language === 'ta' ? 'முழுத்திரையை மூடு' : 'Close Full Screen') : (language === 'ta' ? 'மூடு' : 'Close')}</button><button onClick={() => setExportOpen(true)} className="min-h-12 rounded-xl bg-emerald-700 px-4 py-3 font-bold text-white">{language === 'ta' ? 'பதிவிறக்கு / பகிர்' : 'Download / share'}</button></div>
       </Modal>
       <ExportPanel isOpen={exportOpen} onClose={() => setExportOpen(false)} documentId={payment.id} documentType="payment-receipt" documentNumber={`R-${payment.id}`} documentLabel="Payment Receipt" updatedAt={payment.createdAt} customerId={invoice.customerId} customerName={customer?.name || 'Customer'} customerPhone={customer?.phone} customerEmail={customer?.email} defaultCcEmail={state.settings.emailCcBusiness ? state.profile.email : ''} emailEnabled={state.settings.integrations.serverEmail} businessName={state.profile.name} exportRootRef={documentRef} onPrint={() => window.print()} widthMm={210} />
     </>

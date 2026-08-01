@@ -33,9 +33,11 @@ export default function PaymentReceiptTemplate({ payment, invoice, profile, cust
           <div className="flex justify-between p-3"><dt>{text('Remaining balance', 'மீதமுள்ள நிலுவை')}</dt><dd className="font-bold">{formatCurrency(invoice.balanceDue)}</dd></div>
         </dl>
       </main>
-      <div className="document-final-section ml-auto w-[90mm]"><InvoiceAuthorizationAssets documentType="invoice" /></div>
       <div className="flex-1" aria-hidden="true" />
-      <ComputerGeneratedFooter />
+      <div className="receipt-authorization-group">
+        <div className="document-final-section ml-auto w-[90mm]"><InvoiceAuthorizationAssets documentType="invoice" /></div>
+        <ComputerGeneratedFooter />
+      </div>
     </div>
   );
 }

@@ -23,6 +23,46 @@ type SiblingState = {
   ariaHidden: string | null;
 };
 
+type OverlayEntry = {
+  id: symbol;
+  container: HTMLElement;
+  onClose: () => void;
+  closeOnEscape: boolean;
+  restoreFocus: HTMLElement | null;
+};
+
+const overlayStack: OverlayEntry[] = [];
+let bodyOverflow = '';
+let bodyStates: SiblingState[] = [];
+
+function applyOverlayStack() {
+  const top = overlayStack.at(-1);
+  if (!top) {
+    document.body.style.overflow = bodyOverflow;
+    for (const { element, inert, ariaHidden } of bodyStates) {
+      element.inert = inert;
+      if (ariaHidden === null) element.removeAttribute('aria-hidden');
+      else element.setAttribute('aria-hidden', ariaHidden);
+    }
+    bodyStates = [];
+    return;
+  }
+
+  document.body.style.overflow = 'hidden';
+  for (const { element } of bodyStates) {
+    const active = element === top.container;
+    element.inert = !active;
+    if (active) element.removeAttribute('aria-hidden');
+    else element.setAttribute('aria-hidden', 'true');
+  }
+  for (const entry of overlayStack) {
+    const active = entry === top;
+    entry.container.inert = !active;
+    if (active) entry.container.removeAttribute('aria-hidden');
+    else entry.container.setAttribute('aria-hidden', 'true');
+  }
+}
+
 export function useAccessibleOverlay({
   open,
   containerRef,
@@ -35,21 +75,25 @@ export function useAccessibleOverlay({
     const container = containerRef.current;
     if (!container) return;
 
-    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    const siblings: SiblingState[] = Array.from(document.body.children)
-      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== container)
+    const entry: OverlayEntry = {
+      id: Symbol('overlay'),
+      container,
+      onClose,
+      closeOnEscape,
+      restoreFocus: document.activeElement instanceof HTMLElement ? document.activeElement : null,
+    };
+    if (!overlayStack.length) {
+      bodyOverflow = document.body.style.overflow;
+      bodyStates = Array.from(document.body.children)
+      .filter((element): element is HTMLElement => element instanceof HTMLElement)
       .map((element) => ({
         element,
         inert: element.inert,
         ariaHidden: element.getAttribute('aria-hidden'),
       }));
-
-    for (const { element } of siblings) {
-      element.inert = true;
-      element.setAttribute('aria-hidden', 'true');
     }
-    document.body.style.overflow = 'hidden';
+    overlayStack.push(entry);
+    applyOverlayStack();
 
     const focusInitial = window.setTimeout(() => {
       const requested = initialFocusRef?.current
@@ -59,10 +103,11 @@ export function useAccessibleOverlay({
     }, 0);
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && closeOnEscape) {
+      if (overlayStack.at(-1)?.id !== entry.id) return;
+      if (event.key === 'Escape' && entry.closeOnEscape) {
         event.preventDefault();
         event.stopPropagation();
-        onClose();
+        entry.onClose();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -89,14 +134,10 @@ export function useAccessibleOverlay({
     return () => {
       window.clearTimeout(focusInitial);
       document.removeEventListener('keydown', handleKeyDown, true);
-      document.body.style.overflow = previousOverflow;
-      for (const { element, inert, ariaHidden } of siblings) {
-        element.inert = inert;
-        if (ariaHidden === null) element.removeAttribute('aria-hidden');
-        else element.setAttribute('aria-hidden', ariaHidden);
-      }
-      window.setTimeout(() => previouslyFocused?.focus({ preventScroll: true }), 0);
+      const index = overlayStack.findIndex((item) => item.id === entry.id);
+      if (index >= 0) overlayStack.splice(index, 1);
+      applyOverlayStack();
+      window.setTimeout(() => entry.restoreFocus?.focus({ preventScroll: true }), 0);
     };
   }, [closeOnEscape, containerRef, initialFocusRef, onClose, open]);
 }
-

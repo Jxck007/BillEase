@@ -16,6 +16,7 @@ interface ModalProps {
   closeOnEscape?: boolean;
   initialFocusRef?: RefObject<HTMLElement | null>;
   closeLabel?: string;
+  fullScreen?: boolean;
 }
 
 export default function Modal({
@@ -30,6 +31,7 @@ export default function Modal({
   closeOnEscape = true,
   initialFocusRef,
   closeLabel,
+  fullScreen = false,
 }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -44,7 +46,7 @@ export default function Modal({
   const modal = (
     <AnimatePresence>
       {isOpen && (
-        <div ref={overlayRef} className="fixed inset-0 z-[100] flex items-center justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6" data-billease-overlay>
+        <div ref={overlayRef} className={`fixed inset-0 z-[var(--z-modal)] flex items-center justify-center ${fullScreen ? 'p-0' : 'p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-6'}`} data-billease-overlay>
           <motion.div 
             initial={reduceMotion ? false : { opacity: 0 }}
             animate={reduceMotion ? { opacity: 1 } : { opacity: 1 }}
@@ -62,7 +64,7 @@ export default function Modal({
             aria-labelledby={titleId}
             aria-describedby={description ? descriptionId : undefined}
             tabIndex={-1}
-            className={`bg-white rounded-2xl shadow-xl w-full ${maxWidth} flex flex-col relative z-[101] max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)] overflow-hidden`}
+            className={`bg-white shadow-xl w-full flex flex-col relative z-[calc(var(--z-modal)+1)] overflow-hidden ${fullScreen ? 'h-[100dvh] max-w-none rounded-none' : `rounded-2xl ${maxWidth} max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)]`}`}
           >
             <div className="flex items-center justify-between p-4 border-b">
               <div className="min-w-0">

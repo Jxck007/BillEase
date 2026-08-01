@@ -1,5 +1,77 @@
 @import "tailwindcss";
 
+:root {
+  --z-document-fullscreen: 80;
+  --z-modal: 100;
+}
+
+.receipt-print-page {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.receipt-print-page:lang(ta) {
+  font-family: "Noto Sans Tamil", "Latha", system-ui, sans-serif;
+}
+.receipt-print-page .receipt-authorization-group {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.receipt-print-page .authorization-assets {
+  display: grid;
+  grid-template-columns: 28mm 45mm;
+  align-items: end;
+  justify-content: end;
+  gap: 5mm;
+}
+.receipt-print-page .company-seal-column,
+.receipt-print-page .signature-column {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+}
+.receipt-print-page .signature-column {
+  width: 45mm;
+  min-height: 22mm;
+  flex-direction: column;
+  text-align: center;
+}
+.receipt-print-page .company-seal {
+  display: block;
+  width: 26mm;
+  height: 26mm;
+  max-width: 26mm;
+  max-height: 26mm;
+  object-fit: contain;
+}
+.receipt-print-page .authorization-company-name,
+.receipt-print-page .authorized-signature-label {
+  display: block;
+  max-width: 45mm;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+}
+.receipt-print-page .company-signature-crop {
+  display: flex;
+  width: 42mm;
+  height: 20mm;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.receipt-print-page .company-signature {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 42mm;
+  max-height: 20mm;
+  object-fit: contain;
+  transform: none;
+}
+.receipt-print-page .authorized-signature-label { margin-top: 1mm; }
+.receipt-print-page .document-final-footer { margin-top: 4mm !important; }
+
 @theme {
   --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }

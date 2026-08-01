@@ -10,9 +10,11 @@ const MM_TO_PX = 96 / 25.4;
 type Props = {
   children: ReactNode;
   documentRef: RefObject<HTMLDivElement | null>;
+  containedFullScreen?: boolean;
+  onFullScreenChange?: (fullScreen: boolean) => void;
 };
 
-export default function CanonicalDocumentViewport({ children, documentRef }: Props) {
+export default function CanonicalDocumentViewport({ children, documentRef, containedFullScreen = false, onFullScreenChange }: Props) {
   const { language } = useLanguage();
   const text = (english: string, tamil: string) => language === 'ta' ? tamil : english;
   const stageRef = useRef<HTMLDivElement>(null);
@@ -22,6 +24,10 @@ export default function CanonicalDocumentViewport({ children, documentRef }: Pro
   const [fullScreen, setFullScreen] = useState(false);
   const [viewMode, setViewMode] = useState<'content' | 'page'>('content');
   const [preview, setPreview] = useState({ scale: 1, height: 0, width: 0 });
+  const setFullScreenState = useCallback((value: boolean) => {
+    setFullScreen(value);
+    onFullScreenChange?.(value);
+  }, [onFullScreenChange]);
 
   const updatePreview = useCallback(() => {
     const viewport = viewportRef.current;
@@ -62,41 +68,51 @@ export default function CanonicalDocumentViewport({ children, documentRef }: Pro
 
   const closePreview = useCallback(() => {
     if (window.history.state?.billEaseDocumentPreview) window.history.back();
-    else setFullScreen(false);
-  }, []);
+    else setFullScreenState(false);
+  }, [setFullScreenState]);
 
   useAccessibleOverlay({
-    open: fullScreen,
+    open: fullScreen && !containedFullScreen,
     containerRef: stageRef,
     initialFocusRef: closeFullScreenRef,
     onClose: closePreview,
   });
 
   useEffect(() => {
-    if (!fullScreen) return;
+    if (!fullScreen || containedFullScreen) return;
     window.history.pushState({ ...window.history.state, billEaseDocumentPreview: true }, '');
 
-    const closeFromHistory = () => setFullScreen(false);
+    const closeFromHistory = () => setFullScreenState(false);
     window.addEventListener('popstate', closeFromHistory);
     return () => {
       window.removeEventListener('popstate', closeFromHistory);
     };
-  }, [fullScreen]);
+  }, [containedFullScreen, fullScreen, setFullScreenState]);
+
+  useEffect(() => {
+    const closeForTopOverlay = () => {
+      if (!fullScreen || containedFullScreen) return;
+      setFullScreenState(false);
+      window.setTimeout(() => window.dispatchEvent(new Event('billease:document-fullscreen-closed')), 0);
+    };
+    window.addEventListener('billease:close-document-fullscreen', closeForTopOverlay);
+    return () => window.removeEventListener('billease:close-document-fullscreen', closeForTopOverlay);
+  }, [containedFullScreen, fullScreen, setFullScreenState]);
 
   const previewStage = (
     <section
       ref={stageRef}
-      role={fullScreen ? 'dialog' : undefined}
-      aria-modal={fullScreen ? true : undefined}
-      aria-label={fullScreen ? text('Full screen document preview', 'முழுத்திரை ஆவண முன்னோட்டம்') : undefined}
+      role={fullScreen && !containedFullScreen ? 'dialog' : undefined}
+      aria-modal={fullScreen && !containedFullScreen ? true : undefined}
+      aria-label={fullScreen && !containedFullScreen ? text('Full screen document preview', 'முழுத்திரை ஆவண முன்னோட்டம்') : undefined}
       className={fullScreen
-        ? 'canonical-preview-stage canonical-preview-fullscreen fixed inset-0 z-[90] flex h-[100dvh] flex-col bg-stone-200 print:static print:h-auto'
+        ? `${containedFullScreen ? 'h-full' : 'fixed inset-0 z-[var(--z-document-fullscreen)] h-[100dvh]'} canonical-preview-stage canonical-preview-fullscreen flex flex-col bg-stone-200 print:static print:h-auto`
         : 'canonical-preview-stage'}
     >
       <div className="canonical-preview-toolbar flex flex-wrap items-center gap-2 print:hidden">
         <button type="button" onClick={() => { setZoom(1); setViewMode('content'); }} className={`preview-control ${viewMode === 'content' ? 'preview-control-active' : ''}`} aria-pressed={viewMode === 'content'}><ScanLine size={17} />{text('Fit Content', 'உள்ளடக்கத்தைப் பொருத்து')}</button>
         <button type="button" onClick={() => { setZoom(1); setViewMode('page'); }} className={`preview-control ${viewMode === 'page' ? 'preview-control-active' : ''}`} aria-pressed={viewMode === 'page'}><FileText size={17} />{text('Full A4', 'முழு A4')}</button>
-        <button ref={fullScreen ? closeFullScreenRef : undefined} type="button" onClick={() => { if (fullScreen) closePreview(); else { setViewMode('page'); setFullScreen(true); } }} className="preview-control">
+        <button ref={fullScreen ? closeFullScreenRef : undefined} type="button" onClick={() => { if (fullScreen) closePreview(); else { setViewMode('page'); setFullScreenState(true); } }} className="preview-control">
           {fullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
           {fullScreen ? text('Close Full Screen', 'முழுத்திரையை மூடு') : text('Full Screen', 'முழுத்திரை')}
         </button>
@@ -121,5 +137,5 @@ export default function CanonicalDocumentViewport({ children, documentRef }: Pro
     </section>
   );
 
-  return fullScreen ? createPortal(previewStage, document.body) : previewStage;
+  return fullScreen && !containedFullScreen ? createPortal(previewStage, document.body) : previewStage;
 }
