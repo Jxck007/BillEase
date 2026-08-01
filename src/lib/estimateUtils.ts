@@ -42,9 +42,9 @@ export function getEstimateDocumentTitle(settings: AppSettings) {
 
 export function getEstimateDocumentName(settings: AppSettings, language: Language = 'en') {
   if (getEstimateDocumentLabel(settings) === 'quotation') {
-    return language === 'en' ? 'Quotation' : 'மதிப்பீடு (Quotation)';
+    return language === 'en' ? 'Quotation' : 'விலைமதிப்பீடு';
   }
-  return language === 'en' ? 'Estimate' : 'மதிப்பீடு (Estimate)';
+  return language === 'en' ? 'Estimate' : 'மதிப்பீடு';
 }
 
 export function getEstimateNumberLabel(settings: AppSettings) {
@@ -53,9 +53,9 @@ export function getEstimateNumberLabel(settings: AppSettings) {
 
 export function getEstimatesNavLabel(settings: AppSettings, language: Language = 'en') {
   if (getEstimateDocumentLabel(settings) === 'quotation') {
-    return language === 'en' ? 'Quotations' : 'மதிப்பீடுகள் (Quotations)';
+    return language === 'en' ? 'Quotations' : 'விலைமதிப்பீடுகள்';
   }
-  return language === 'en' ? 'Estimates' : 'மதிப்பீடுகள் (Estimates)';
+  return language === 'en' ? 'Estimates' : 'மதிப்பீடுகள்';
 }
 
 export function getEstimateLineAmount(item: InvoiceItem) {

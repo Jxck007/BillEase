@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight, FilePlus2, FileText, ReceiptText, Truck, UserPlus, Users,
-  Wifi, WifiOff,
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { formatCurrency } from '../lib/utils';
@@ -10,7 +9,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { calculateBillingMetrics } from '../services/paymentService';
 
 export default function Dashboard() {
-  const { state, syncStatus, lastSavedAt } = useData();
+  const { state } = useData();
   const { language, t } = useLanguage();
 
   const summary = useMemo(() => {
@@ -65,10 +64,6 @@ export default function Dashboard() {
     { to: '/delivery-notes/new', label: t('newDeliveryNote'), hint: language === 'ta' ? 'அனுப்பிய பொருட்களைப் பதிவு செய்' : 'Record goods sent', icon: Truck, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
     { to: '/customers?add=1', label: t('addCustomer'), hint: language === 'ta' ? 'வாடிக்கையாளரைச் சேமி' : 'Save a customer', icon: UserPlus, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
   ];
-
-  const statusLabel = language === 'ta'
-    ? syncStatus === 'online' ? 'ஒத்திசைக்கப்பட்டது' : syncStatus === 'saving' ? 'ஒத்திசைக்கப்படுகிறது' : syncStatus === 'failed' ? 'ஒத்திசைவு தோல்வி' : syncStatus === 'loading' ? 'ஏற்றப்படுகிறது' : 'சாதனத்தில் சேமிக்கப்பட்டது'
-    : syncStatus === 'online' ? 'Synced' : syncStatus === 'saving' ? 'Syncing' : syncStatus === 'failed' ? 'Sync failed' : syncStatus === 'loading' ? 'Loading' : 'Saved locally';
 
   return (
     <div className="space-y-7">
@@ -138,17 +133,6 @@ export default function Dashboard() {
         </article>
 
         <div className="space-y-5">
-          <article className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-            <div className="flex items-start gap-3">
-              {syncStatus === 'offline' || syncStatus === 'failed' ? <WifiOff className="text-amber-600" /> : <Wifi className="text-emerald-600" />}
-              <div>
-                <h2 className="font-bold text-stone-900">{language === 'ta' ? 'ஒத்திசைவு நிலை' : 'Sync status'}: {statusLabel}</h2>
-                <p className="mt-1 text-sm text-stone-500">
-                  {language === 'ta' ? 'கடைசியாக ஒத்திசைத்தது' : 'Last synced'}: {lastSavedAt ? new Date(lastSavedAt).toLocaleString(language === 'ta' ? 'ta-IN' : 'en-IN') : (language === 'ta' ? 'இன்னும் கிடைக்கவில்லை' : 'Not available yet')}
-                </p>
-              </div>
-            </div>
-          </article>
           <article className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
               <h2 className="font-bold text-stone-900">{language === 'ta' ? 'சமீபத்திய வாடிக்கையாளர்கள்' : 'Recent customers'}</h2>

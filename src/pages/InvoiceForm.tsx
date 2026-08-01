@@ -298,14 +298,14 @@ export default function InvoiceForm() {
       <div className="flex items-start gap-3 border-b border-stone-200 pb-4">
         <button type="button" title={t('back')} aria-label={t('back')} onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="shrink-0 inline-flex min-h-12 items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2 shadow-sm">
           <ArrowLeft size={24} className="text-stone-600" />
-          <span className="text-sm font-semibold text-stone-700">{isEstimate ? 'Back to Quotations' : 'Back to Invoices'}</span>
+          <span className="text-sm font-semibold text-stone-700">{isEstimate ? (language === 'ta' ? '← விலைமதிப்பீடுகள்' : '← Quotations') : (language === 'ta' ? '← விலைப்பட்டியல்கள்' : '← Invoices')}</span>
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-black text-stone-800">{isEditing ? t('edit') : isEstimate ? (language === 'en' ? `Create ${getEstimateDocumentName(state.settings, language)}` : `புதிய ${getEstimateDocumentName(state.settings, language)}`) : t('createInvoice')}</h1>
             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">{invoiceType}</span>
           </div>
-          <p className="mt-1 text-sm text-stone-500">{draftSaveStatus === 'saving' ? 'Saving draft…' : draftSaveStatus === 'saved-locally' ? 'Saved locally' : draftSaveStatus === 'failed' ? 'Action required — draft save failed' : language === 'en' ? 'Draft autosave is enabled' : 'Draft autosave இயக்கப்பட்டுள்ளது'}</p>
+          <p className="mt-1 text-sm text-stone-600" role="status" aria-live="polite">{draftSaveStatus === 'saving' ? (language === 'ta' ? 'வரைவு இந்தச் சாதனத்தில் சேமிக்கப்படுகிறது…' : 'Saving draft on this device…') : draftSaveStatus === 'saved-locally' ? (language === 'ta' ? 'வரைவு இந்தச் சாதனத்தில் சேமிக்கப்பட்டது' : 'Draft saved on this device') : draftSaveStatus === 'failed' ? (language === 'ta' ? 'வரைவைச் சேமிக்க முடியவில்லை — மீண்டும் முயலவும்' : 'Draft could not be saved — try again') : language === 'en' ? 'Drafts save automatically on this device' : 'வரைவுகள் இந்தச் சாதனத்தில் தானாகச் சேமிக்கப்படும்'}</p>
         </div>
       </div>
       <div className="grid grid-cols-1 items-start gap-6 min-[1180px]:grid-cols-[minmax(0,1fr)_280px]">
@@ -382,7 +382,7 @@ export default function InvoiceForm() {
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                 {language === 'en'
                   ? `${getEstimateDocumentName(state.settings, language)} documents use the quotation layout for preview, print, PDF, PNG, and sharing.`
-                  : `${getEstimateDocumentName(state.settings, language)} ஆவணங்கள் quotation layout-ஐ பயன்படுத்தும்.`}
+                  : `${getEstimateDocumentName(state.settings, language)} ஆவணங்கள் விலைமதிப்பீட்டு வடிவமைப்பைப் பயன்படுத்தும்.`}
               </div>
             ) : null}
 
@@ -487,7 +487,7 @@ export default function InvoiceForm() {
                 </div>
                                 ) : null}
                 <div className="md:col-span-2">
-                  <Label english={language === 'en' ? 'Customer details in invoice' : 'Customer details in invoice'} tamil="Customer Fields" />
+                  <Label english={language === 'en' ? 'Customer details shown on document' : 'ஆவணத்தில் காட்டப்படும் வாடிக்கையாளர் விவரங்கள்'} tamil="வாடிக்கையாளர் விவரங்கள்" />
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 rounded-2xl border border-stone-200 bg-white p-3 text-sm">
                     {CUSTOMER_FIELD_OPTIONS.map((option) => (
                       <label key={option.key} className="flex items-center gap-2">
@@ -510,7 +510,7 @@ export default function InvoiceForm() {
                     onClick={() => updateDraft({ customerFieldVisibility: DEFAULT_CUSTOMER_FIELD_VISIBILITY })}
                     className="mt-2 rounded-xl border border-stone-200 px-3 py-1 text-xs font-semibold text-stone-700 hover:bg-stone-50"
                   >
-                    {language === 'en' ? 'Reset fields' : 'Reset fields'}
+                    {language === 'en' ? 'Reset fields' : 'புலங்களை மீட்டமை'}
                   </button>
                 </div>
                 <div className="md:col-span-2">
@@ -529,10 +529,10 @@ export default function InvoiceForm() {
         <aside className="space-y-4 min-[1180px]:sticky min-[1180px]:top-24">
           <details open className="rounded-3xl border bg-white p-5 shadow-sm">
             <summary className="flex min-h-12 cursor-pointer items-center gap-2 font-bold text-stone-800 min-[1180px]:hidden">
-              <Sparkles size={18} className="text-emerald-600" />{language === 'en' ? 'Live Summary' : 'Live சுருக்கம்'}
+              <Sparkles size={18} className="text-emerald-600" />{language === 'en' ? 'Live summary' : 'நேரடி சுருக்கம்'}
             </summary>
             <div className="space-y-3">
-            <div className="hidden items-center gap-2 text-stone-800 font-bold min-[1180px]:flex"><Sparkles size={18} className="text-emerald-600" />{language === 'en' ? 'Live Summary' : 'Live சுருக்கம்'}</div>
+            <div className="hidden items-center gap-2 text-stone-800 font-bold min-[1180px]:flex"><Sparkles size={18} className="text-emerald-600" />{language === 'en' ? 'Live summary' : 'நேரடி சுருக்கம்'}</div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span>{t('subtotal')}</span><span>{formatCurrency(viewDraft.subtotal || 0)}</span></div>
               <div className="flex justify-between"><span>{t('taxableAmount')}</span><span>{formatCurrency(viewDraft.taxableAmount || 0)}</span></div>
@@ -607,8 +607,8 @@ export default function InvoiceForm() {
             <input value={customerDraft.gstNumber} onChange={(event) => setCustomerDraft((current) => ({ ...current, gstNumber: event.target.value.toUpperCase() }))} placeholder={t('gstNumber')} title={t('gstNumber')} className="w-full rounded-2xl border border-stone-200 px-4 py-3 uppercase outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
           <div>
-            <Label english={language === 'en' ? 'State code' : 'மாநில code'} tamil="State code" />
-            <input value={customerDraft.stateCode} onChange={(event) => setCustomerDraft((current) => ({ ...current, stateCode: event.target.value }))} placeholder={language === 'en' ? 'State code' : 'மாநில code'} title={language === 'en' ? 'State code' : 'மாநில code'} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
+            <Label english={language === 'en' ? 'State code' : 'மாநிலக் குறியீடு'} tamil="மாநிலக் குறியீடு" />
+            <input value={customerDraft.stateCode} onChange={(event) => setCustomerDraft((current) => ({ ...current, stateCode: event.target.value }))} placeholder={language === 'en' ? 'State code' : 'மாநிலக் குறியீடு'} title={language === 'en' ? 'State code' : 'மாநிலக் குறியீடு'} className="w-full rounded-2xl border border-stone-200 px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
           </div>
           </div>}
           <div className="flex justify-end gap-3 border-t pt-4">

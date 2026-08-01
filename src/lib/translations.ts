@@ -31,6 +31,18 @@ export const TRANSLATIONS: Record<string, Record<Language, string>> = {
   export: { en: 'Export', ta: 'ஏற்றுமதி' },
   duplicate: { en: 'Duplicate', ta: 'நகலெடு' },
   draft: { en: 'Draft', ta: 'வரைவு' },
+  retry: { en: 'Retry', ta: 'மீண்டும் முயலவும்' },
+  lastSaved: { en: 'Last saved', ta: 'கடைசியாகச் சேமித்தது' },
+  loadingSavedRecords: { en: 'Opening records saved on this device…', ta: 'இந்தச் சாதனத்தில் சேமித்த பதிவுகள் திறக்கப்படுகின்றன…' },
+  savingOnDevice: { en: 'Saving changes on this device…', ta: 'மாற்றங்கள் இந்தச் சாதனத்தில் சேமிக்கப்படுகின்றன…' },
+  savedOnDeviceSyncPending: { en: 'Saved on this device. Cloud sync is pending.', ta: 'இந்தச் சாதனத்தில் சேமிக்கப்பட்டது. மேக ஒத்திசைவு நிலுவையில் உள்ளது.' },
+  syncingToCloud: { en: 'Saved on this device. Syncing to the cloud…', ta: 'இந்தச் சாதனத்தில் சேமிக்கப்பட்டது. மேகத்துடன் ஒத்திசைக்கப்படுகிறது…' },
+  savedAndCloudSynced: { en: 'Saved on this device and synced to the cloud.', ta: 'இந்தச் சாதனத்தில் சேமிக்கப்பட்டு மேகத்துடன் ஒத்திசைக்கப்பட்டது.' },
+  noInternetSavedOnDevice: { en: 'No internet. Your changes are saved safely on this device.', ta: 'இணையம் இல்லை. உங்கள் மாற்றங்கள் இந்தச் சாதனத்தில் பாதுகாப்பாகச் சேமிக்கப்பட்டுள்ளன.' },
+  cloudUnavailableSavedOnDevice: { en: 'Cloud is unavailable. Your work is safe on this device.', ta: 'மேகச் சேவை கிடைக்கவில்லை. உங்கள் பணி இந்தச் சாதனத்தில் பாதுகாப்பாக உள்ளது.' },
+  savedOnDeviceCloudUnavailable: { en: 'Saved on this device. Cloud sync is not available.', ta: 'இந்தச் சாதனத்தில் சேமிக்கப்பட்டது. மேக ஒத்திசைவு கிடைக்கவில்லை.' },
+  syncFailedSavedOnDevice: { en: 'Cloud sync failed. Your work is safe on this device.', ta: 'மேக ஒத்திசைவு தோல்வியடைந்தது. உங்கள் பணி இந்தச் சாதனத்தில் பாதுகாப்பாக உள்ளது.' },
+  savedDataNeedsAttention: { en: 'Your work is saved, but one item needs attention.', ta: 'உங்கள் பணி சேமிக்கப்பட்டது; ஒரு விஷயம் கவனிக்கப்பட வேண்டும்.' },
 
   // Dashboard
   todaySales: { en: "Today's Sales", ta: 'இன்றைய விற்பனை' },

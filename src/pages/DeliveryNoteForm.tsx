@@ -221,7 +221,7 @@ export default function DeliveryNoteForm() {
           <h1 className="text-2xl font-black text-stone-800">
             {id ? (language === 'en' ? 'Edit Delivery Note' : 'டெலிவரி நோட்டைத் திருத்து') : (language === 'en' ? 'New Delivery Note' : 'புதிய டெலிவரி நோட்')}
           </h1>
-          <p className="mt-1 text-sm text-stone-500">{draftSaveStatus === 'saving' ? 'Saving draft…' : draftSaveStatus === 'saved-locally' ? 'Saved locally' : draftSaveStatus === 'failed' ? 'Action required — draft save failed' : language === 'en' ? 'Transport / dispatch document' : 'பரிமாற்ற / டிஸ்பாட்ச் ஆவணம்'}</p>
+          <p className="mt-1 text-sm text-stone-600" role="status" aria-live="polite">{draftSaveStatus === 'saving' ? (language === 'ta' ? 'வரைவு இந்தச் சாதனத்தில் சேமிக்கப்படுகிறது…' : 'Saving draft on this device…') : draftSaveStatus === 'saved-locally' ? (language === 'ta' ? 'வரைவு இந்தச் சாதனத்தில் சேமிக்கப்பட்டது' : 'Draft saved on this device') : draftSaveStatus === 'failed' ? (language === 'ta' ? 'வரைவைச் சேமிக்க முடியவில்லை — மீண்டும் முயலவும்' : 'Draft could not be saved — try again') : language === 'en' ? 'Transport / dispatch document' : 'போக்குவரத்து / அனுப்புகை ஆவணம்'}</p>
         </div>
       </div>
 

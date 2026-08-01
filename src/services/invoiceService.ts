@@ -22,7 +22,7 @@ export function getDefaultSettings(profile: BusinessProfile): AppSettings {
     enableAuditLog: true,
     compactMode: false,
     whatsappCountryCode: '91',
-    estimateDocumentLabel: 'estimate',
+    estimateDocumentLabel: 'quotation',
     integrations: { serverEmail: true, pinLookup: true, authorizedSignature: true, gstVerification: false, barcodeScanner: false, ocrImport: false, aiQuickActions: false },
     signatureVisibility: { invoice: true, quotation: true, deliveryNote: false },
     sealVisibility: { invoice: true, quotation: true, deliveryNote: true },

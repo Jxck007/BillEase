@@ -467,8 +467,8 @@ export default function Settings() {
           </Field>
           <Field label={text('Quotation terminology', 'விலைமதிப்பீட்டு சொல்')}>
             <select value={state.settings.estimateDocumentLabel} onChange={(event) => updateSettings({ estimateDocumentLabel: event.target.value as 'estimate' | 'quotation' })} className="settings-input">
-              <option value="estimate">{text('Estimate', 'மதிப்பீடு')}</option>
-              <option value="quotation">{text('Quotation', 'விலைமதிப்பீடு')}</option>
+              <option value="quotation">{text('Quotation (recommended)', 'விலைமதிப்பீடு (பரிந்துரைக்கப்படுகிறது)')}</option>
+              <option value="estimate">{text('Estimate (alternate label)', 'மதிப்பீடு (மாற்றுப் பெயர்)')}</option>
             </select>
           </Field>
         </div>
