@@ -35,7 +35,7 @@ function SyncStatusArea({ status, lastSavedAt, notice, localMode, onRetry }: { s
   return (
     <div role="status" aria-live="polite" aria-atomic="true" className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b px-4 py-2 text-center text-sm font-medium ${colors[status] || colors.offline}`}>
       <span>{labels[status] || labels.offline}</span>
-      {lastSavedAt && <span className="text-xs opacity-80">{t('lastSaved')}: {new Date(lastSavedAt).toLocaleString(language === 'ta' ? 'ta-IN' : 'en-IN')}</span>}
+      {lastSavedAt && <span className="text-xs font-semibold">{t('lastSaved')}: {new Date(lastSavedAt).toLocaleString(language === 'ta' ? 'ta-IN' : 'en-IN')}</span>}
       {notice && ['action-required', 'failed'].includes(status) && <span className="w-full text-xs">{notice}</span>}
       {showRetry && <button type="button" onClick={onRetry} className="min-h-11 rounded-lg border border-current bg-white/80 px-3 font-bold">{t('retry')}</button>}
     </div>

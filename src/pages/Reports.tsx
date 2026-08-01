@@ -166,7 +166,6 @@ export default function Reports() {
           <FilterFields />
           <div className="flex gap-2">
             <button type="button" onClick={applyFilters} className="report-primary-action">{text('Apply', 'பயன்படுத்து')}</button>
-            <button type="button" onClick={clearFilters} className="report-secondary-action">{text('Clear', 'அழி')}</button>
           </div>
         </div>
       </div>
@@ -177,15 +176,15 @@ export default function Reports() {
           <span className="min-w-0 flex-1"><strong className="block text-sm text-stone-800">{text('Filters', 'வடிகட்டிகள்')}{activeFilters ? ` (${activeFilters})` : ''}</strong><span className="block truncate text-xs text-stone-500">{text('Status', 'நிலை')}: {statusLabels[filters.status]} · {text('Customer', 'வாடிக்கையாளர்')}: {customerName} · {text('Date', 'தேதி')}: {dateLabels[filters.dateRange]}</span></span>
           <ChevronDown size={18} className={`transition-transform ${mobileFiltersOpen ? 'rotate-180' : ''}`} />
         </button>
-        {mobileFiltersOpen ? <div id="mobile-report-filters" className="report-filter-sheet mt-3 rounded-2xl border border-stone-200 bg-white p-4 shadow-lg"><FilterFields mobile /><div className="mt-5 grid grid-cols-2 gap-3"><button type="button" onClick={clearFilters} className="report-secondary-action">{text('Clear Filters', 'வடிகட்டிகளை அழி')}</button><button type="button" onClick={applyFilters} className="report-primary-action">{text('Apply Filters', 'வடிகட்டிகளை பயன்படுத்து')}</button></div></div> : null}
+        {mobileFiltersOpen ? <div id="mobile-report-filters" className="report-filter-sheet mt-3 rounded-2xl border border-stone-200 bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-lg"><FilterFields mobile /><div className="mt-5"><button type="button" onClick={applyFilters} className="report-primary-action w-full">{text('Apply Filters', 'வடிகட்டிகளைப் பயன்படுத்து')}</button></div></div> : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-2" aria-live="polite">
         <span className="mr-auto text-sm font-semibold text-stone-700">{filteredInvoices.length} {text(filteredInvoices.length === 1 ? 'record' : 'records', 'பதிவுகள்')}</span>
-        {filters.status !== 'all' ? <button type="button" onClick={() => applyWithout('status')} className="report-filter-chip">{text('Status', 'நிலை')}: {statusLabels[filters.status]} <X size={14} /></button> : null}
-        {filters.customer !== 'all' ? <button type="button" onClick={() => applyWithout('customer')} className="report-filter-chip">{text('Customer', 'வாடிக்கையாளர்')}: {customerName} <X size={14} /></button> : null}
-        {filters.dateRange !== 'any' ? <button type="button" onClick={() => applyWithout('dateRange')} className="report-filter-chip">{text('Date', 'தேதி')}: {dateLabels[filters.dateRange]} <X size={14} /></button> : null}
-        {activeFilters ? <button type="button" onClick={clearFilters} className="min-h-11 px-2 text-sm font-bold text-emerald-700">{text('Clear All', 'அனைத்தையும் அழி')}</button> : null}
+        {filters.status !== 'all' ? <button type="button" onClick={() => applyWithout('status')} className="report-filter-chip" aria-label={text(`Remove ${statusLabels[filters.status]} status filter`, `${statusLabels[filters.status]} நிலை வடிகட்டியை அகற்று`)}>{text('Status', 'நிலை')}: {statusLabels[filters.status]} <X size={14} aria-hidden="true" /></button> : null}
+        {filters.customer !== 'all' ? <button type="button" onClick={() => applyWithout('customer')} className="report-filter-chip" aria-label={text(`Remove ${customerName} customer filter`, `${customerName} வாடிக்கையாளர் வடிகட்டியை அகற்று`)}>{text('Customer', 'வாடிக்கையாளர்')}: {customerName} <X size={14} aria-hidden="true" /></button> : null}
+        {filters.dateRange !== 'any' ? <button type="button" onClick={() => applyWithout('dateRange')} className="report-filter-chip" aria-label={text('Remove date range filter', 'தேதி வரம்பு வடிகட்டியை அகற்று')}>{text('Date', 'தேதி')}: {dateLabels[filters.dateRange]} <X size={14} aria-hidden="true" /></button> : null}
+        {activeFilters ? <button type="button" onClick={clearFilters} className="min-h-11 px-2 text-sm font-bold text-emerald-700">{text('Clear all', 'அனைத்தையும் அழி')}</button> : null}
       </div>
 
       {filteredInvoices.length === 0 ? <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-5 py-12 text-center font-semibold text-stone-600">{text('No records match the selected filters.', 'தேர்ந்தெடுக்கப்பட்ட வடிகட்டிகளுடன் எந்தப் பதிவுகளும் பொருந்தவில்லை.')}</div> : null}

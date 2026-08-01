@@ -68,7 +68,7 @@ export default function Login() {
       
       {/* Decorative background elements */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-[20%] -left-[10%] h-[50%] w-[50%] rounded-full bg-emerald-600/20 blur-[120px]" />
+        <div className="absolute -top-[20%] -left-[10%] h-[50%] w-[50%] rounded-full bg-emerald-700/20 blur-[120px]" />
         <div className="absolute -bottom-[20%] -right-[10%] h-[50%] w-[50%] rounded-full bg-teal-600/20 blur-[120px]" />
       </div>
 

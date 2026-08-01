@@ -56,7 +56,7 @@ export default function DeliveryNotes() {
         <button
           type="button"
           onClick={() => navigate('/delivery-notes/new')}
-          className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 font-semibold text-white shadow-sm"
+          className="inline-flex items-center gap-2 rounded-2xl bg-emerald-700 px-4 py-2.5 font-semibold text-white shadow-sm"
         >
           <Plus size={18} /> {language === 'en' ? 'New Delivery Note' : 'புதிய டெலிவரி நோட்'}
         </button>
@@ -79,7 +79,7 @@ export default function DeliveryNotes() {
           <button
             type="button"
             onClick={() => navigate('/delivery-notes/new')}
-            className="mt-4 rounded-2xl bg-emerald-600 px-4 py-2 font-semibold text-white"
+            className="mt-4 rounded-2xl bg-emerald-700 px-4 py-2 font-semibold text-white"
           >
             {language === 'en' ? 'Create One' : 'ஒன்று உருவாக்குங்கள்'}
           </button>

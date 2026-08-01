@@ -172,7 +172,7 @@ export default function DocumentDeliveryModal(props: Props) {
           )}
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <button type="button" onClick={send} disabled={!props.providerReady || preparingAttachment || !attachment || state === 'sending' || state === 'sent' || Boolean(validationError)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" onClick={send} disabled={!props.providerReady || preparingAttachment || !attachment || state === 'sending' || state === 'sent' || Boolean(validationError)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
               {state === 'sending' ? <Loader2 className="animate-spin" /> : <Mail size={18} />}
               {state === 'sending' ? t('sending') : state === 'sent' ? t('sent') : t('sendEmail')}
             </button>

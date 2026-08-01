@@ -23,6 +23,7 @@ const records = [
   { to: '/invoices', labelKey: 'invoices', icon: FileText },
   { to: '/estimates', labelKey: 'quotations', icon: ReceiptText },
   { to: '/delivery-notes', labelKey: 'deliveryNotes', icon: Truck },
+  { to: '/payments', labelKey: 'paymentsReceipts', icon: ReceiptText },
 ];
 
 const quickCreate = [
@@ -86,7 +87,7 @@ export default function MobileBottomNavigation({ onOpenMore }: { onOpenMore: () 
 
   useEffect(() => setSheet(null), [location.pathname]);
 
-  const recordsActive = /^\/(invoices|estimates|delivery-notes)(\/|$)/.test(location.pathname);
+  const recordsActive = /^\/(invoices|estimates|delivery-notes|payments)(\/|$)/.test(location.pathname);
   const moreActive = /^\/(products|reports|settings)(\/|$)/.test(location.pathname);
 
   const directAction = (to: string) => {
@@ -103,7 +104,7 @@ export default function MobileBottomNavigation({ onOpenMore }: { onOpenMore: () 
 
   return (
     <>
-      <nav className="mobile-bottom-nav print:hidden fixed inset-x-0 bottom-0 z-[60] border-t border-stone-200 bg-white px-2 pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Mobile navigation" data-no-export="true">
+      <nav className="mobile-bottom-nav print:hidden fixed inset-x-0 bottom-0 z-[60] border-t border-stone-200 bg-white px-2 pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label={t('mobileNavigation')} data-no-export="true">
         <div className="mx-auto grid min-h-[72px] max-w-xl grid-cols-5 items-center">
           <button type="button" onClick={() => directAction('/')} className={itemClass(location.pathname === '/')} aria-current={location.pathname === '/' ? 'page' : undefined}>
             <LayoutDashboard size={21} />
@@ -113,7 +114,7 @@ export default function MobileBottomNavigation({ onOpenMore }: { onOpenMore: () 
             <FileText size={21} />
             <span>{t('records')}</span>
           </button>
-          <button type="button" onClick={() => setSheet('create')} className="mx-auto -mt-7 flex h-[60px] w-[60px] items-center justify-center rounded-full border-4 border-stone-50 bg-emerald-600 text-white shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2" aria-label="Open quick create menu" aria-expanded={sheet === 'create'} aria-haspopup="dialog">
+          <button type="button" onClick={() => setSheet('create')} className="mx-auto -mt-7 flex h-[60px] w-[60px] items-center justify-center rounded-full border-4 border-stone-50 bg-emerald-700 text-white shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2" aria-label={t('openQuickCreate')} aria-expanded={sheet === 'create'} aria-haspopup="dialog">
             <Plus size={31} strokeWidth={2.5} />
           </button>
           <button type="button" onClick={() => directAction('/customers')} className={itemClass(location.pathname.startsWith('/customers'))} aria-current={location.pathname.startsWith('/customers') ? 'page' : undefined}>

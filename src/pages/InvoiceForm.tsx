@@ -404,7 +404,7 @@ export default function InvoiceForm() {
               <div className="mb-3 flex items-center gap-3">
                 <h2 className="text-lg font-bold text-stone-800">{language === 'en' ? 'Items' : 'பொருட்கள்'}</h2>
                 <span className="ml-3 text-xs text-stone-500">{language === 'en' ? 'Add and edit invoice line items' : 'பொருள்களைச் சேர்க்கவும் மற்றும் தொகுக்கவும்'}</span>
-                <button type="button" onClick={addItem} className="ml-auto inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-white font-semibold shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"><Plus size={16} />{t('addItem')}</button>
+                <button type="button" onClick={addItem} className="ml-auto inline-flex items-center gap-2 rounded-full bg-emerald-700 px-4 py-2 text-white font-semibold shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"><Plus size={16} />{t('addItem')}</button>
               </div>
               <div className="space-y-4 pt-2">
                 {invoiceItems.map((item) => (
@@ -566,7 +566,7 @@ export default function InvoiceForm() {
           <button type="button" onClick={() => setLeaveTarget(isEstimate ? '/estimates' : '/invoices')} className="min-h-12 rounded-2xl border border-stone-200 bg-white px-5 py-3 font-semibold text-stone-700 shadow-sm">{t('back')}</button>
           <div className="flex flex-wrap items-center justify-end gap-2">
             <button type="button" onClick={() => isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info')} className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-800"><Eye size={18} /> {language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
-            <button type="button" disabled={isSaving} onClick={handleSave} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-bold text-white shadow-sm disabled:opacity-60"><Save size={18} />{isSaving ? 'Saving…' : language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}</button>
+            <button type="button" disabled={isSaving} onClick={handleSave} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-700 px-6 py-3 font-bold text-white shadow-sm disabled:opacity-60"><Save size={18} />{isSaving ? 'Saving…' : language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}</button>
           </div>
         </div>
       </div>
@@ -578,7 +578,7 @@ export default function InvoiceForm() {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={() => { isEditing && draft.id ? navigate(`/${isEstimate ? 'estimates' : 'invoices'}/${draft.id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info'); }} className="min-h-12 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">{language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
-          <button type="button" disabled={isSaving} onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 px-2 font-semibold text-white disabled:opacity-60">{isSaving ? (language === 'ta' ? 'சேமிக்கிறது…' : 'Saving…') : language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}</button>
+          <button type="button" disabled={isSaving} onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-700 px-2 font-semibold text-white disabled:opacity-60">{isSaving ? (language === 'ta' ? 'சேமிக்கிறது…' : 'Saving…') : language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}</button>
         </div>
       </div>
 
@@ -613,7 +613,7 @@ export default function InvoiceForm() {
           </div>}
           <div className="flex justify-end gap-3 border-t pt-4">
             <button type="button" onClick={() => setIsCustomerModalOpen(false)} className="rounded-xl border border-stone-200 px-4 py-2 text-stone-700">{t('cancel')}</button>
-            <button type="button" onClick={handleCreateCustomer} className="rounded-xl bg-emerald-600 px-4 py-2 font-semibold text-white">{t('saveCustomer')}</button>
+            <button type="button" onClick={handleCreateCustomer} className="rounded-xl bg-emerald-700 px-4 py-2 font-semibold text-white">{t('saveCustomer')}</button>
           </div>
         </div>
       </Modal>

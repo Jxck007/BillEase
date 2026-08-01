@@ -28,7 +28,7 @@ export default function DeliveryNotePreview() {
         <button
           type="button"
           onClick={() => navigate('/delivery-notes')}
-          className="mt-6 rounded-2xl bg-emerald-600 px-5 py-3 font-semibold text-white"
+          className="mt-6 rounded-2xl bg-emerald-700 px-5 py-3 font-semibold text-white"
         >
           {language === 'en' ? 'Back' : 'பின்செல்'}
         </button>
@@ -59,7 +59,7 @@ export default function DeliveryNotePreview() {
           <button
             type="button"
             onClick={() => setIsExportOpen(true)}
-            className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 font-semibold text-white"
+            className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 font-semibold text-white"
           >
             <Share2 size={18} /> Share Document
           </button>

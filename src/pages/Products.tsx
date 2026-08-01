@@ -132,7 +132,7 @@ export default function Products() {
           <label className="flex min-h-12 items-center gap-3 text-sm font-semibold"><input type="checkbox" checked={formData.isService} onChange={(event) => setFormData({ ...formData, isService: event.target.checked })} className="h-5 w-5" /> {text('This is a service', 'இது ஒரு சேவை')}</label>
           <div className="flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:justify-end">
             <button type="button" onClick={() => setIsModalOpen(false)} className="min-h-12 rounded-xl border px-5 font-semibold">{t('cancel')}</button>
-            <button type="submit" className="min-h-12 rounded-xl bg-emerald-600 px-5 font-semibold text-white">{text('Save product', 'பொருளைச் சேமி')}</button>
+            <button type="submit" className="min-h-12 rounded-xl bg-emerald-700 px-5 font-semibold text-white">{text('Save product', 'பொருளைச் சேமி')}</button>
           </div>
         </form>
       </Modal>
@@ -142,7 +142,7 @@ export default function Products() {
 }
 
 function PageHeader({ title, description, addLabel, backLabel, onAdd }: { title: string; description: string; addLabel: string; backLabel: string; onAdd: () => void }) {
-  return <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> {backLabel}</Link><h1 className="text-2xl font-bold">{title}</h1><p className="mt-1 text-stone-500">{description}</p></div><button type="button" onClick={onAdd} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 font-semibold text-white"><Plus size={20} /> {addLabel}</button></div>;
+  return <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> {backLabel}</Link><h1 className="text-2xl font-bold">{title}</h1><p className="mt-1 text-stone-500">{description}</p></div><button type="button" onClick={onAdd} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 font-semibold text-white"><Plus size={20} /> {addLabel}</button></div>;
 }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block text-sm font-semibold text-stone-700">{label}<span className="mt-1 block">{children}</span></label>; }
-function EmptyState({ onAdd, title, action }: { onAdd: () => void; title: string; action: string }) { return <div className="px-4 py-16 text-center"><Package size={40} className="mx-auto text-emerald-600" /><h2 className="mt-4 text-xl font-bold">{title}</h2><button type="button" onClick={onAdd} className="mt-6 min-h-12 rounded-xl bg-emerald-600 px-6 font-semibold text-white">{action}</button></div>; }
+function EmptyState({ onAdd, title, action }: { onAdd: () => void; title: string; action: string }) { return <div className="px-4 py-16 text-center"><Package size={40} className="mx-auto text-emerald-600" /><h2 className="mt-4 text-xl font-bold">{title}</h2><button type="button" onClick={onAdd} className="mt-6 min-h-12 rounded-xl bg-emerald-700 px-6 font-semibold text-white">{action}</button></div>; }

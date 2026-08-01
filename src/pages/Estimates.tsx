@@ -56,7 +56,7 @@ export default function Estimates() {
             {language === 'en' ? `Manage your ${documentName.toLowerCase()}s before billing.` : 'பில் போடுவதற்கு முன் கொடுக்கும் தோராய மதிப்பீடுகள்.'}
           </p>
         </div>
-        <Link to="/estimates/new" className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 flex items-center justify-center gap-2">
+        <Link to="/estimates/new" className="px-4 py-2 bg-emerald-700 text-white rounded-lg font-medium hover:bg-emerald-800 flex items-center justify-center gap-2">
           <Plus size={20} />
           {language === 'en' ? `Create ${documentName}` : `புதிய ${documentName}`}
         </Link>
@@ -120,7 +120,7 @@ export default function Estimates() {
             </div>
             <h3 className="text-xl font-bold text-stone-800 mb-2">{language === 'en' ? `No ${documentName.toLowerCase()}s yet` : 'மதிப்பீடுகள் ஏதும் இல்லை'}</h3>
             <p className="text-stone-500 mb-8 max-w-sm mx-auto">{language === 'en' ? `Create ${documentName.toLowerCase()}s to send pricing quotes to customers.` : 'வாடிக்கையாளர்களுக்கு விலை மதிப்பீடுகளை கொடுத்து பில் போடலாம்.'}</p>
-            <Link to="/estimates/new" className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 mx-auto flex items-center justify-center gap-2 max-w-[240px] shadow-sm">
+            <Link to="/estimates/new" className="px-6 py-3 bg-emerald-700 text-white rounded-xl font-bold hover:bg-emerald-800 mx-auto flex items-center justify-center gap-2 max-w-[240px] shadow-sm">
               <Plus size={20} />
               {language === 'en' ? `Create ${documentName}` : `புதிய ${documentName}`}
             </Link>

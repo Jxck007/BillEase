@@ -245,7 +245,7 @@ export default function ExportPanel({
           })}
         </div>
         {blockedWhatsAppUrl && (
-          <a href={blockedWhatsAppUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-600 px-4 font-semibold text-white">
+          <a href={blockedWhatsAppUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-700 px-4 font-semibold text-white">
             {t('tapToOpenWhatsApp')}
           </a>
         )}

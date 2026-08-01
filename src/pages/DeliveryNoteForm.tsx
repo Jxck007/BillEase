@@ -329,7 +329,7 @@ export default function DeliveryNoteForm() {
           <button
             type="button"
             onClick={handleAddItem}
-            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2 font-semibold text-white"
+            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-700 px-4 py-2 font-semibold text-white"
           >
             <Plus size={16} /> {language === 'en' ? 'Add Row' : 'வரி சேர்க்கவும்'}
           </button>
@@ -503,7 +503,7 @@ export default function DeliveryNoteForm() {
         <button
           type="button"
           onClick={handleSave}
-          className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 py-3 font-semibold text-white shadow-sm"
+          className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-700 px-6 py-3 font-semibold text-white shadow-sm"
         >
           <Save size={18} /> {language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}
         </button>
@@ -515,7 +515,7 @@ export default function DeliveryNoteForm() {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={() => { id ? navigate(`/delivery-notes/${id}`) : showToast(language === 'ta' ? 'முழு முன்னோட்டத்தைத் திறக்க முதலில் ஆவணத்தைச் சேமிக்கவும்.' : 'Save the document first to open its full preview.', 'info'); }} className="min-h-12 rounded-xl border border-emerald-200 bg-emerald-50 font-semibold text-emerald-800">{language === 'ta' ? 'முன்னோட்டம்' : 'Preview'}</button>
-          <button type="button" onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-600 px-2 font-semibold text-white">{language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}</button>
+          <button type="button" onClick={handleSave} className="min-h-12 rounded-xl bg-emerald-700 px-2 font-semibold text-white">{language === 'ta' ? 'சேமித்து முடி' : 'Save and Finish'}</button>
         </div>
       </div>
       <ConfirmDialog open={Boolean(leaveTarget)} title={language === 'ta' ? 'இந்த விநியோகக் குறிப்பிலிருந்து வெளியேறவா?' : 'Leave this delivery note?'} message={hasUnsavedDraft ? 'BillEase will save a durable local draft before leaving.' : 'Your latest changes are saved locally.'} confirmLabel={language === 'ta' ? 'வெளியேறு' : 'Leave'} onCancel={() => setLeaveTarget(null)} onConfirm={async () => { const target = leaveTarget; if (!(await flushDraft())) { showToast('Could not save a recovery draft. Continue editing and try again.', 'error'); return; } setLeaveTarget(null); if (target) navigate(target); }} />

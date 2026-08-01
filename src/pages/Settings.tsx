@@ -171,7 +171,7 @@ function VisualAssetManager({ name, title, children }: {
           <h3 className="font-bold text-stone-900">{title}</h3>
           <p className="mt-1 text-xs text-stone-500">Stored separately from your invoices and business records.</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <label className="inline-flex min-h-12 cursor-pointer items-center rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white">
+            <label className="inline-flex min-h-12 cursor-pointer items-center rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white">
               {preview ? 'Replace' : 'Upload'}
               <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (event) => {
                 const file = event.target.files?.[0];
@@ -369,7 +369,7 @@ export default function Settings() {
           <Field label="SWIFT code"><input value={bankDraft.swiftCode} onChange={(event) => setBankDraft((current) => ({ ...current, swiftCode: event.target.value }))} className="settings-input uppercase" /></Field>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={saveBankDetails} className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-emerald-600 px-4 font-semibold text-white"><Save size={18} />{text('Save bank details', 'வங்கி விவரங்களைச் சேமி')}</button>
+          <button type="button" onClick={saveBankDetails} className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-emerald-700 px-4 font-semibold text-white"><Save size={18} />{text('Save bank details', 'வங்கி விவரங்களைச் சேமி')}</button>
           <span className={`text-sm ${bankStatus === 'error' ? 'text-rose-700' : 'text-stone-500'}`}>{bankStatus === 'saved' ? text('Saved', 'சேமிக்கப்பட்டது') : bankStatus === 'error' ? text('Account numbers do not match', 'கணக்கு எண்கள் பொருந்தவில்லை') : text('Changes save only when you press Save', 'சேமி என்பதை அழுத்தினால் மட்டுமே மாற்றங்கள் சேமிக்கப்படும்')}</span>
         </div>
       </Panel>
@@ -525,7 +525,7 @@ export default function Settings() {
           } catch {
             window.alert(text('No local backup is available yet.', 'உள்ளூர் காப்புப்பிரதி இன்னும் கிடைக்கவில்லை.'));
           }
-        }} className="min-h-12 rounded-xl bg-emerald-600 px-4 font-semibold text-white">{text('Export application backup', 'பயன்பாட்டு காப்புப்பிரதியை ஏற்றுமதி செய்')}</button>
+        }} className="min-h-12 rounded-xl bg-emerald-700 px-4 font-semibold text-white">{text('Export application backup', 'பயன்பாட்டு காப்புப்பிரதியை ஏற்றுமதி செய்')}</button>
         <button type="button" onClick={() => downloadText(exportDiagnostics(), `billease-diagnostics-${new Date().toISOString().slice(0, 10)}.json`)} className="min-h-12 rounded-xl border border-stone-300 bg-white px-4 font-semibold text-stone-800">{text('Export safe diagnostics', 'பாதுகாப்பான கண்டறிதலை ஏற்றுமதி செய்')}</button>
       </div>
       <p className="mt-3 text-xs text-stone-500">{text('Diagnostics exclude customer names, addresses, phone numbers, emails, document contents, credentials and attachments.', 'கண்டறிதலில் வாடிக்கையாளர் தனிப்பட்ட தகவல், ஆவண உள்ளடக்கம் மற்றும் சான்றுகள் சேர்க்கப்படாது.')}</p>

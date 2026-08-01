@@ -111,7 +111,7 @@ export default function RecordPaymentModal({ invoice, isOpen, onClose, onSaved }
             <textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={500} className="mt-1 w-full rounded-xl border p-3" rows={3} />
           </label>
           {error ? <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p> : null}
-          <div className="flex justify-end gap-2 border-t pt-4"><button type="button" onClick={onClose} className="rounded-xl px-4 py-3 font-semibold">{text('Cancel', 'ரத்து செய்')}</button><button type="submit" className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white">{text('Review payment', 'கட்டணத்தைச் சரிபார்')}</button></div>
+          <div className="flex justify-end gap-2 border-t pt-4"><button type="button" onClick={onClose} className="rounded-xl px-4 py-3 font-semibold">{text('Cancel', 'ரத்து செய்')}</button><button type="submit" className="rounded-xl bg-emerald-700 px-5 py-3 font-bold text-white">{text('Review payment', 'கட்டணத்தைச் சரிபார்')}</button></div>
         </form>
       ) : (
         <div className="space-y-4">
@@ -126,7 +126,7 @@ export default function RecordPaymentModal({ invoice, isOpen, onClose, onSaved }
             ].map(([label, value]) => <div key={label} className="flex justify-between gap-4 p-3"><dt className="text-stone-500">{label}</dt><dd className="font-bold text-stone-900">{value}</dd></div>)}
           </dl>
           {error ? <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p> : null}
-          <div className="flex justify-end gap-2"><button type="button" disabled={submitting} onClick={() => setConfirming(false)} className="rounded-xl px-4 py-3 font-semibold">{text('Back', 'பின்செல்')}</button><button type="button" disabled={submitting} onClick={save} className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white disabled:opacity-50">{submitting ? text('Saving…', 'சேமிக்கிறது…') : text('Confirm & save', 'உறுதிசெய்து சேமி')}</button></div>
+          <div className="flex justify-end gap-2"><button type="button" disabled={submitting} onClick={() => setConfirming(false)} className="rounded-xl px-4 py-3 font-semibold">{text('Back', 'பின்செல்')}</button><button type="button" disabled={submitting} onClick={save} className="rounded-xl bg-emerald-700 px-5 py-3 font-bold text-white disabled:opacity-50">{submitting ? text('Saving…', 'சேமிக்கிறது…') : text('Confirm & save', 'உறுதிசெய்து சேமி')}</button></div>
         </div>
       )}
     </Modal>

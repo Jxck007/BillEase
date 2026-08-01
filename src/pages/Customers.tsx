@@ -112,7 +112,7 @@ export default function Customers() {
           <h1 className="text-2xl font-bold">{t('customers')}</h1>
           <p className="mt-1 text-stone-500">{text('Contact, billing and document history from loaded records.', 'தொடர்பு, பில்லிங் மற்றும் ஆவண வரலாறு.')}</p>
         </div>
-        <button type="button" onClick={() => openForm()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 font-semibold text-white"><Plus size={20} /> {t('addCustomer')}</button>
+        <button type="button" onClick={() => openForm()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 font-semibold text-white"><Plus size={20} /> {t('addCustomer')}</button>
       </div>
 
       {selectedCustomer && (
@@ -157,7 +157,7 @@ export default function Customers() {
                   <div><dt className="text-xs font-semibold text-stone-500">{text('Documents', 'ஆவணங்கள்')}</dt><dd className="mt-1 font-semibold">{summary?.documentCount || 0}</dd></div>
                 </dl>
                 <div className="mt-4 grid grid-cols-3 gap-2">
-                  <button type="button" onClick={() => setSelectedCustomer(customer)} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl bg-emerald-600 px-2 text-sm font-semibold text-white"><Eye size={17} />{text('View', 'பார்')}</button>
+                  <button type="button" onClick={() => setSelectedCustomer(customer)} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl bg-emerald-700 px-2 text-sm font-semibold text-white"><Eye size={17} />{text('View', 'பார்')}</button>
                   <button type="button" onClick={() => openForm(customer)} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-stone-200 px-2 text-sm font-semibold"><Edit2 size={17} />{t('edit')}</button>
                   <button type="button" onClick={() => setExpandedCustomerId(expanded ? '' : customer.id)} className="inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-stone-200 px-2 text-sm font-semibold" aria-expanded={expanded} aria-label={text(`More actions for ${customer.name}`, `${customer.name}க்கான கூடுதல் செயல்கள்`)}><MoreHorizontal size={18} />{t('more')}</button>
                 </div>
@@ -198,7 +198,7 @@ export default function Customers() {
           <PinLookupField value={formData.shippingPin} enabled={availability.postal && state.settings.integrations.pinLookup} onChange={(shippingPin) => setFormData({ ...formData, shippingPin })} onApply={(result) => setFormData({ ...formData, shippingAddress: `${result.locality}, ${result.district}, ${result.state}` })} />
           <Field label={text('State code', 'மாநிலக் குறியீடு')}><input value={formData.stateCode} onChange={(event) => setFormData({ ...formData, stateCode: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field>
           </div>}
-          <div className="flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={() => setIsModalOpen(false)} className="min-h-12 rounded-xl border px-5 font-semibold">{t('cancel')}</button><button type="submit" className="min-h-12 rounded-xl bg-emerald-600 px-5 font-semibold text-white">{t('saveCustomer')}</button></div>
+          <div className="flex flex-col-reverse gap-3 border-t pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={() => setIsModalOpen(false)} className="min-h-12 rounded-xl border px-5 font-semibold">{t('cancel')}</button><button type="submit" className="min-h-12 rounded-xl bg-emerald-700 px-5 font-semibold text-white">{t('saveCustomer')}</button></div>
         </form>
       </Modal>
       <ConfirmDialog open={Boolean(pendingDelete)} title={text('Delete customer?', 'வாடிக்கையாளரை நீக்கவா?')} message={language === 'ta' ? `${pendingDelete?.name || 'இந்த வாடிக்கையாளரை'} நீக்கவா? ஏற்கனவே உள்ள ஆவணங்கள் மாறாது.` : `Delete ${pendingDelete?.name || 'this customer'}? Existing documents and a recovery copy remain unchanged.`} onCancel={() => setPendingDelete(null)} onConfirm={async () => { if (pendingDelete) { const result = await deleteCustomer(pendingDelete.id); showToast(result.ok ? text('Customer deleted', 'வாடிக்கையாளர் நீக்கப்பட்டார்') : text('The customer could not be deleted.', 'வாடிக்கையாளரை நீக்க முடியவில்லை.'), result.ok ? 'success' : 'error'); } setPendingDelete(null); }} />
@@ -208,4 +208,4 @@ export default function Customers() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block text-sm font-semibold text-stone-700">{label}<span className="mt-1 block">{children}</span></label>; }
 function InfoBlock({ label, value }: { label: string; value: string }) { return <div className="rounded-xl bg-stone-50 p-4"><p className="text-xs font-bold uppercase text-stone-500">{label}</p><p className="mt-1 whitespace-pre-line text-sm text-stone-800">{value}</p></div>; }
-function CreateLink({ to, label }: { to: string; label: string }) { return <Link to={to} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 font-semibold text-white"><FilePlus2 size={18} /> {label}</Link>; }
+function CreateLink({ to, label }: { to: string; label: string }) { return <Link to={to} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 font-semibold text-white"><FilePlus2 size={18} /> {label}</Link>; }

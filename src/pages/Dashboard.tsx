@@ -59,7 +59,7 @@ export default function Dashboard() {
   }, [language, state.customers, state.deliveryNotes, state.invoices]);
 
   const actions = [
-    { to: '/invoices/new', label: t('newInvoice'), hint: language === 'ta' ? 'வரி விலைப்பட்டியல் உருவாக்கு' : 'Create a tax invoice', icon: FilePlus2, tone: 'bg-emerald-600 hover:bg-emerald-700 text-white' },
+    { to: '/invoices/new', label: t('newInvoice'), hint: language === 'ta' ? 'வரி விலைப்பட்டியல் உருவாக்கு' : 'Create a tax invoice', icon: FilePlus2, tone: 'bg-emerald-700 hover:bg-emerald-800 text-white' },
     { to: '/estimates/new', label: t('newQuotation'), hint: language === 'ta' ? 'விலைமதிப்பீடு தயாரி' : 'Prepare a price quote', icon: ReceiptText, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
     { to: '/delivery-notes/new', label: t('newDeliveryNote'), hint: language === 'ta' ? 'அனுப்பிய பொருட்களைப் பதிவு செய்' : 'Record goods sent', icon: Truck, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },
     { to: '/customers?add=1', label: t('addCustomer'), hint: language === 'ta' ? 'வாடிக்கையாளரைச் சேமி' : 'Save a customer', icon: UserPlus, tone: 'bg-white hover:bg-stone-50 text-stone-900 border border-stone-300' },

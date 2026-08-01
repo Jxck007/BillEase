@@ -26,6 +26,7 @@ const groups = [
       { to: '/invoices', icon: FileText, labelKey: 'invoices' },
       { to: '/estimates', icon: ReceiptText, labelKey: 'quotations' },
       { to: '/delivery-notes', icon: Truck, labelKey: 'deliveryNotes' },
+      { to: '/payments', icon: ReceiptText, labelKey: 'paymentsReceipts' },
     ],
   },
   {
@@ -100,7 +101,7 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
 
   const brand = (mobile: boolean) => (
     <div className="flex min-h-16 shrink-0 items-center gap-3 border-b border-stone-100 px-4">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-xl font-bold text-white">B</div>
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-700 text-xl font-bold text-white">B</div>
       <div className="min-w-0 flex-1"><p className="font-bold text-stone-900">BillEase</p><p className="text-xs text-stone-500">{t('simpleBusinessBilling')}</p></div>
       {mobile && <button ref={closeButtonRef} type="button" onClick={onCloseMobile} className="flex min-h-12 min-w-12 items-center justify-center rounded-xl hover:bg-stone-100" aria-label={language === 'ta' ? 'வழிசெலுத்தல் பட்டியலை மூடு' : 'Close navigation menu'}><X size={24} /></button>}
     </div>

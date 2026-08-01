@@ -48,7 +48,7 @@ export default function Expenses() {
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 flex items-center justify-center gap-2"
+          className="px-4 py-2 bg-emerald-700 text-white rounded-lg font-medium hover:bg-emerald-800 flex items-center justify-center gap-2"
         >
           <Plus size={20} />
           {language === 'en' ? 'Add Expense' : 'செலவு பதிய'}
@@ -106,7 +106,7 @@ export default function Expenses() {
             <p className="text-stone-500 mb-8 max-w-sm mx-auto">{language === 'en' ? 'Record your business expenses to automatically calculate profit.' : 'உங்களுடைய வியாபார செலவுகளை பதிவு செய்து லாபத்தை துல்லியமாக கணக்கிடுங்கள்.'}</p>
             <button 
               onClick={() => setIsModalOpen(true)}
-              className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 mx-auto flex items-center justify-center gap-2 shadow-sm"
+              className="px-6 py-3 bg-emerald-700 text-white rounded-xl font-bold hover:bg-emerald-800 mx-auto flex items-center justify-center gap-2 shadow-sm"
             >
               <Plus size={20} />
               {language === 'en' ? 'Add Expense' : 'செலவு பதிய'}
@@ -145,7 +145,7 @@ export default function Expenses() {
           
           <div className="pt-4 border-t flex justify-end gap-3 mt-6">
             <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-stone-700 hover:bg-stone-100 rounded-lg">{t('cancel')}</button>
-            <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium">{t('save')}</button>
+            <button type="submit" className="px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 font-medium">{t('save')}</button>
           </div>
         </form>
       </Modal>

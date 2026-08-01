@@ -40,7 +40,7 @@ export default function InvoicePreview() {
   } : undefined);
   const isEstimate = invoice?.type === 'estimate';
 
-  if (!invoice) return <div className="mx-auto max-w-xl rounded-3xl border bg-white p-8 text-center"><div className="text-lg font-bold text-stone-800">{language === 'ta' ? 'விலைப்பட்டியல் கிடைக்கவில்லை' : 'Invoice not found'}</div><button type="button" onClick={() => navigate('/invoices')} className="mt-6 min-h-[48px] rounded-2xl bg-emerald-600 px-5 py-3 font-semibold text-white">{language === 'ta' ? 'விலைப்பட்டியல்களுக்குச் செல்' : 'Go to invoices'}</button></div>;
+  if (!invoice) return <div className="mx-auto max-w-xl rounded-3xl border bg-white p-8 text-center"><div className="text-lg font-bold text-stone-800">{language === 'ta' ? 'விலைப்பட்டியல் கிடைக்கவில்லை' : 'Invoice not found'}</div><button type="button" onClick={() => navigate('/invoices')} className="mt-6 min-h-[48px] rounded-2xl bg-emerald-700 px-5 py-3 font-semibold text-white">{language === 'ta' ? 'விலைப்பட்டியல்களுக்குச் செல்' : 'Go to invoices'}</button></div>;
 
   const documentName = getEstimateDocumentName(state.settings, language);
   const documentTitle = getEstimateDocumentTitle(state.settings);

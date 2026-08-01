@@ -28,7 +28,7 @@ export default function PaymentReceiptModal({ payment, invoice, onClose }: { pay
         <div className="max-h-[70vh] overflow-auto">
           <CanonicalDocumentViewport documentRef={documentRef}><PaymentReceiptTemplate payment={payment} invoice={invoice} profile={state.profile} customer={customer as any} /></CanonicalDocumentViewport>
         </div>
-        <div className="mt-4 flex justify-end gap-2"><button onClick={onClose} className="rounded-xl px-4 py-3 font-semibold">{language === 'ta' ? 'மூடு' : 'Close'}</button><button onClick={() => setExportOpen(true)} className="rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white">{language === 'ta' ? 'பதிவிறக்கு / பகிர்' : 'Download / share'}</button></div>
+        <div className="mt-4 flex justify-end gap-2"><button onClick={onClose} className="rounded-xl px-4 py-3 font-semibold">{language === 'ta' ? 'மூடு' : 'Close'}</button><button onClick={() => setExportOpen(true)} className="rounded-xl bg-emerald-700 px-4 py-3 font-bold text-white">{language === 'ta' ? 'பதிவிறக்கு / பகிர்' : 'Download / share'}</button></div>
       </Modal>
       <ExportPanel isOpen={exportOpen} onClose={() => setExportOpen(false)} documentId={payment.id} documentType="payment-receipt" documentNumber={`R-${payment.id}`} documentLabel="Payment Receipt" updatedAt={payment.createdAt} customerId={invoice.customerId} customerName={customer?.name || 'Customer'} customerPhone={customer?.phone} customerEmail={customer?.email} defaultCcEmail={state.settings.emailCcBusiness ? state.profile.email : ''} emailEnabled={state.settings.integrations.serverEmail} businessName={state.profile.name} exportRootRef={documentRef} onPrint={() => window.print()} widthMm={210} />
     </>

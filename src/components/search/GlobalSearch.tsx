@@ -137,7 +137,6 @@ export default function GlobalSearch() {
         placeholder={text('Search invoices, customers, products…', 'விலைப்பட்டியல், வாடிக்கையாளர், பொருட்களைத் தேடவும்…')}
         className="min-h-12 w-full rounded-xl border border-stone-300 bg-white pl-10 pr-4 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
         aria-label={text('Search all records', 'அனைத்து பதிவுகளிலும் தேடு')}
-        aria-expanded={open}
       />
     </div>
   );
