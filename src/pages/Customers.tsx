@@ -10,6 +10,7 @@ import PinLookupField from '../components/forms/PinLookupField';
 import { useIntegrationAvailability } from '../hooks/useIntegrationAvailability';
 import { formatCurrency } from '../lib/utils';
 import { useToast } from '../context/ToastContext';
+import { useHelp } from '../context/HelpContext';
 
 const emptyForm = { name: '', phone: '', email: '', address: '', billingPin: '', shippingAddress: '', shippingPin: '', useDifferentShippingAddress: false, gstNumber: '', stateCode: '', whatsapp: '', notes: '' };
 
@@ -19,6 +20,7 @@ export default function Customers() {
   const text = (english: string, tamil: string) => language === 'ta' ? tamil : english;
   const { availability } = useIntegrationAvailability();
   const { showToast } = useToast();
+  const { openHelp } = useHelp();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -168,6 +170,7 @@ export default function Customers() {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCustomer ? text('Edit customer', 'வாடிக்கையாளரைத் திருத்து') : t('addCustomer')} maxWidth="max-w-2xl">
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label={`${text('Customer or business name', 'வாடிக்கையாளர் அல்லது நிறுவனப் பெயர்')} *`}><input required value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field>
+          <button type="button" onClick={() => openHelp('address')} className="min-h-11 text-sm font-semibold text-emerald-700 underline underline-offset-2">{text('Address help', 'முகவரி உதவி')}</button>
           <button type="button" onClick={() => setShowMoreDetails((current) => !current)} className="flex min-h-12 w-full items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-4 font-semibold text-stone-800" aria-expanded={showMoreDetails}>{text('More customer details (optional)', 'கூடுதல் வாடிக்கையாளர் விவரங்கள் (விருப்பம்)')}<ChevronDown size={20} className={showMoreDetails ? 'rotate-180' : ''} /></button>
           {showMoreDetails && <div className="space-y-4 rounded-2xl border border-stone-200 p-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Field label={text('Phone (Optional)', 'போன் (விருப்பம்)')}><input type="tel" value={formData.phone} onChange={(event) => setFormData({ ...formData, phone: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label={text('Email (Optional)', 'மின்னஞ்சல் (விருப்பம்)')}><input type="email" value={formData.email} onChange={(event) => setFormData({ ...formData, email: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label={text('WhatsApp (Optional)', 'WhatsApp (விருப்பம்)')}><input type="tel" value={formData.whatsapp} onChange={(event) => setFormData({ ...formData, whatsapp: event.target.value })} className="min-h-12 w-full rounded-xl border p-3" /></Field><Field label={text('GST number (Optional)', 'GST எண் (விருப்பம்)')}><input value={formData.gstNumber} onChange={(event) => setFormData({ ...formData, gstNumber: event.target.value.toUpperCase() })} className="min-h-12 w-full rounded-xl border p-3 uppercase" /></Field></div>

@@ -5,7 +5,9 @@ import { initializeApp } from 'firebase/app';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { contentHash, sanitizeForFirestore } from '../services/firestoreSerialization';
+import { boundedSyncBackoff } from '../services/syncPolicy';
 export { contentHash, sanitizeForFirestore } from '../services/firestoreSerialization';
+
 
 const enabled = import.meta.env.VITE_FIREBASE_ENABLED === 'true';
 const requiredEnvKeys = [
@@ -310,6 +312,8 @@ export function useFirestoreSync(
     getClientOperationId?: () => string;
     getSourceDeviceId?: () => string;
     onPersisted?: (envelope: AppDataEnvelope, hash: string) => void;
+    onWriteStarted?: (operationId: string, hash: string) => void;
+    onRetryScheduled?: (attempt: number, delayMs: number) => void;
   },
 ) {
   const lastPersistedHash = useState(() => ({ current: '' }))[0];
@@ -323,14 +327,12 @@ export function useFirestoreSync(
         callbacks?.onSuccess?.();
         return;
       }
-      // SAFETY GUARD: Prevent empty overwrites of non-empty cloud data
-      const outboundTotal = getRecordTotal(recordCounts || getRecordCounts(state));
-      if (outboundTotal === 0) {
-        callbacks?.onError?.(Object.assign(new Error('EMPTY_AUTOSYNC_BLOCKED'), { name: 'EmptyOverwriteBlockedError' }));
-        return;
-      }
+      // The transaction performs the destructive-overwrite guard against the
+      // actual remote counts. An empty local record set may still contain a
+      // legitimate profile/settings change on a new installation.
       const operation = callbacks?.getOperation?.() || 'update';
       const clientOperationId = callbacks?.getClientOperationId?.() || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `op_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+      callbacks?.onWriteStarted?.(clientOperationId, hash);
       writeQueue.current = writeQueue.current.then(async () => {
         try {
           let envelope: AppDataEnvelope | undefined;
@@ -347,7 +349,8 @@ export function useFirestoreSync(
               const code = String((error as { code?: string }).code || '');
               const retryable = /unavailable|deadline-exceeded|aborted|resource-exhausted/.test(code);
               if (!retryable || attempt === 2) throw error;
-              const backoff = 250 * (2 ** attempt) + Math.floor(Math.random() * 150);
+              const backoff = boundedSyncBackoff(attempt);
+              callbacks?.onRetryScheduled?.(attempt + 1, backoff);
               await new Promise((resolve) => window.setTimeout(resolve, backoff));
             }
           }

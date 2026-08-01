@@ -28,6 +28,10 @@ test('receipt actions remain available in receipt full screen', () => {
   assert.match(receipt, /fullScreen \? .*Close Full Screen/s);
   assert.match(receipt, /Download \/ share/);
   assert.match(receipt, /setExportOpen\(true\)/);
+  assert.match(receipt, /billEaseReceipt: 'modal'/);
+  assert.match(receipt, /billEaseReceipt: 'fullscreen'/);
+  assert.match(receipt, /window\.history\.back\(\)/);
+  assert.match(receipt, /popstate/);
 });
 
 test('receipt authorization images retain aspect ratio and bounded print dimensions', () => {

@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { FileText, Maximize2, Minimize2, ScanLine, ZoomIn, ZoomOut } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAccessibleOverlay } from '../../hooks/useAccessibleOverlay';
+import { useHelp } from '../../context/HelpContext';
 
 const MM_TO_PX = 96 / 25.4;
 
@@ -16,6 +17,7 @@ type Props = {
 
 export default function CanonicalDocumentViewport({ children, documentRef, containedFullScreen = false, onFullScreenChange }: Props) {
   const { language } = useLanguage();
+  const { openHelp } = useHelp();
   const text = (english: string, tamil: string) => language === 'ta' ? tamil : english;
   const stageRef = useRef<HTMLDivElement>(null);
   const closeFullScreenRef = useRef<HTMLButtonElement>(null);
@@ -116,6 +118,7 @@ export default function CanonicalDocumentViewport({ children, documentRef, conta
           {fullScreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
           {fullScreen ? text('Close Full Screen', 'முழுத்திரையை மூடு') : text('Full Screen', 'முழுத்திரை')}
         </button>
+        <button type="button" onClick={() => openHelp('preview')} className="preview-control">{text('Preview modes explained', 'முன்னோட்ட முறைகள் விளக்கம்')}</button>
         <div className="ml-auto flex items-center rounded-xl border border-stone-200 bg-white">
           <button type="button" onClick={() => setZoom((current) => Math.max(0.6, current - 0.1))} className="flex min-h-12 min-w-12 items-center justify-center" aria-label={text('Zoom out', 'சிறிதாக்கு')}><ZoomOut size={18} /></button>
           <span className="min-w-14 text-center text-sm font-semibold text-stone-700">{Math.round(zoom * 100)}%</span>

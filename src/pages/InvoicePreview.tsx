@@ -17,11 +17,12 @@ import { useAuth } from '../context/AuthContext';
 import Modal from '../components/ui/Modal';
 import PaymentReceiptModal from '../components/payments/PaymentReceiptModal';
 import type { Payment } from '../lib/types';
+import { useHelp } from '../context/HelpContext';
 
 export default function InvoicePreview() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { state, reversePayment, correctPayment, cancelInvoice } = useData();
+  const { state, firebaseStatus, reversePayment, correctPayment, cancelInvoice } = useData();
   const { isAdmin } = useAuth();
   const { t, language } = useLanguage();
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -31,6 +32,7 @@ export default function InvoicePreview() {
   const [receiptPayment, setReceiptPayment] = useState<Payment | null>(null);
   const [paymentChange, setPaymentChange] = useState<{ kind: 'reverse' | 'correct'; paymentId: string; reason: string; amount: string; review: boolean } | null>(null);
   const { showToast } = useToast();
+  const { openHelp } = useHelp();
   const documentRef = useRef<HTMLDivElement>(null);
   const invoice = state.invoices.find((entry) => entry.id === id);
   const customer = state.customers.find((entry) => entry.id === invoice?.customerId) || (invoice?.customerSnapshot ? {
@@ -146,8 +148,13 @@ export default function InvoicePreview() {
       {!isEstimate && isAdmin ? (
         <section className="rounded-2xl border border-stone-200 bg-white p-5 print:hidden">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div><h2 className="text-lg font-black text-stone-900">{language === 'ta' ? 'கட்டண வரலாறு' : 'Payment history'}</h2><p className="text-sm text-stone-500">{t(invoice.paymentStatus)} · {formatCurrency(invoice.amountPaid)} {language === 'ta' ? 'செலுத்தப்பட்டது' : 'paid'} · {formatCurrency(invoice.balanceDue)} {language === 'ta' ? 'நிலுவை' : 'due'}</p></div>
+            <div><h2 className="text-lg font-black text-stone-900">{language === 'ta' ? 'கட்டண வரலாறு' : 'Payment history'}</h2><p className="text-sm text-stone-500">{t(invoice.paymentStatus)} · {formatCurrency(invoice.amountPaid)} {language === 'ta' ? 'செலுத்தப்பட்டது' : 'paid'} · {formatCurrency(invoice.balanceDue)} {language === 'ta' ? 'நிலுவை' : 'due'}</p><button type="button" onClick={() => openHelp('payment-history')} className="mt-1 min-h-11 text-sm font-semibold text-emerald-700 underline underline-offset-2">{language === 'ta' ? 'இந்த செயல்களின் பொருள் என்ன?' : 'What do these actions mean?'}</button></div>
             {invoice.payments.length > 0 && !['paid', 'cancelled'].includes(invoice.paymentStatus) ? <button type="button" onClick={() => setIsPaymentOpen(true)} className="min-h-11 px-1 text-sm font-bold text-blue-700 underline-offset-4 hover:underline">{language === 'ta' ? 'மற்றொரு கட்டணத்தைச் சேர்' : 'Add another payment'}</button> : null}
+          </div>
+          <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
+            <p className="rounded-xl bg-stone-50 p-3"><strong>{language === 'ta' ? 'திருத்து:' : 'Correct:'}</strong> {language === 'ta' ? 'தவறான தேதி, முறை, தொகை அல்லது குறிப்பைச் சரிசெய்யவும். அசல் பதிவு வரலாற்றில் இருக்கும்.' : 'Fix an incorrect date, method, amount or reference. The original record remains in the audit history.'}</p>
+            <p className="rounded-xl bg-stone-50 p-3"><strong>{language === 'ta' ? 'மாற்று:' : 'Reverse:'}</strong> {language === 'ta' ? 'தவறாகப் பதிவிட்ட அல்லது திருப்பிய கட்டணத்தை ரத்து செய்யவும். காரணம் அவசியம்.' : 'Undo a mistaken or refunded payment. Balance and reports are recalculated; a reason is required.'}</p>
+            <p className="rounded-xl bg-stone-50 p-3"><strong>{language === 'ta' ? 'ரசீது:' : 'Receipt:'}</strong> {language === 'ta' ? 'இந்தக் கட்டண ரசீதைப் பார்க்க, பதிவிறக்க, அச்சிட, மின்னஞ்சல் அல்லது பகிர பயன்படுத்தவும்.' : 'View, download, print, email or share a receipt for this payment.'}</p>
           </div>
           {invoice.payments.length ? <>
             <div className="mt-4 grid gap-3 md:hidden">{invoice.payments.map((payment) => {
@@ -167,14 +174,14 @@ export default function InvoicePreview() {
       ) : null}
 
       <ExportPanel isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} documentId={invoice.id} documentType={isEstimate ? 'quotation' : 'invoice'} documentNumber={invoice.invoiceNumber} documentLabel={isEstimate ? documentName : 'Invoice'} updatedAt={invoice.updatedAt || invoice.createdAt} customerId={customer?.id || invoice.customerId} customerName={customer?.name || 'Customer'} customerPhone={customer?.phone} customerWhatsapp={customer?.whatsapp} customerEmail={customer?.email || ''} defaultCcEmail={state.settings.emailCcBusiness ? state.profile.email : ''} emailEnabled={state.settings.integrations.serverEmail} businessName={state.profile.name} exportRootRef={documentRef} onPrint={() => window.print()} widthMm={210} />
-      <RecordPaymentModal invoice={invoice} isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} onSaved={() => showToast(language === 'ta' ? 'கட்டணம் உள்ளூரில் சேமிக்கப்பட்டது' : 'Payment saved locally and queued for sync', 'success')} />
+      <RecordPaymentModal invoice={invoice} isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} onSaved={() => showToast(firebaseStatus.configured ? (language === 'ta' ? 'கட்டணம் உள்ளூரில் சேமிக்கப்பட்டு ஒத்திசைவுக்காக காத்திருக்கிறது' : 'Payment saved locally and queued for sync') : (language === 'ta' ? 'கட்டணம் இந்தச் சாதனத்தில் சேமிக்கப்பட்டது' : 'Payment saved on this device'), 'success')} />
       <PaymentReceiptModal payment={receiptPayment} invoice={invoice} onClose={() => setReceiptPayment(null)} />
       <Modal isOpen={Boolean(paymentChange)} onClose={() => setPaymentChange(null)} title={paymentChange?.kind === 'correct' ? (language === 'ta' ? 'கட்டணத்தைத் திருத்து' : 'Correct payment') : (language === 'ta' ? 'கட்டணத்தை மாற்று' : 'Reverse payment')} role={paymentChange?.review ? 'alertdialog' : 'dialog'} closeOnBackdrop={!paymentChange?.review} closeOnEscape={!paymentChange?.review} description={language === 'ta' ? 'அசல் கட்டணம் வரலாற்றில் இருக்கும். வசூலிக்கப்பட்ட மற்றும் நிலுவைத் தொகைகள் புதுப்பிக்கப்படும்.' : 'The original payment remains in history. Collected and outstanding amounts will be updated.'}>
         {paymentChange && <div className="space-y-4">
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{language === 'ta' ? 'இந்த மாற்றம் கட்டண வரலாற்றை நீக்காது.' : 'This change does not delete payment history.'}</div>
           {paymentChange.kind === 'correct' && <label className="block text-sm font-semibold">{language === 'ta' ? 'சரியான தொகை' : 'Correct amount'}<input type="text" inputMode="decimal" value={paymentChange.amount} disabled={paymentChange.review} onChange={(event) => setPaymentChange({ ...paymentChange, amount: event.target.value, review: false })} className="mt-1 min-h-12 w-full rounded-xl border p-3" required /></label>}
           <label className="block text-sm font-semibold">{language === 'ta' ? 'காரணம் (தேவை)' : 'Reason (required)'}<textarea value={paymentChange.reason} disabled={paymentChange.review} onChange={(event) => setPaymentChange({ ...paymentChange, reason: event.target.value, review: false })} rows={3} className="mt-1 w-full rounded-xl border p-3" required /></label>
-          {paymentChange.review && <div className="rounded-xl bg-stone-50 p-4 text-sm"><p className="font-bold">{language === 'ta' ? 'உறுதிப்படுத்தும் முன் சரிபார்க்கவும்' : 'Review before confirming'}</p><p className="mt-2">{language === 'ta' ? 'காரணம்' : 'Reason'}: {paymentChange.reason}</p>{paymentChange.kind === 'correct' && <p>{language === 'ta' ? 'புதிய தொகை' : 'New amount'}: {formatCurrency(Number(paymentChange.amount))}</p>}</div>}
+          {paymentChange.review && <div className="rounded-xl bg-stone-50 p-4 text-sm"><p className="font-bold">{language === 'ta' ? 'உறுதிப்படுத்தும் முன் சரிபார்க்கவும்' : 'Review before confirming'}</p><p className="mt-2">{language === 'ta' ? 'அசல் தொகை' : 'Original amount'}: {formatCurrency(invoice.payments.find((entry) => entry.id === paymentChange.paymentId)?.amount || 0)}</p><p>{language === 'ta' ? 'காரணம்' : 'Reason'}: {paymentChange.reason}</p>{paymentChange.kind === 'correct' ? <p>{language === 'ta' ? 'புதிய தொகை' : 'New amount'}: {formatCurrency(Number(paymentChange.amount))}</p> : <p>{language === 'ta' ? 'விலைப்பட்டியல் நிலுவையும் அறிக்கைகளும் மீண்டும் கணக்கிடப்படும்.' : 'The invoice balance and reports will be recalculated.'}</p>}</div>}
           <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={() => paymentChange.review ? setPaymentChange({ ...paymentChange, review: false }) : setPaymentChange(null)} className="min-h-12 rounded-xl border px-4 font-semibold">{paymentChange.review ? (language === 'ta' ? 'திருத்து' : 'Back') : t('cancel')}</button><button type="button" onClick={submitPaymentChange} disabled={!paymentChange.reason.trim() || paymentBusy === paymentChange.paymentId || (paymentChange.kind === 'correct' && Number(paymentChange.amount) <= 0)} className="min-h-12 rounded-xl bg-rose-700 px-4 font-semibold text-white disabled:opacity-50">{paymentChange.review ? (language === 'ta' ? 'உறுதிசெய்' : 'Confirm change') : (language === 'ta' ? 'சரிபார்க்கவும்' : 'Review change')}</button></div>
         </div>}
       </Modal>
