@@ -9,7 +9,7 @@ import {
   getPdfFileShareSupport,
   isValidWhatsAppNumber,
   preparePdfShareFile,
-  sharePdfWithDownloadFallback,
+  sharePdfFile,
   whatsappChatUrl,
 } from '../../services/documentShareService';
 import DocumentDeliveryModal from './DocumentDeliveryModal';
@@ -147,21 +147,20 @@ export default function ExportPanel({
     }
     setBlockedWhatsAppUrl('');
     setMessage('generating', language === 'ta' ? 'பகிர்வு சாளரம் திறக்கப்படுகிறது…' : 'Opening system share sheet…', 'share');
-    const resultPromise = sharePdfWithDownloadFallback({
-      file: preparedPdf,
-      title: `${documentLabel} ${documentNumber}`,
-      text: `Please find the ${documentLabel} ${documentNumber} from ${businessName}.`,
-      download: (pdfFile) => download(pdfFile, pdfFile.name),
-    });
+    const resultPromise = sharePdfFile(preparedPdf);
     void resultPromise.then((result) => {
       if (result.status === 'unsupported') {
         setMessage('info', language === 'ta'
-          ? 'PDF பதிவிறக்கம் செய்யப்பட்டது. WhatsApp-ஐ திறந்து பதிவிறக்கம் செய்யப்பட்ட ஆவணத்தை இணைக்கவும்.'
-          : 'PDF downloaded. Open WhatsApp and attach the downloaded document.');
+          ? 'இந்த உலாவி PDF-ஐ நேரடியாக இணைக்க முடியாது. PDF பதிவிறக்கத்தை அல்லது வாடிக்கையாளர் உரையாடலைத் தேர்ந்தெடுக்கவும்.'
+          : 'This browser cannot attach the PDF directly. Choose Download PDF or Open Customer Chat.');
       } else if (result.status === 'cancelled') {
         setMessage('info', language === 'ta' ? 'பகிர்வு ரத்து செய்யப்பட்டது.' : 'Sharing cancelled.');
       } else if (result.status === 'not-allowed') {
         setMessage('failed', language === 'ta' ? 'பகிர்வைத் தொடங்க உலாவி அனுமதிக்கவில்லை. மீண்டும் தட்டவும்.' : 'The browser did not allow sharing. Please tap Share PDF again.');
+      } else if (result.status === 'invalid-data') {
+        setMessage('failed', language === 'ta' ? 'PDF பகிர்வு தரவை உலாவி ஆதரிக்கவில்லை. PDF பதிவிறக்கத்தைப் பயன்படுத்தவும்.' : 'The browser rejected this PDF share data. Use Download PDF instead.');
+      } else if (result.status === 'data-error') {
+        setMessage('failed', language === 'ta' ? 'சாதனம் PDF-ஐ அனுப்ப முடியவில்லை. மீண்டும் முயலவும் அல்லது பதிவிறக்கவும்.' : 'The device could not transmit the PDF. Try again or download it.');
       } else if (result.status === 'failed') {
         setMessage('failed', language === 'ta' ? 'PDF-ஐ நேரடியாக பகிர முடியவில்லை. மீண்டும் முயலவும் அல்லது பதிவிறக்கவும்.' : 'The PDF could not be shared directly. Try again or download it.');
       } else {

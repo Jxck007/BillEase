@@ -8,7 +8,6 @@ import {
   preparePdfShareFile,
   sanitizeWhatsAppNumber,
   sharePdfFile,
-  sharePdfWithDownloadFallback,
   whatsappChatUrl,
 } from '../src/services/documentShareService.js';
 
@@ -30,7 +29,7 @@ test('native sharing checks and shares the actual PDF File', async () => {
   const file = pdfFile();
   let checkedData: ShareData | undefined;
   let sharedData: ShareData | undefined;
-  const result = await sharePdfFile(file, 'Invoice INV-1', 'Please find the invoice.', environment({
+  const result = await sharePdfFile(file, environment({
     canShare: (data) => {
       checkedData = data;
       return data.files?.[0] === file;
@@ -43,13 +42,14 @@ test('native sharing checks and shares the actual PDF File', async () => {
   assert.equal(sharedData?.files?.[0], file);
   assert.equal(sharedData?.files?.[0].name, 'Invoice-INV-1.pdf');
   assert.equal(sharedData?.files?.[0].type, 'application/pdf');
-  assert.equal(sharedData?.title, 'Invoice INV-1');
-  assert.equal(sharedData?.text, 'Please find the invoice.');
+  assert.equal(sharedData?.files?.length, 1);
+  assert.equal(sharedData?.title, undefined);
+  assert.equal(sharedData?.text, undefined);
 });
 
 test('an insecure context does not attempt native sharing', async () => {
   let calls = 0;
-  const result = await sharePdfFile(pdfFile(), 'Invoice', 'Document', environment({
+  const result = await sharePdfFile(pdfFile(), environment({
     canShare: () => { calls += 1; return true; },
     share: async () => { calls += 1; },
   }, false));
@@ -59,11 +59,11 @@ test('an insecure context does not attempt native sharing', async () => {
 
 test('missing share and canShare APIs are classified separately', async () => {
   assert.deepEqual(
-    await sharePdfFile(pdfFile(), 'Invoice', 'Document', environment({})),
+    await sharePdfFile(pdfFile(), environment({})),
     { status: 'unsupported', reason: 'share-unavailable' },
   );
   assert.deepEqual(
-    await sharePdfFile(pdfFile(), 'Invoice', 'Document', environment({ share: async () => undefined })),
+    await sharePdfFile(pdfFile(), environment({ share: async () => undefined })),
     { status: 'unsupported', reason: 'can-share-unavailable' },
   );
 });
@@ -84,7 +84,7 @@ test('canShare false or failure marks PDF file sharing unsupported', async () =>
 });
 
 test('cancelling the native share sheet is neutral', async () => {
-  const result = await sharePdfFile(pdfFile(), 'Invoice', 'Document', environment({
+  const result = await sharePdfFile(pdfFile(), environment({
     canShare: () => true,
     share: async () => { throw new DOMException('Cancelled', 'AbortError'); },
   }));
@@ -93,14 +93,14 @@ test('cancelling the native share sheet is neutral', async () => {
 
 test('NotAllowedError and unexpected errors are safe result categories', async () => {
   assert.deepEqual(
-    await sharePdfFile(pdfFile(), 'Invoice', 'Document', environment({
+    await sharePdfFile(pdfFile(), environment({
       canShare: () => true,
       share: async () => { throw new DOMException('Denied', 'NotAllowedError'); },
     })),
     { status: 'not-allowed' },
   );
   assert.deepEqual(
-    await sharePdfFile(pdfFile(), 'Invoice', 'Document', environment({
+    await sharePdfFile(pdfFile(), environment({
       canShare: () => true,
       share: async () => { throw new Error('private browser details'); },
     })),
@@ -108,40 +108,9 @@ test('NotAllowedError and unexpected errors are safe result categories', async (
   );
 });
 
-test('unsupported native sharing downloads the PDF exactly once without opening a URL', async () => {
-  const file = pdfFile('Delivery-Note-DN-7.pdf');
-  const downloads: File[] = [];
-  const result = await sharePdfWithDownloadFallback({
-    file,
-    title: 'Delivery Note DN-7',
-    text: 'Please find the delivery note.',
-    download: (downloadedFile) => downloads.push(downloadedFile),
-    environment: environment({ canShare: () => false, share: async () => undefined }),
-  });
-
-  assert.deepEqual(result, { status: 'unsupported', reason: 'file-unsupported', downloaded: true });
-  assert.deepEqual(downloads, [file]);
-});
-
-test('cancellation and sharing errors never trigger the download fallback', async () => {
-  for (const error of [
-    new DOMException('Cancelled', 'AbortError'),
-    new DOMException('Denied', 'NotAllowedError'),
-    new Error('failure'),
-  ]) {
-    let downloads = 0;
-    await sharePdfWithDownloadFallback({
-      file: pdfFile(),
-      title: 'Invoice',
-      text: 'Document',
-      download: () => { downloads += 1; },
-      environment: environment({
-        canShare: () => true,
-        share: async () => { throw error; },
-      }),
-    });
-    assert.equal(downloads, 0);
-  }
+test('unsupported native sharing does not automatically download or open WhatsApp', async () => {
+  const result = await sharePdfFile(pdfFile('Delivery-Note-DN-7.pdf'), environment({ canShare: () => false, share: async () => undefined }));
+  assert.deepEqual(result, { status: 'unsupported', reason: 'file-unsupported' });
 });
 
 test('PDF generation failure rejects before sharing and invalid output is rejected', async () => {
@@ -157,6 +126,19 @@ test('PDF generation failure rejects before sharing and invalid output is reject
     () => createDocumentExportFile(new Blob(['not pdf'], { type: 'text/plain' }), 'invoice', '1', 'pdf'),
     /INVALID_PDF_BLOB/,
   );
+});
+
+test('a generated PDF blob with no MIME type becomes one non-empty typed File', async () => {
+  const file = await preparePdfShareFile(async () => new Blob(['%PDF-1.7\n%%EOF']), 'invoice', 'INV/1');
+  assert.equal(file.size > 0, true);
+  assert.equal(file.type, 'application/pdf');
+  assert.match(file.name, /\.pdf$/);
+  assert.equal(file instanceof File, true);
+});
+
+test('TypeError and DataError are classified without a text-only fallback', async () => {
+  assert.deepEqual(await sharePdfFile(pdfFile(), environment({ canShare: () => true, share: async () => { throw new TypeError('unsupported'); } })), { status: 'invalid-data' });
+  assert.deepEqual(await sharePdfFile(pdfFile(), environment({ canShare: () => true, share: async () => { throw new DOMException('transport', 'DataError'); } })), { status: 'data-error' });
 });
 
 test('customer chat is a separate encoded wa.me URL with a sanitized Indian number', () => {
@@ -177,7 +159,8 @@ test('primary Share PDF handler contains no WhatsApp URL or popup operation', ()
   const source = readFileSync(new URL('../src/components/export/ExportPanel.tsx', import.meta.url), 'utf8');
   const primaryHandler = source.slice(source.indexOf('  const share = () => {'), source.indexOf('  const pdf = () =>'));
   assert.doesNotMatch(primaryHandler, /api\.whatsapp\.com|wa\.me|window\.open|location\.href/);
-  assert.match(primaryHandler, /sharePdfWithDownloadFallback/);
+  assert.match(primaryHandler, /sharePdfFile\(preparedPdf\)/);
+  assert.doesNotMatch(primaryHandler, /download\(/);
 });
 
 test('only the explicit customer-chat handler opens the wa.me URL', () => {
