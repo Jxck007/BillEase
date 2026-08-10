@@ -1,5 +1,5 @@
 import { AuditLog, AppSettings, BusinessProfile, Customer, Invoice, InvoiceItem } from '../lib/types';
-import { buildQrPlaceholder, calculateTaxBreakdown, getStateCodeFromGSTIN } from '../gst/gstService';
+import { buildQrPlaceholder, calculateTaxBreakdown, getStateNameFromCode, resolvePlaceOfSupplyStateCode, resolveSupplierStateCode } from '../gst/gstService';
 import { CANONICAL_TEMPLATE_PRESET } from '../templates/invoiceTemplates';
 import { digitsOnly, generateId, roundMoney, safeParseJson } from '../lib/utils';
 
@@ -16,7 +16,7 @@ export function getDefaultSettings(profile: BusinessProfile): AppSettings {
       templateId: 'canonical',
       ...CANONICAL_TEMPLATE_PRESET,
     },
-    businessStateCode: profile.stateCode || getStateCodeFromGSTIN(profile.gst),
+    businessStateCode: resolveSupplierStateCode(profile.stateCode, profile.gst),
     enableDrafts: true,
     enableAutosave: true,
     enableAuditLog: true,
@@ -55,11 +55,13 @@ export function calculateInvoiceFromDraft(
   customer?: Customer
 ): Partial<Invoice> {
   const items = draft.items || [];
-  const customerStateCode = customer?.stateCode || getStateCodeFromGSTIN(customer?.gstNumber);
-  const businessStateCode = profile.stateCode || getStateCodeFromGSTIN(profile.gst);
+  const supplierStateCode = resolveSupplierStateCode(draft.supplierStateCode || profile.stateCode, profile.gst);
+  const placeOfSupplyStateCode = resolvePlaceOfSupplyStateCode(draft.placeOfSupplyStateCode, customer, '33');
+  const taxMode = draft.taxMode || 'AUTO';
   const totals = calculateTaxBreakdown(items, {
-    customerStateCode,
-    businessStateCode,
+    placeOfSupplyStateCode,
+    supplierStateCode,
+    taxMode,
     gstMode: draft.gstMode || 'exclusive',
     shippingCharge: draft.shippingCharge || 0,
     adjustment: draft.adjustment || 0,
@@ -67,6 +69,11 @@ export function calculateInvoiceFromDraft(
 
   return {
     ...draft,
+    placeOfSupplyStateCode,
+    placeOfSupply: getStateNameFromCode(placeOfSupplyStateCode),
+    supplierStateCode,
+    taxMode,
+    taxModeSource: draft.taxModeSource || (taxMode === 'AUTO' ? 'automatic' : 'manual'),
     items: totals.items,
     subtotal: totals.subtotal,
     taxableAmount: totals.taxableAmount,
@@ -101,6 +108,8 @@ export function duplicateInvoice(source: Invoice, prefix: string, nextNumber: nu
     draft: true,
     qrCodeData: '',
     createdAt: new Date().toISOString(),
+    taxMode: source.taxMode || 'AUTO',
+    taxModeSource: source.taxModeSource || (source.taxMode && source.taxMode !== 'AUTO' ? 'manual' : 'automatic'),
   };
 }
 

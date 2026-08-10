@@ -4,10 +4,10 @@ import { ArrowLeft, ChevronDown, ChevronUp, Copy, Eye, Plus, Save, Sparkles } fr
 import Modal from '../components/ui/Modal';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Customer, Invoice, InvoiceItem, Product } from '../lib/types';
+import { Customer, GstTaxMode, Invoice, InvoiceItem, Product } from '../lib/types';
 import { formatCurrency, generateId, roundMoney } from '../lib/utils';
 import { buildDefaultInvoiceNumber, calculateInvoiceFromDraft, clearDraft, getNextInvoiceNumber, loadDraft } from '../services/invoiceService';
-import { getStateCodeFromGSTIN, getStateNameFromCode, validateGSTIN } from '../gst/gstService';
+import { formatGstState, getStateCodeFromGSTIN, getStateCodeFromName, INDIAN_GST_STATES, resolveGstTaxMode, resolvePlaceOfSupplyStateCode, resolveSupplierStateCode, validateGSTIN } from '../gst/gstService';
 import { useAutosaveDraft } from '../hooks/useAutosaveDraft';
 import ItemRow from '../components/invoice/ItemRow';
 import { CUSTOMER_FIELD_OPTIONS, DEFAULT_CUSTOMER_FIELD_VISIBILITY, withDefaultCustomerFieldVisibility } from '../lib/invoiceCustomerFields';
@@ -15,13 +15,14 @@ import { ESTIMATE_COPY_TYPES, getEstimateDocumentName, getEstimateNumberLabel, n
 import { useToast } from '../context/ToastContext';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { deleteLocalDraft, loadLocalDraft } from '../services/localDataStore';
+import { useAuth } from '../context/AuthContext';
 
 function Label({ english, tamil, helper }: { english: string; tamil: string; helper?: string }) {
   const { language } = useLanguage();
   return (
     <div className="mb-1">
       <div className="text-sm font-semibold text-stone-800">{language === 'ta' ? tamil : english}</div>
-      {helper && <div className="mt-1 text-[11px] text-stone-400">{helper}</div>}
+      {helper && <div className="mt-1 text-[11px] text-stone-600">{helper}</div>}
     </div>
   );
 }
@@ -49,6 +50,7 @@ export default function InvoiceForm() {
   const { state, addInvoice, updateInvoice, addCustomer, addAuditLog } = useData();
   const { t, language } = useLanguage();
   const { showToast } = useToast();
+  const { isAdmin } = useAuth();
 
   const isEditing = Boolean(id && id !== 'new');
   const isEstimate = location.pathname.includes('/estimates');
@@ -64,7 +66,12 @@ export default function InvoiceForm() {
     poDate: '',
     poMode: '',
     copyType: (invoiceType === 'estimate' ? 'ORIGINAL COPY' : 'DUPLICATE COPY') as Invoice['copyType'],
-    placeOfSupply: state.profile.stateCode ? getStateNameFromCode(state.profile.stateCode) : '',
+    placeOfSupply: 'Tamil Nadu',
+    placeOfSupplyStateCode: '33',
+    placeOfSupplySource: 'automatic',
+    supplierStateCode: resolveSupplierStateCode(state.settings.businessStateCode || state.profile.stateCode, state.profile.gst),
+    taxMode: 'AUTO',
+    taxModeSource: 'automatic',
     reverseCharge: false,
     gstMode: state.settings.taxMode,
     templateId: invoiceType === 'invoice' ? 'canonical' : state.settings.defaultTemplate,
@@ -112,6 +119,9 @@ export default function InvoiceForm() {
 
   const calculated = useMemo(() => calculateInvoiceFromDraft(draft, state.profile, selectedCustomer), [draft, state.profile, selectedCustomer]);
   const viewDraft = { ...draft, ...calculated } as Partial<Invoice>;
+  const supplierStateCode = viewDraft.supplierStateCode || resolveSupplierStateCode(state.settings.businessStateCode || state.profile.stateCode, state.profile.gst);
+  const placeOfSupplyStateCode = viewDraft.placeOfSupplyStateCode || '33';
+  const effectiveTaxMode = resolveGstTaxMode(viewDraft.taxMode || 'AUTO', supplierStateCode, placeOfSupplyStateCode);
 
   const draftKey = `${invoiceType}:${isEditing ? id : 'new'}`;
   const { flushDraft, draftSaveStatus, hasUnsavedDraft } = useAutosaveDraft(viewDraft, state.settings.enableAutosave && state.settings.enableDrafts, draftKey, isEstimate ? 'quotation' : 'invoice');
@@ -120,8 +130,21 @@ export default function InvoiceForm() {
     if (isEditing) {
       const invoice = state.invoices.find((entry) => entry.id === id);
       if (invoice) {
-        setDraft(invoice);
-        setCustomerSearch(state.customers.find((customer) => customer.id === invoice.customerId)?.name || '');
+        const customer = state.customers.find((entry) => entry.id === invoice.customerId);
+        const supplierStateCode = invoice.supplierStateCode || resolveSupplierStateCode(state.settings.businessStateCode || state.profile.stateCode, state.profile.gst);
+        const savedPlaceCode = invoice.placeOfSupplyStateCode || getStateCodeFromName(invoice.placeOfSupply);
+        const inferredPlaceCode = savedPlaceCode || ((invoice.cgstTotal || invoice.sgstTotal) > 0
+          ? supplierStateCode
+          : resolvePlaceOfSupplyStateCode(undefined, customer, '33'));
+        setDraft({
+          ...invoice,
+          supplierStateCode,
+          placeOfSupplyStateCode: inferredPlaceCode,
+          placeOfSupplySource: invoice.placeOfSupplySource || (savedPlaceCode ? 'manual' : 'automatic'),
+          taxMode: invoice.taxMode || ((invoice.igstTotal || 0) > 0 && inferredPlaceCode === supplierStateCode ? 'INTER_STATE' : 'AUTO'),
+          taxModeSource: invoice.taxModeSource || 'automatic',
+        });
+        setCustomerSearch(customer?.name || '');
       }
       return;
     }
@@ -160,11 +183,14 @@ export default function InvoiceForm() {
   useEffect(() => {
     if (selectedCustomer) {
       setCustomerSearch(selectedCustomer.name);
-      if (!draft.placeOfSupply && selectedCustomer.stateCode) {
-        setDraft((current) => ({ ...current, placeOfSupply: getStateNameFromCode(selectedCustomer.stateCode) }));
-      }
+      setDraft((current) => {
+        if (current.placeOfSupplySource === 'manual') return current;
+        if (isEditing && current.placeOfSupplyStateCode) return current;
+        const placeOfSupplyStateCode = resolvePlaceOfSupplyStateCode(undefined, selectedCustomer, '33');
+        return { ...current, placeOfSupplyStateCode, placeOfSupplySource: 'automatic' };
+      });
     }
-  }, [selectedCustomer]);
+  }, [isEditing, selectedCustomer]);
 
   const updateDraft = (patch: Partial<Invoice>) => setDraft((current) => ({ ...current, ...patch }));
   const updateItem = (itemId: string, patch: Partial<InvoiceItem>) => updateDraft({ items: (draft.items || []).map((item) => item.id === itemId ? { ...item, ...patch } : item) });
@@ -255,7 +281,13 @@ export default function InvoiceForm() {
       terms: draft.terms || state.settings.template.footerText,
       type: invoiceType,
       draft: false,
-      placeOfSupply: draft.placeOfSupply,
+      placeOfSupply: calculated.placeOfSupply,
+      placeOfSupplyStateCode,
+      placeOfSupplySource: draft.placeOfSupplySource || 'automatic',
+      supplierStateCode,
+      taxMode: draft.taxMode || 'AUTO',
+      taxModeSource: draft.taxModeSource || ((draft.taxMode || 'AUTO') === 'AUTO' ? 'automatic' : 'manual'),
+      taxOverrideReason: draft.taxModeSource === 'manual' ? draft.taxOverrideReason?.trim() || undefined : undefined,
       reverseCharge: Boolean(draft.reverseCharge),
       gstMode: draft.gstMode || state.settings.taxMode,
       templateId: isEstimate ? (draft.templateId || state.settings.defaultTemplate) : 'canonical',
@@ -379,6 +411,63 @@ export default function InvoiceForm() {
               </div>
             </details>
 
+            <section className="rounded-3xl border border-emerald-200 bg-emerald-50/50 p-4 md:p-5" aria-labelledby="gst-supply-heading">
+              <h2 id="gst-supply-heading" className="text-lg font-black text-stone-900">{language === 'ta' ? 'GST மற்றும் விநியோக இடம்' : 'GST and Place of Supply'}</h2>
+              <p className="mt-1 text-sm text-stone-600">{language === 'ta' ? 'இந்தத் தேர்வு CGST + SGST அல்லது IGST கணக்கை நிர்ணயிக்கிறது.' : 'This determines whether the document uses CGST + SGST or IGST.'}</p>
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div>
+                  <Label english="Place of Supply" tamil="விநியோக இடம்" />
+                  <select
+                    value={placeOfSupplyStateCode}
+                    onChange={(event) => updateDraft({ placeOfSupplyStateCode: event.target.value, placeOfSupplySource: 'manual' })}
+                    title={language === 'ta' ? 'விநியோக இடம்' : 'Place of Supply'}
+                    aria-label={language === 'ta' ? 'விநியோக இடம்' : 'Place of Supply'}
+                    className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    {INDIAN_GST_STATES.map(([code, name]) => <option key={code} value={code}>{name} ({code})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <Label english="Tax calculation" tamil="வரி கணக்கீடு" />
+                  <select
+                    value={draft.taxMode || 'AUTO'}
+                    onChange={(event) => {
+                      const taxMode = event.target.value as GstTaxMode;
+                      if (taxMode !== 'AUTO' && !isAdmin) return;
+                      updateDraft({ taxMode, taxModeSource: taxMode === 'AUTO' ? 'automatic' : 'manual', taxOverrideReason: taxMode === 'AUTO' ? undefined : draft.taxOverrideReason });
+                    }}
+                    title={language === 'ta' ? 'வரி கணக்கீடு' : 'Tax calculation'}
+                    aria-label={language === 'ta' ? 'வரி கணக்கீடு' : 'Tax calculation'}
+                    className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="AUTO">{language === 'ta' ? 'தானியங்கி' : 'Automatic'}</option>
+                    <option value="INTRA_STATE" disabled={!isAdmin}>{language === 'ta' ? 'CGST + SGST' : 'CGST + SGST'}</option>
+                    <option value="INTER_STATE" disabled={!isAdmin}>IGST</option>
+                  </select>
+                </div>
+                <div>
+                  <Label english="Item prices" tamil="பொருள் விலைகள்" />
+                  <select value={draft.gstMode || state.settings.taxMode} onChange={(event) => updateDraft({ gstMode: event.target.value as 'inclusive' | 'exclusive' })} title={language === 'ta' ? 'GST உள்ளடக்கம்' : 'GST price treatment'} aria-label={language === 'ta' ? 'GST உள்ளடக்கம்' : 'GST price treatment'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500">
+                    <option value="exclusive">{language === 'ta' ? 'GST தனியாக' : 'GST Exclusive'}</option>
+                    <option value="inclusive">{language === 'ta' ? 'GST உட்பட' : 'GST Inclusive'}</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-sm text-stone-800" role="status" aria-live="polite">
+                <div><span className="font-semibold">{language === 'ta' ? 'விநியோக இடம்' : 'Place of Supply'}:</span> {formatGstState(placeOfSupplyStateCode)}</div>
+                <div><span className="font-semibold">{language === 'ta' ? 'வரி வகை' : 'Tax Type'}:</span> {effectiveTaxMode === 'INTRA_STATE' ? (language === 'ta' ? 'மாநிலத்திற்குள்' : 'Intra-State') : (language === 'ta' ? 'மாநிலங்களுக்கு இடையே' : 'Inter-State')}</div>
+                <div className="mt-1 font-bold text-emerald-800">✓ {effectiveTaxMode === 'INTRA_STATE' ? (language === 'ta' ? 'மாநிலத்திற்குள் — CGST + SGST' : 'Intra-State — CGST + SGST') : (language === 'ta' ? 'மாநிலங்களுக்கு இடையே — IGST' : 'Inter-State — IGST')}</div>
+              </div>
+              {draft.taxModeSource === 'manual' && draft.taxMode !== 'AUTO' ? (
+                <div className="mt-3 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                  <p className="font-semibold">{language === 'ta' ? 'வரி கணக்கீடு கைமுறையாக மாற்றப்பட்டுள்ளது.' : 'Tax calculation has been manually overridden.'}</p>
+                  <label className="mt-2 block text-xs font-semibold">{language === 'ta' ? 'மாற்றத்திற்கான காரணம் (விருப்பம்)' : 'Override reason (optional)'}
+                    <input value={draft.taxOverrideReason || ''} onChange={(event) => updateDraft({ taxOverrideReason: event.target.value })} className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-stone-800" />
+                  </label>
+                </div>
+              ) : null}
+            </section>
+
             {isEstimate ? (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                 {language === 'en'
@@ -434,17 +523,6 @@ export default function InvoiceForm() {
 
             {isAdvancedOpen && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label english={t('placeOfSupply')} tamil="விநியோக இடம்" helper={language === 'en' ? 'Used for CGST/SGST vs IGST logic.' : 'CGST/SGST அல்லது IGST கணக்கிற்குப் பயன்படும்.'} />
-                  <input value={draft.placeOfSupply || ''} onChange={(event) => updateDraft({ placeOfSupply: event.target.value })} title={t('placeOfSupply')} placeholder={language === 'en' ? 'Place of supply' : 'விநியோக இடம்'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500" />
-                </div>
-                <div>
-                  <Label english={language === 'en' ? 'GST Mode' : 'GST வகை'} tamil="வரி முறை" />
-                  <select value={draft.gstMode || state.settings.taxMode} onChange={(event) => updateDraft({ gstMode: event.target.value as 'inclusive' | 'exclusive' })} title={language === 'en' ? 'GST mode' : 'GST வகை'} className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500">
-                    <option value="exclusive">{language === 'ta' ? 'GST தனியாக' : 'GST Exclusive'}</option>
-                    <option value="inclusive">{language === 'ta' ? 'GST உட்பட' : 'GST Inclusive'}</option>
-                  </select>
-                </div>
                 {!isEstimate ? (
                   <div>
                     <Label english={t('reverseCharge')} tamil="ரிவர்ஸ் சார்ஜ்" />
@@ -547,9 +625,10 @@ export default function InvoiceForm() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span>{t('subtotal')}</span><span>{formatCurrency(viewDraft.subtotal || 0)}</span></div>
               <div className="flex justify-between"><span>{t('taxableAmount')}</span><span>{formatCurrency(viewDraft.taxableAmount || 0)}</span></div>
-              <div className="flex justify-between"><span>{t('cgst')}</span><span>{formatCurrency(viewDraft.cgstTotal || 0)}</span></div>
-              <div className="flex justify-between"><span>{t('sgst')}</span><span>{formatCurrency(viewDraft.sgstTotal || 0)}</span></div>
-              <div className="flex justify-between"><span>{t('igst')}</span><span>{formatCurrency(viewDraft.igstTotal || 0)}</span></div>
+              {effectiveTaxMode === 'INTRA_STATE' ? <>
+                <div className="flex justify-between"><span>{t('cgst')}</span><span>{formatCurrency(viewDraft.cgstTotal || 0)}</span></div>
+                <div className="flex justify-between"><span>{t('sgst')}</span><span>{formatCurrency(viewDraft.sgstTotal || 0)}</span></div>
+              </> : <div className="flex justify-between"><span>{t('igst')}</span><span>{formatCurrency(viewDraft.igstTotal || 0)}</span></div>}
               {(viewDraft.discountTotal || 0) > 0 && <div className="flex justify-between text-amber-700"><span>{t('discount')}</span><span>-{formatCurrency(viewDraft.discountTotal || 0)}</span></div>}
               {!isEstimate && <div className="flex justify-between"><span>{language === 'en' ? 'Shipping' : 'கூடுதல்'}</span><span>{formatCurrency(viewDraft.shippingCharge || 0)}</span></div>}
               {!isEstimate && <div className="flex justify-between"><span>{language === 'en' ? 'Adjustment' : 'சரி செய்தல்'}</span><span>{formatCurrency(viewDraft.adjustment || 0)}</span></div>}
@@ -561,8 +640,8 @@ export default function InvoiceForm() {
               <details className="border-t border-stone-100 pt-2">
                 <summary className="cursor-pointer font-semibold text-stone-700">{language === 'ta' ? 'GST சரிபார்ப்பு' : 'GST check'}</summary>
                 <div className="mt-2 space-y-1 text-xs text-stone-500">
-                  <div>Business state: {state.settings.businessStateCode || state.profile.stateCode || '-'}</div>
-                  <div>Customer state: {selectedCustomer?.stateCode || getStateCodeFromGSTIN(selectedCustomer?.gstNumber) || '-'}</div>
+                  <div>Supplier state: {formatGstState(supplierStateCode)}</div>
+                  <div>Place of Supply: {formatGstState(placeOfSupplyStateCode)}</div>
                   <div>GSTIN valid: {selectedCustomer?.gstNumber ? (validateGSTIN(selectedCustomer.gstNumber) ? 'Yes' : 'No') : '-'}</div>
                 </div>
               </details>
@@ -637,7 +716,9 @@ export default function InvoiceForm() {
       showToast('Customer name is required.', 'error');
       return;
     }
-    const stateCode = customerDraft.stateCode || state.profile.stateCode || getStateCodeFromGSTIN(state.profile.gst);
+    const stateCode = getStateCodeFromGSTIN(customerDraft.gstNumber)
+      || customerDraft.stateCode
+      || resolveSupplierStateCode(state.settings.businessStateCode || state.profile.stateCode, state.profile.gst);
     const result = await addCustomer({
       name: customerDraft.name.trim(),
       phone: customerDraft.phone.trim(),

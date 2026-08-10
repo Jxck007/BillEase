@@ -1,5 +1,7 @@
 export type Language = 'en' | 'ta';
 export type TaxMode = 'exclusive' | 'inclusive';
+export type GstTaxMode = 'AUTO' | 'INTRA_STATE' | 'INTER_STATE';
+export type GstTaxModeSource = 'automatic' | 'manual';
 export type InvoiceType = 'invoice' | 'estimate';
 export type PaymentStatus = 'unpaid' | 'partially_paid' | 'paid' | 'overdue' | 'cancelled';
 // Legacy values are retained only so existing saved invoices/settings continue to load.
@@ -46,6 +48,7 @@ export interface CustomerSnapshot {
   address: string;
   phone: string;
   email: string;
+  stateCode?: string;
 }
 
 export interface Product {
@@ -94,6 +97,12 @@ export interface Invoice {
   poMode?: string;
   copyType?: 'ORIGINAL COPY' | 'DUPLICATE COPY' | 'TRANSPORT COPY' | 'EXTRA COPY' | 'CUSTOMER COPY' | 'OFFICE COPY';
   placeOfSupply?: string;
+  placeOfSupplyStateCode?: string;
+  placeOfSupplySource?: 'automatic' | 'manual';
+  supplierStateCode?: string;
+  taxMode?: GstTaxMode;
+  taxModeSource?: GstTaxModeSource;
+  taxOverrideReason?: string;
   reverseCharge?: boolean;
   gstMode?: TaxMode;
   templateId?: InvoiceTemplateId;

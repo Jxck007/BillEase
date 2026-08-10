@@ -11,6 +11,7 @@ import {
   getEstimateItemUnit,
   getEstimateLineAmount,
 } from '../lib/estimateUtils';
+import { formatGstState, getDocumentTaxRateLabel, inferHistoricalGstTaxMode } from '../gst/gstService';
 
 type Props = {
   invoice: Invoice;
@@ -64,6 +65,10 @@ export default function QuotationEstimateTemplate({
     : getEstimateAmountInWords(invoice);
   const items = invoice.items || [];
   const hasDiscount = (invoice.discountTotal || 0) > 0;
+  const effectiveTaxMode = inferHistoricalGstTaxMode(invoice, company.stateCode || '33');
+  const isIGST = effectiveTaxMode === 'INTER_STATE';
+  const hasGstSupplyModel = Boolean(invoice.placeOfSupplyStateCode && invoice.taxMode);
+  const placeOfSupply = invoice.placeOfSupplyStateCode ? formatGstState(invoice.placeOfSupplyStateCode) : invoice.placeOfSupply || '-';
 
   return (
     <div className="quotation-export-page box-border w-full bg-white text-[10px] leading-tight text-black">
@@ -86,6 +91,10 @@ export default function QuotationEstimateTemplate({
           <div className="col-span-6 flex flex-col justify-center p-3 text-right text-[10px] font-bold leading-normal">
             <div>{t('date')}: {invoice.date ? format(new Date(invoice.date), 'dd-MM-yyyy') : '-'}</div>
             <div>{numberLabel}: {invoice.invoiceNumber || '-'}</div>
+            {hasGstSupplyModel ? <>
+              <div>{language === 'ta' ? 'விநியோக இடம்' : 'Place of Supply'}: {placeOfSupply}</div>
+              <div>{language === 'ta' ? 'வரி வகை' : 'Tax Type'}: {isIGST ? (language === 'ta' ? 'மாநிலங்களுக்கு இடையே — IGST' : 'Inter-State — IGST') : (language === 'ta' ? 'மாநிலத்திற்குள் — CGST + SGST' : 'Intra-State — CGST + SGST')}</div>
+            </> : null}
             {copyTypeLabel ? <div className="text-[9px] font-black uppercase tracking-wide text-stone-600 mt-1">{copyTypeLabel}</div> : null}
           </div>
         </div>
@@ -171,7 +180,12 @@ export default function QuotationEstimateTemplate({
               {hasDiscount && visibility.discountColumn && (
                 <div className="flex justify-between gap-3"><span>{t('discount')}</span><span className="font-semibold">-{formatCurrency(invoice.discountTotal || 0)}</span></div>
               )}
-              <div className="flex justify-between gap-3"><span>{t('tax')}</span><span className="font-semibold">{formatCurrency(invoice.taxTotal || 0)}</span></div>
+              {hasGstSupplyModel && visibility.taxBreakdown && !isIGST ? <>
+                <div className="flex justify-between gap-3"><span>{getDocumentTaxRateLabel(invoice, 'CGST')}</span><span className="font-semibold">{formatCurrency(invoice.cgstTotal || 0)}</span></div>
+                <div className="flex justify-between gap-3"><span>{getDocumentTaxRateLabel(invoice, 'SGST')}</span><span className="font-semibold">{formatCurrency(invoice.sgstTotal || 0)}</span></div>
+              </> : null}
+              {hasGstSupplyModel && visibility.taxBreakdown && isIGST ? <div className="flex justify-between gap-3"><span>{getDocumentTaxRateLabel(invoice, 'IGST')}</span><span className="font-semibold">{formatCurrency(invoice.igstTotal || 0)}</span></div> : null}
+              {(!hasGstSupplyModel || !visibility.taxBreakdown) ? <div className="flex justify-between gap-3"><span>{t('tax')}{hasGstSupplyModel ? ` (${isIGST ? 'IGST' : 'CGST + SGST'})` : ''}</span><span className="font-semibold">{formatCurrency(invoice.taxTotal || 0)}</span></div> : null}
               <div className="flex justify-between gap-3 border-t border-black pt-2 text-[11px] font-black">
                 <span>{t('grandTotal')}</span>
                 <span>{formatCurrency(invoice.total || 0)}</span>

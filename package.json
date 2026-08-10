@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "test": "npm run test:persistence && npm run test:email && npm run test:api && npm run test:export && npm run test:sharing && npm run test:payments && npm run test:bulk && npm run test:footer && npm run test:receipt && npm run test:customer && npm run test:documents && npm run test:sync && npm run test:help && npm run test:accessibility",
+    "test": "npm run test:persistence && npm run test:email && npm run test:api && npm run test:export && npm run test:sharing && npm run test:payments && npm run test:bulk && npm run test:footer && npm run test:receipt && npm run test:customer && npm run test:documents && npm run test:sync && npm run test:gst && npm run test:help && npm run test:accessibility",
     "test:persistence": "tsx --test tests/persistenceRegression.test.ts",
     "test:email": "tsx --test tests/gmailSmtpProvider.test.ts",
     "test:api": "tsx --test tests/emailApiRoute.test.ts",
@@ -22,6 +22,7 @@
     "test:customer": "tsx --test tests/customerExperienceRegression.test.ts",
     "test:documents": "tsx --test tests/documentPolishRegression.test.ts",
     "test:sync": "tsx --test tests/syncFeedbackRegression.test.ts tests/syncLifecycleRegression.test.ts",
+    "test:gst": "tsx --test tests/gstPlaceOfSupply.test.ts",
     "test:help": "tsx --test tests/helpContentRegression.test.ts",
     "test:accessibility": "tsx --test tests/uiAccessibilityRegression.test.ts"
   },

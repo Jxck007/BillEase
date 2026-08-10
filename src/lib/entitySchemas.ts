@@ -27,11 +27,11 @@ export const ENTITY_CONTRACTS = {
   },
   invoice: {
     required: ['id', 'invoiceNumber', 'date', 'customerId/customerSnapshot', 'items', 'totals'],
-    optional: ['gstNumber', 'address', 'phone', 'email', 'notes', 'terms', 'poNumber', 'poDate', 'placeOfSupply'],
+    optional: ['gstNumber', 'address', 'phone', 'email', 'notes', 'terms', 'poNumber', 'poDate', 'placeOfSupply', 'placeOfSupplyStateCode', 'taxMode', 'taxModeSource'],
   },
   quotation: {
     required: ['id', 'invoiceNumber', 'date', 'customerId/customerSnapshot', 'items', 'totals'],
-    optional: ['gstNumber', 'address', 'phone', 'email', 'notes', 'terms', 'validUntil'],
+    optional: ['gstNumber', 'address', 'phone', 'email', 'notes', 'terms', 'validUntil', 'placeOfSupplyStateCode', 'taxMode', 'taxModeSource'],
   },
   deliveryNote: {
     required: ['id', 'deliveryNoteNumber', 'date', 'customerId/customerSnapshot', 'items'],
@@ -92,6 +92,7 @@ export function customerSnapshot(customer: Customer): CustomerSnapshot {
     address: text(customer.address),
     phone: text(customer.phone),
     email: text(customer.email),
+    stateCode: text(customer.stateCode) || undefined,
   };
 }
 
@@ -175,6 +176,12 @@ export function normalizeInvoice(input: unknown): NormalizationResult<Invoice> {
     createdAt: text(source.createdAt) || new Date().toISOString(),
     updatedAt: text(source.updatedAt) || undefined,
     type: source.type === 'estimate' ? 'estimate' : 'invoice',
+    placeOfSupplyStateCode: text(source.placeOfSupplyStateCode) || undefined,
+    placeOfSupplySource: source.placeOfSupplySource === 'manual' ? 'manual' : source.placeOfSupplySource === 'automatic' ? 'automatic' : undefined,
+    supplierStateCode: text(source.supplierStateCode) || undefined,
+    taxMode: source.taxMode === 'INTRA_STATE' || source.taxMode === 'INTER_STATE' ? source.taxMode : source.taxMode === 'AUTO' ? 'AUTO' : undefined,
+    taxModeSource: source.taxModeSource === 'manual' ? 'manual' : source.taxModeSource === 'automatic' ? 'automatic' : undefined,
+    taxOverrideReason: text(source.taxOverrideReason) || undefined,
     customerSnapshot: snapshotSource ? {
       id: text(snapshotSource.id || customerId),
       name: text(snapshotSource.name),
@@ -182,6 +189,7 @@ export function normalizeInvoice(input: unknown): NormalizationResult<Invoice> {
       address: text(snapshotSource.address),
       phone: text(snapshotSource.phone),
       email: text(snapshotSource.email),
+      stateCode: text(snapshotSource.stateCode) || undefined,
     } : undefined,
   } as Invoice;
   return { value: recalculateInvoicePayments(value, normalizedPayments), warnings, errors };

@@ -7,6 +7,7 @@ import { withDefaultCustomerFieldVisibility } from '../../lib/invoiceCustomerFie
 import InvoiceAuthorizationAssets from '../documents/InvoiceAuthorizationAssets';
 import ComputerGeneratedFooter from '../documents/ComputerGeneratedFooter';
 import { useLanguage } from '../../context/LanguageContext';
+import { formatGstState, getDocumentTaxRateLabel, inferHistoricalGstTaxMode } from '../../gst/gstService';
 
 function numberToWordsIndian(num: number) {
   if (num === 0) return 'zero';
@@ -93,7 +94,10 @@ export function CanonicalInvoiceDocument({ invoice, profile, customer, showQr = 
   const amountInWords = language === 'ta'
     ? `${numberToWordsIndianTamil(Math.floor(invoice.total || 0))} ரூபாய் மட்டும்`
     : `${numberToWordsIndian(Math.floor(invoice.total || 0))} rupees only`;
-  const isIGST = (invoice.igstTotal || 0) > 0;
+  const effectiveTaxMode = inferHistoricalGstTaxMode(invoice, seller.stateCode || '33');
+  const isIGST = effectiveTaxMode === 'INTER_STATE';
+  const hasGstSupplyModel = Boolean(invoice.placeOfSupplyStateCode && invoice.taxMode);
+  const placeOfSupply = invoice.placeOfSupplyStateCode ? formatGstState(invoice.placeOfSupplyStateCode) : invoice.placeOfSupply || '-';
   const hasDiscount = (invoice.discountTotal || 0) > 0;
   const customerVisibility = withDefaultCustomerFieldVisibility(invoice.customerFieldVisibility);
   const label = copyLabel || invoice.copyType || 'DUPLICATE COPY';
@@ -126,6 +130,11 @@ export function CanonicalInvoiceDocument({ invoice, profile, customer, showQr = 
               {invoice.poNumber && <tr><td>P.O Number</td><td>:</td><td>{invoice.poNumber}</td></tr>}
               {invoice.poMode && <tr><td>P.O Mode</td><td>:</td><td>{invoice.poMode}</td></tr>}
               <tr><td>P.O Date</td><td>:</td><td>{invoice.poDate ? format(new Date(invoice.poDate), 'dd/MM/yyyy') : '-'}</td></tr>
+              {hasGstSupplyModel ? <>
+                <tr><td>{language === 'ta' ? 'விநியோக இடம்' : 'Place of Supply'}</td><td>:</td><td>{placeOfSupply}</td></tr>
+                <tr><td>{language === 'ta' ? 'வரி வகை' : 'Tax Type'}</td><td>:</td><td>{isIGST ? (language === 'ta' ? 'மாநிலங்களுக்கு இடையே' : 'Inter-State') : (language === 'ta' ? 'மாநிலத்திற்குள்' : 'Intra-State')}</td></tr>
+                <tr><td>GST</td><td>:</td><td>{isIGST ? 'IGST' : 'CGST + SGST'}{invoice.taxModeSource === 'manual' ? (language === 'ta' ? ' (கைமுறை மாற்றம்)' : ' (manual override)') : ''}</td></tr>
+              </> : null}
             </tbody></table>
           </div>
         </section>
@@ -152,9 +161,9 @@ export function CanonicalInvoiceDocument({ invoice, profile, customer, showQr = 
             </tbody>
             <tfoot>
               <tr><td colSpan={5} className="tv-td-right">{t('subtotal')}</td><td className="tv-td-right">{formatCurrency(invoice.subtotal || 0)}</td></tr>
-              {!isIGST && <tr><td colSpan={5} className="tv-td-right">INPUT CGST @ 9%</td><td className="tv-td-right">{formatCurrency(invoice.cgstTotal || 0)}</td></tr>}
-              {!isIGST && <tr><td colSpan={5} className="tv-td-right">INPUT SGST @ 9%</td><td className="tv-td-right">{formatCurrency(invoice.sgstTotal || 0)}</td></tr>}
-              {isIGST && <tr><td colSpan={5} className="tv-td-right">IGST</td><td className="tv-td-right">{formatCurrency(invoice.igstTotal || 0)}</td></tr>}
+              {!isIGST && <tr><td colSpan={5} className="tv-td-right">{hasGstSupplyModel ? getDocumentTaxRateLabel(invoice, 'CGST') : 'INPUT CGST @ 9%'}</td><td className="tv-td-right">{formatCurrency(invoice.cgstTotal || 0)}</td></tr>}
+              {!isIGST && <tr><td colSpan={5} className="tv-td-right">{hasGstSupplyModel ? getDocumentTaxRateLabel(invoice, 'SGST') : 'INPUT SGST @ 9%'}</td><td className="tv-td-right">{formatCurrency(invoice.sgstTotal || 0)}</td></tr>}
+              {isIGST && <tr><td colSpan={5} className="tv-td-right">{hasGstSupplyModel ? getDocumentTaxRateLabel(invoice, 'IGST') : 'IGST'}</td><td className="tv-td-right">{formatCurrency(invoice.igstTotal || 0)}</td></tr>}
               {hasDiscount && <tr><td colSpan={5} className="tv-td-right">{t('discount')}</td><td className="tv-td-right">-{formatCurrency(invoice.discountTotal || 0)}</td></tr>}
               {(invoice.roundOff || 0) !== 0 && <tr><td colSpan={5} className="tv-td-right">{language === 'ta' ? 'முழுமையாக்கம்' : 'Round Off'}</td><td className="tv-td-right">{formatCurrency(invoice.roundOff || 0)}</td></tr>}
               <tr><td colSpan={5} className="tv-td-right tv-total">{t('total')}</td><td className="tv-td-right tv-total">{formatCurrency(invoice.total || 0)}</td></tr>
