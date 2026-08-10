@@ -20,6 +20,7 @@ UI labels are derived from pending count, browser network state, authentication,
 
 ```text
 UI mutation
+  -> entity repository requests a DataContext commit
   -> DataContext computes next AppState and stable operation ID
   -> React state updates immediately
   -> diff creates one immutable outbox operation with entity snapshots/base hashes
@@ -31,6 +32,8 @@ UI mutation
   -> only that operation leaves IndexedDB
   -> collection listeners deliver authoritative entity state to other devices
 ```
+
+`useDataHydration` owns startup restore and recovery, `useFirestoreListeners` owns remote subscription lifecycle and conflict application, and `useNormalizedOutboxSync` owns normalized write ordering/retry. `DataContext` retains the single durable commit boundary, so extraction does not create a second state machine or outbox.
 
 Ordinary batched writes are accepted by the Firestore client while offline and commit after reconnect. BillEase still retains its IndexedDB outbox so operation identity, entity snapshots, retry metadata, and recovery survive reloads independently of the SDK cache.
 

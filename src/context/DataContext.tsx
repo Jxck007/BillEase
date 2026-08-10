@@ -1,135 +1,30 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
-import { AppState, AuditLog, AppSettings, BusinessProfile, Customer, Expense, Invoice, Payment, PaymentMethod, Product, DeliveryNote } from '../lib/types';
+import { AppState, AuditLog, Payment, PaymentMethod } from '../lib/types';
 import { generateId } from '../lib/utils';
-import { getDefaultSettings } from '../services/invoiceService';
-import { AppDataEnvelope, contentHash, db, getAppDataEnvelope, getFirebaseStatus, FirebaseStatus, useFirestoreSync } from '../lib/firebase';
-import { normalizeDeliveryNote } from '../lib/deliveryNoteUtils';
+import { contentHash, db, getFirebaseStatus, FirebaseStatus, useFirestoreSync } from '../lib/firebase';
 import { useAuth } from './AuthContext';
-import { doc, onSnapshot } from 'firebase/firestore';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { invalidateDocumentPdf } from '../services/documentPdfCache';
-import { customerSnapshot, normalizeCustomer, normalizeInvoice, validateDeliveryNote, ValidationIssue } from '../lib/entitySchemas';
-import { DurableSyncOutbox, DurableWriteQueue, LOCAL_DATA_VERSION, loadLocalAppState, LocalAppRecord, PendingEntityRef, saveLocalAppState, saveRecoverySnapshot } from '../services/localDataStore';
+import { DurableSyncOutbox, DurableWriteQueue, LOCAL_DATA_VERSION, LocalAppRecord, PendingEntityRef, saveLocalAppState, saveRecoverySnapshot } from '../services/localDataStore';
 import { errorReference, recordDiagnostic } from '../services/diagnostics';
-import { decideRemoteSnapshot, entityContentHash, mergeRemoteWithPendingEntities } from '../services/persistencePolicy';
-import { normalizePayment, recalculateInvoicePayments, validateNewPayment } from '../services/paymentService';
-import { classifySyncError, isCommittedWriteAcknowledgement, isMatchingServerAcknowledgement, shouldRestartPendingSync } from '../services/syncPolicy';
-import { createNormalizedOutboxOperation, restoreLegacyOutbox } from '../services/normalizedOutbox';
-import { getFirestoreDataMode, getNormalizedAppState, subscribeNormalizedAppState, writeNormalizedOperation } from '../lib/normalizedFirebase';
+import { entityContentHash } from '../services/persistencePolicy';
+import { recalculateInvoicePayments, validateNewPayment } from '../services/paymentService';
+import { classifySyncError, isCommittedWriteAcknowledgement, shouldRestartPendingSync } from '../services/syncPolicy';
+import { createNormalizedOutboxOperation } from '../services/normalizedOutbox';
+import { getFirestoreDataMode } from '../lib/normalizedFirebase';
+import { initialAppState } from '../persistence/hydrateAppState';
+import type { DataContextType, MutationResult, SyncDetails, SyncStatus } from './dataContextTypes';
+import { createEntityRepositories } from '../repositories/entityRepositories';
+import { useFirestoreListeners } from '../sync/useFirestoreListeners';
+import { useNormalizedOutboxSync } from '../sync/useNormalizedOutboxSync';
+import { useDataHydration } from '../persistence/useDataHydration';
 
-export type SyncStatus = 'loading' | 'unsaved' | 'saving' | 'local' | 'online' | 'offline' | 'failed' | 'action-required';
-export type MutationResult = { ok: boolean; id?: string; errors?: ValidationIssue[]; errorReference?: string };
-export type SyncDetails = { internet: boolean; signedIn: boolean; cloudAvailable: boolean; pendingChanges: number; pendingSince: string | null; lastAttemptAt: string | null; errorReference: string | null };
-
-interface DataContextType {
-  state: AppState;
-  firebaseStatus: FirebaseStatus;
-  syncStatus: SyncStatus;
-  saveIndicator: SyncStatus;
-  lastSavedAt: string | null;
-  syncNotice: string | null;
-  syncDetails: SyncDetails;
-  retrySync: () => void;
-  addCustomer: (customer: Omit<Customer, 'id' | 'createdAt'>) => Promise<MutationResult>;
-  updateCustomer: (id: string, customer: Partial<Customer>) => Promise<MutationResult>;
-  deleteCustomer: (id: string) => Promise<MutationResult>;
-  addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => Promise<MutationResult>;
-  updateProduct: (id: string, product: Partial<Product>) => Promise<MutationResult>;
-  deleteProduct: (id: string) => Promise<MutationResult>;
-  addInvoice: (invoice: Omit<Invoice, 'createdAt'>) => Promise<MutationResult>;
-  updateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<MutationResult>;
-  deleteInvoice: (id: string) => Promise<MutationResult>;
-  addPayment: (payment: { invoiceId: string; amount: number; paidAt?: string; date?: string; method: PaymentMethod; reference?: string; notes: string; operationId?: string }) => Promise<MutationResult>;
-  reversePayment: (invoiceId: string, paymentId: string, reason: string, operationId?: string) => Promise<MutationResult>;
-  correctPayment: (invoiceId: string, paymentId: string, replacement: { amount: number; paidAt: string; method: PaymentMethod; reference?: string; notes: string }, reason: string, operationId?: string) => Promise<MutationResult>;
-  cancelInvoice: (invoiceId: string, reason: string) => Promise<MutationResult>;
-  addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => Promise<MutationResult>;
-  deleteExpense: (id: string) => Promise<MutationResult>;
-  updateProfile: (profile: BusinessProfile) => Promise<MutationResult>;
-  updateSettings: (settings: Partial<AppSettings>) => Promise<MutationResult>;
-  addAuditLog: (log: Omit<AuditLog, 'id' | 'createdAt'>) => Promise<MutationResult>;
-  addDeliveryNote: (note: Omit<DeliveryNote, 'createdAt'>) => Promise<MutationResult>;
-  updateDeliveryNote: (id: string, note: Partial<DeliveryNote>) => Promise<MutationResult>;
-  deleteDeliveryNote: (id: string) => Promise<MutationResult>;
-}
-
-const defaultProfile: BusinessProfile = {
-  name: 'My Business', address: '', phone: '', email: '', gst: '', stateCode: '33', logo: '', qrCodeImage: '',
-};
-
-const initialState: AppState = {
-  customers: [], products: [], invoices: [], payments: [], expenses: [], deliveryNotes: [], auditLogs: [],
-  profile: defaultProfile, settings: getDefaultSettings(defaultProfile),
-};
-
-function asArray(value: unknown) {
-  return Array.isArray(value) ? value : [];
-}
-
-export function hydrateAppState(input: unknown): { value: AppState; warnings: ValidationIssue[]; errors: ValidationIssue[] } {
-  const remote = input && typeof input === 'object' ? input as Record<string, unknown> : {};
-  const profile = remote.profile && typeof remote.profile === 'object' ? remote.profile as BusinessProfile : defaultProfile;
-  const warnings: ValidationIssue[] = [];
-  const errors: ValidationIssue[] = [];
-  const customers = asArray(remote.customers).map((entry, index) => {
-    const result = normalizeCustomer(entry);
-    errors.push(...result.errors.map((item) => ({ ...item, field: `customers.${index}.${item.field}` })));
-    return result.value as Customer;
-  });
-  const normalizedLedger = asArray(remote.payments)
-    .map((entry) => normalizePayment(entry as Record<string, unknown>))
-    .filter((entry): entry is Payment => Boolean(entry));
-  const invoices = asArray(remote.invoices).map((entry, index) => {
-    const result = normalizeInvoice(entry);
-    errors.push(...result.errors.map((item) => ({ ...item, field: `invoices.${index}.${item.field}` })));
-    const invoice = result.value as Invoice;
-    const linkedCustomer = customers.find((customer) => customer.id === invoice.customerId);
-    let linkedPayments = invoice.payments.length
-      ? invoice.payments
-      : normalizedLedger.filter((payment) => payment.invoiceId === invoice.id);
-    const legacySource = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {};
-    const legacyAmountPaid = Number(legacySource.amountPaid);
-    if (!linkedPayments.length && Number.isFinite(legacyAmountPaid) && legacyAmountPaid > 0) {
-      const paidAt = String(legacySource.lastPaymentAt || legacySource.updatedAt || legacySource.date || invoice.createdAt);
-      linkedPayments = [{
-        id: `legacy-payment-${invoice.id}`, invoiceId: invoice.id, amount: legacyAmountPaid,
-        paidAt, date: paidAt.slice(0, 10), method: 'other', reference: 'Legacy balance',
-        notes: '', createdAt: String(legacySource.updatedAt || invoice.createdAt), createdBy: 'legacy',
-        operationId: `legacy-payment:${invoice.id}`, kind: 'payment',
-      }];
-      warnings.push({ field: `invoices.${index}.payments`, message: 'A legacy paid amount was preserved as an imported payment entry.', code: 'invoice.payment.legacyPreserved' });
-    }
-    const recalculated = recalculateInvoicePayments(invoice, linkedPayments);
-    return !recalculated.customerSnapshot && linkedCustomer ? { ...recalculated, customerSnapshot: customerSnapshot(linkedCustomer) } : recalculated;
-  });
-  const deliveryNotes = asArray(remote.deliveryNotes).map((entry) => {
-    const note = normalizeDeliveryNote(entry as Partial<DeliveryNote> & Record<string, unknown>);
-    const linkedCustomer = customers.find((customer) => customer.id === note.customerId);
-    return !note.customerSnapshot && linkedCustomer ? { ...note, customerSnapshot: customerSnapshot(linkedCustomer) } : note;
-  });
-  return {
-    value: {
-      ...initialState,
-      ...remote,
-      customers,
-      products: asArray(remote.products) as Product[],
-      invoices,
-      payments: Array.from(new Map([...normalizedLedger, ...invoices.flatMap((invoice) => invoice.payments)].map((payment) => [payment.id, payment])).values()),
-      expenses: asArray(remote.expenses) as Expense[],
-      deliveryNotes,
-      profile,
-      settings: { ...getDefaultSettings(profile), ...((remote.settings && typeof remote.settings === 'object') ? remote.settings : {}) },
-      auditLogs: asArray(remote.auditLogs) as AuditLog[],
-    },
-    warnings,
-    errors,
-  };
-}
+export { hydrateAppState } from '../persistence/hydrateAppState';
+export type { DataContextType, MutationResult, SyncDetails, SyncStatus } from './dataContextTypes';
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(initialState);
+  const [state, setState] = useState<AppState>(initialAppState);
   const stateRef = useRef(state);
   const [isLoaded, setIsLoaded] = useState(false);
   const [firebaseStatus] = useState<FirebaseStatus>(() => getFirebaseStatus());
@@ -290,199 +185,51 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [firebaseStatus.configured, normalizedMode, persistLocal, user]);
 
-  useEffect(() => {
-    let active = true;
-    const initialize = async () => {
-      setSyncStatus('loading');
-      let local: LocalAppRecord | null = null;
-      let localValid = true;
-      try {
-        local = await loadLocalAppState();
-        if (local && active) {
-          const effectiveDirty = local.dirty && firebaseStatus.configured;
-          const hydrated = hydrateAppState(local.data);
-          stateRef.current = hydrated.value;
-          setState(hydrated.value);
-          localRevision.current = local.localRevision;
-          remoteRevision.current = local.remoteRevision;
-          pendingSync.current = effectiveDirty
-            ? local.pendingSync || local.pendingOperations?.[0] || {
-              operationId: generateId(), operationType: 'update', entities: [{ entityType: 'app', entityId: 'aggregate' }],
-              queuedAt: local.updatedAt, retryCount: 0,
-            }
-            : null;
-          normalizedOutbox.current = effectiveDirty && normalizedMode
-            ? (local.pendingOperations?.length
-              ? local.pendingOperations
-              : pendingSync.current ? [restoreLegacyOutbox(pendingSync.current, hydrated.value)] : [])
-            : [];
-          latestOperationId.current = pendingSync.current?.operationId || '';
-          setHasDirtyChanges(effectiveDirty);
-          dirtyRef.current = effectiveDirty;
-          setSyncDetails((current) => ({ ...current, pendingChanges: effectiveDirty ? 1 : 0, pendingSince: effectiveDirty ? local.updatedAt : null }));
-          setSyncStatus(effectiveDirty ? 'local' : 'online');
-          setLastSavedAt(local.updatedAt);
-          if (local.dirty && !effectiveDirty) {
-            pendingSync.current = null;
-            await persistLocal(hydrated.value, false, local.localRevision);
-          } else if (effectiveDirty && !local.pendingSync) {
-            await persistLocal(hydrated.value, true, local.localRevision);
-          }
-          if (hydrated.errors.length) {
-            localValid = false;
-            setSyncBlocked(true);
-            await saveRecoverySnapshot(local, 'validation-warning');
-            setSyncNotice('Some stored records need attention. The original data was preserved in recovery storage.');
-          }
-        }
-      } catch {
-        const reference = errorReference('LOAD');
-        setSyncNotice(`Local recovery storage is unavailable. Keep this tab open while editing. Error reference: ${reference}`);
-        recordDiagnostic({ operation: 'read', entityType: 'app', status: 'failed', errorCategory: 'local-storage', errorReference: reference });
-      }
-      if (user && db) {
-        try {
-          const normalized = normalizedMode ? await getNormalizedAppState() : null;
-          const envelope = normalized ? null : (firestoreDataMode === 'normalized' ? null : await getAppDataEnvelope());
-          const remoteData = normalized || envelope?.data;
-          if (remoteData && active) {
-            remoteRevision.current = envelope?.revision || remoteRevision.current + 1;
-            const hydrated = hydrateAppState(remoteData);
-            if (hydrated.errors.length) {
-              if (local) await saveRecoverySnapshot({ ...local, data: hydrated.value }, 'malformed-cloud-data');
-              setSyncNotice('Cloud data contains records that need attention. Nothing was deleted or overwritten.');
-            } else if (!local?.dirty || !localValid) {
-              stateRef.current = hydrated.value;
-              setState(hydrated.value);
-              dirtyRef.current = false;
-              setHasDirtyChanges(false);
-              setSyncBlocked(false);
-              await persistLocal(hydrated.value, false, localRevision.current);
-            } else {
-              const pendingEntities = normalizedMode ? normalizedOutbox.current.flatMap((entry) => entry.entities) : pendingSync.current?.entities || [];
-              const merged = mergeRemoteWithPendingEntities(stateRef.current, hydrated.value, pendingEntities);
-              stateRef.current = merged.value;
-              setState(merged.value);
-              if (merged.conflicts.length) {
-                setSyncBlocked(true);
-                setSyncStatus('action-required');
-                setSyncNotice('Another device changed the same record. Cloud overwrite is blocked; both versions were preserved in recovery storage.');
-                await saveRecoverySnapshot({ ...local, data: hydrated.value, dirty: false, pendingSync: undefined }, 'incoming-cloud-conflict');
-              }
-              await persistLocal(merged.value, true, localRevision.current);
-            }
-          }
-          setCloudSyncEnabled(true);
-        } catch {
-          const reference = errorReference('CLOUD');
-          setSyncStatus(local ? (local.dirty ? 'offline' : 'local') : 'offline');
-          setSyncNotice(`Cloud sync is unavailable. Your work remains saved on this device. Error reference: ${reference}`);
-          recordDiagnostic({ operation: 'read', entityType: 'app', status: 'failed', errorCategory: 'network-or-auth', errorReference: reference });
-        }
-      } else {
-        setCloudSyncEnabled(false);
-        setSyncStatus(local ? (local.dirty ? 'offline' : 'local') : 'offline');
-      }
-      if (active) setIsLoaded(true);
-    };
-    initialize();
-    return () => { active = false; };
-  }, [firebaseStatus.configured, firestoreDataMode, normalizedMode, user, persistLocal]);
+  useDataHydration({
+    firebaseConfigured: firebaseStatus.configured,
+    firestoreDataMode,
+    normalizedMode,
+    signedIn: Boolean(user),
+    stateRef,
+    dirtyRef,
+    localRevision,
+    remoteRevision,
+    latestOperationId,
+    pendingSync,
+    normalizedOutbox,
+    setState,
+    setIsLoaded,
+    setCloudSyncEnabled,
+    setHasDirtyChanges,
+    setSyncBlocked,
+    setSyncStatus,
+    setSyncNotice,
+    setSyncDetails,
+    setLastSavedAt,
+    persistLocal,
+  });
 
-  useEffect(() => {
-    if (normalizedMode || !cloudSyncEnabled || !user || !db) return;
-    return onSnapshot(doc(db as any, 'billease', 'appData'), { includeMetadataChanges: true }, async (snapshot) => {
-      if (snapshot.metadata.hasPendingWrites || snapshot.metadata.fromCache || !snapshot.exists()) return;
-      const payload = snapshot.data() as AppDataEnvelope;
-      const incomingRevision = Number(payload.revision || 0);
-      const pending = pendingAcknowledgement.current;
-      if (isMatchingServerAcknowledgement({ fromCache: snapshot.metadata.fromCache, hasPendingWrites: snapshot.metadata.hasPendingWrites, operationId: payload.clientOperationId, hash: contentHash(payload.data) }, pending)) {
-        await acknowledgeCommittedState(payload.clientOperationId, incomingRevision, 'server-snapshot');
-        return;
-      }
-      if (pending && payload.sourceDeviceId === deviceId.current) {
-        remoteRevision.current = Math.max(remoteRevision.current, incomingRevision);
-        return;
-      }
-      if (payload.clientOperationId === latestOperationId.current) return;
-      const decision = decideRemoteSnapshot(remoteRevision.current, incomingRevision, dirtyRef.current);
-      if (decision === 'ignore-stale') return;
-      const hydrated = hydrateAppState(payload.data);
-      if (hydrated.errors.length) {
-        setSyncBlocked(true);
-        setSyncStatus('action-required');
-        setSyncNotice('A cloud version contains invalid records. It was not applied; your local data is safe.');
-        return;
-      }
-      if (decision === 'merge-and-preserve') {
-        const currentRecord: LocalAppRecord = {
-          version: LOCAL_DATA_VERSION, data: stateRef.current, localRevision: localRevision.current,
-          remoteRevision: remoteRevision.current, updatedAt: new Date().toISOString(), dirty: true,
-        };
-        await saveRecoverySnapshot(currentRecord, 'concurrent-cloud-version');
-        const merged = mergeRemoteWithPendingEntities(stateRef.current, hydrated.value, pendingSync.current?.entities || []);
-        remoteRevision.current = incomingRevision;
-        stateRef.current = merged.value;
-        setState(merged.value);
-        if (merged.conflicts.length) {
-          setSyncBlocked(true);
-          await saveRecoverySnapshot({ ...currentRecord, data: hydrated.value, remoteRevision: incomingRevision, dirty: false, pendingSync: undefined }, 'incoming-cloud-conflict');
-          await persistLocal(merged.value, true);
-          setSyncStatus('action-required');
-          setSyncNotice('Another device changed the same record. Cloud overwrite is blocked; both versions were preserved in recovery storage.');
-          recordDiagnostic({ operationId: pendingSync.current?.operationId, operation: 'merge', entityType: 'app', localRevision: localRevision.current, remoteRevision: incomingRevision, status: 'blocked', resultCategory: 'same-entity-conflict', signedIn: Boolean(user) });
-          return;
-        }
-        await persistLocal(merged.value, true);
-        setSyncNotice('Changes from another device were merged with your pending work.');
-        recordDiagnostic({ operationId: pendingSync.current?.operationId, operation: 'merge', entityType: 'app', localRevision: localRevision.current, remoteRevision: incomingRevision, status: 'merged', resultCategory: 'different-entity-merge', signedIn: Boolean(user) });
-        return;
-      }
-      remoteRevision.current = incomingRevision;
-      stateRef.current = hydrated.value;
-      setState(hydrated.value);
-      await persistLocal(hydrated.value, false);
-    }, () => {
-      const reference = errorReference('SYNC');
-      setSyncStatus('failed');
-      setSyncNotice(`Your document could not be synced yet. It is saved safely on this device and will retry when you choose Retry. Error reference: ${reference}`);
-      setSyncDetails((current) => ({ ...current, errorReference: reference }));
-      recordDiagnostic({ operation: 'listen', entityType: 'app', status: 'failed', errorCategory: 'network-or-auth', errorReference: reference });
-    });
-  }, [acknowledgeCommittedState, cloudSyncEnabled, normalizedMode, user, persistLocal]);
-
-  useEffect(() => {
-    if (!normalizedMode || !cloudSyncEnabled || !user || !db) return;
-    return subscribeNormalizedAppState(async (remoteState, metadata) => {
-      if (metadata.hasPendingWrites || metadata.fromCache) return;
-      const hydrated = hydrateAppState(remoteState);
-      if (hydrated.errors.length) {
-        setSyncBlocked(true);
-        setSyncStatus('action-required');
-        setSyncNotice('A normalized cloud record is invalid. It was not applied; your local data is safe.');
-        return;
-      }
-      if (dirtyRef.current) {
-        const pendingEntities = normalizedOutbox.current.flatMap((entry) => entry.entities);
-        const merged = mergeRemoteWithPendingEntities(stateRef.current, hydrated.value, pendingEntities);
-        stateRef.current = merged.value;
-        setState(merged.value);
-        if (merged.conflicts.length) {
-          setSyncBlocked(true);
-          setSyncStatus('action-required');
-          setSyncNotice('Another device changed the same record. Cloud overwrite is blocked; your pending operation remains saved locally.');
-          await persistLocal(merged.value, true);
-          return;
-        }
-        await persistLocal(merged.value, true);
-        return;
-      }
-      remoteRevision.current += 1;
-      stateRef.current = hydrated.value;
-      setState(hydrated.value);
-      await persistLocal(hydrated.value, false);
-    });
-  }, [cloudSyncEnabled, normalizedMode, persistLocal, user]);
+  useFirestoreListeners({
+    normalizedMode,
+    cloudSyncEnabled,
+    signedIn: Boolean(user),
+    stateRef,
+    dirtyRef,
+    localRevision,
+    remoteRevision,
+    latestOperationId,
+    deviceId,
+    pendingSync,
+    normalizedOutbox,
+    pendingAcknowledgement,
+    setState,
+    setSyncBlocked,
+    setSyncStatus,
+    setSyncNotice,
+    setSyncDetails,
+    persistLocal,
+    acknowledgeCommittedState,
+  });
 
   useFirestoreSync(state, !normalizedMode && cloudSyncEnabled && hasDirtyChanges && !syncBlocked, undefined, {
     onSuccess: () => undefined,
@@ -536,56 +283,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
     retryTrigger,
   });
 
-  useEffect(() => {
-    if (!normalizedMode || !cloudSyncEnabled || !hasDirtyChanges || syncBlocked || !user || !db) return;
-    let cancelled = false;
-    const flush = async () => {
-      while (!cancelled && normalizedOutbox.current.length) {
-        const operation = normalizedOutbox.current[0];
-        operation.retryCount += 1;
-        pendingSync.current = operation;
-        setSyncStatus('saving');
-        setSyncDetails((current) => ({
-          ...current,
-          pendingChanges: normalizedOutbox.current.length,
-          pendingSince: current.pendingSince || operation.queuedAt,
-          lastAttemptAt: new Date().toISOString(),
-          errorReference: null,
-        }));
-        await persistLocal(stateRef.current, true);
-        try {
-          await writeNormalizedOperation(operation, deviceId.current, localRevision.current);
-          if (cancelled) return;
-          normalizedOutbox.current = normalizedOutbox.current.filter((entry) => entry.operationId !== operation.operationId);
-          pendingSync.current = normalizedOutbox.current[0] || null;
-          const stillDirty = normalizedOutbox.current.length > 0;
-          dirtyRef.current = stillDirty;
-          setHasDirtyChanges(stillDirty);
-          setSyncBlocked(false);
-          setSyncStatus(stillDirty ? 'saving' : 'online');
-          setSyncNotice(null);
-          setSyncDetails((current) => ({ ...current, pendingChanges: normalizedOutbox.current.length, pendingSince: stillDirty ? current.pendingSince : null, errorReference: null }));
-          await persistLocal(stateRef.current, stillDirty);
-          recordDiagnostic({ operationId: operation.operationId, operation: 'acknowledge', entityType: 'app', localRevision: localRevision.current, acknowledgedAt: new Date().toISOString(), status: 'synced', resultCategory: 'normalized-batch-commit', signedIn: true });
-        } catch (error) {
-          if (cancelled) return;
-          const category = classifySyncError(error);
-          const reference = errorReference(category === 'conflict' ? 'CONFLICT' : 'SYNC');
-          const actionRequired = category === 'conflict' || category === 'permission-denied' || category === 'auth-required' || category === 'permanent';
-          setSyncBlocked(actionRequired);
-          setSyncStatus(actionRequired ? 'action-required' : (navigator.onLine ? 'failed' : 'offline'));
-          setSyncNotice(category === 'conflict'
-            ? `Another device changed the same record. Your pending operation remains saved locally. Error reference: ${reference}`
-            : `Cloud sync is pending. Your work remains saved on this device. Error reference: ${reference}`);
-          setSyncDetails((current) => ({ ...current, errorReference: reference }));
-          await persistLocal(stateRef.current, true);
-          return;
-        }
-      }
-    };
-    void flush();
-    return () => { cancelled = true; };
-  }, [cloudSyncEnabled, hasDirtyChanges, normalizedMode, persistLocal, retryTrigger, syncBlocked, user]);
+  useNormalizedOutboxSync({
+    enabled: normalizedMode && cloudSyncEnabled,
+    hasDirtyChanges,
+    syncBlocked,
+    signedIn: Boolean(user),
+    retryTrigger,
+    stateRef,
+    localRevision,
+    deviceId,
+    dirtyRef,
+    pendingSync,
+    normalizedOutbox,
+    setHasDirtyChanges,
+    setSyncBlocked,
+    setSyncStatus,
+    setSyncNotice,
+    setSyncDetails,
+    persistLocal,
+  });
 
   const retrySync = () => {
     if (!hasDirtyChanges) return;
@@ -593,67 +309,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setRetryTrigger((current) => current + 1);
   };
 
-  const addAuditLog = async (log: Omit<AuditLog, 'id' | 'createdAt'>) => {
-    if (!stateRef.current.settings.enableAuditLog) return { ok: true };
-    return commitState((current) => ({
-      ...current,
-      auditLogs: [{ ...log, message: `${log.entityType} ${log.action}`, id: generateId(), createdAt: new Date().toISOString() }, ...current.auditLogs].slice(0, 200),
-    }), 'update', 'audit', log.entityId);
-  };
-
-  const addCustomer = async (customer: Omit<Customer, 'id' | 'createdAt'>) => {
-    const id = generateId();
-    const now = new Date().toISOString();
-    const normalized = normalizeCustomer({ ...customer, id, createdAt: now, updatedAt: now });
-    if (normalized.errors.length) return { ok: false, errors: normalized.errors };
-    return commitState((current) => ({ ...current, customers: [...current.customers, normalized.value as Customer] }), 'create', 'customer', id);
-  };
-  const updateCustomer = async (id: string, patch: Partial<Customer>) => {
-    const existing = stateRef.current.customers.find((entry) => entry.id === id);
-    if (!existing) return { ok: false, errors: [{ field: 'id', message: 'Customer could not be found.', code: 'customer.notFound' }] };
-    const normalized = normalizeCustomer({ ...existing, ...patch, updatedAt: new Date().toISOString() });
-    if (normalized.errors.length) return { ok: false, errors: normalized.errors };
-    return commitState((current) => ({ ...current, customers: current.customers.map((entry) => entry.id === id ? normalized.value as Customer : entry) }), 'update', 'customer', id);
-  };
-  const deleteCustomer = async (id: string) => commitState((current) => ({
-    ...current, customers: current.customers.map((entry) => entry.id === id ? { ...entry, deletedAt: new Date().toISOString() } : entry),
-  }), 'delete', 'customer', id);
-
-  const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>) => {
-    const id = generateId();
-    return commitState((current) => ({ ...current, products: [...current.products, { ...product, id, createdAt: new Date().toISOString() }] }), 'create', 'product', id);
-  };
-  const updateProduct = async (id: string, product: Partial<Product>) => commitState((current) => ({ ...current, products: current.products.map((entry) => entry.id === id ? { ...entry, ...product } : entry) }), 'update', 'product', id);
-  const deleteProduct = async (id: string) => commitState((current) => ({ ...current, products: current.products.filter((entry) => entry.id !== id) }), 'delete', 'product', id);
-
-  const addInvoice = async (invoice: Omit<Invoice, 'createdAt'>) => {
-    const id = invoice.id || generateId();
-    const selected = stateRef.current.customers.find((entry) => entry.id === invoice.customerId);
-    const normalized = normalizeInvoice({ ...invoice, id, customerSnapshot: invoice.customerSnapshot || (selected ? customerSnapshot(selected) : undefined), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-    if (normalized.errors.length) return { ok: false, id, errors: normalized.errors };
-    return commitState((current) => ({ ...current, invoices: [...current.invoices, normalized.value as Invoice] }), 'create', invoice.type === 'estimate' ? 'quotation' : 'invoice', id);
-  };
-  const updateInvoice = async (id: string, patch: Partial<Invoice>) => {
-    const existing = stateRef.current.invoices.find((entry) => entry.id === id);
-    if (!existing) return { ok: false, errors: [{ field: 'id', message: 'Document could not be found.', code: 'invoice.notFound' }] };
-    const selected = stateRef.current.customers.find((entry) => entry.id === (patch.customerId || existing.customerId));
-    const normalized = normalizeInvoice({ ...existing, ...patch, id, customerSnapshot: patch.customerSnapshot || existing.customerSnapshot || (selected ? customerSnapshot(selected) : undefined), updatedAt: new Date().toISOString() });
-    if (normalized.errors.length) return { ok: false, id, errors: normalized.errors };
-    invalidateDocumentPdf('invoice', id);
-    invalidateDocumentPdf('quotation', id);
-    const now = new Date().toISOString();
-    const dueDateChanged = Object.prototype.hasOwnProperty.call(patch, 'dueDate') && patch.dueDate !== existing.dueDate;
-    return commitState((current) => ({
-      ...current,
-      invoices: current.invoices.map((entry) => entry.id === id ? normalized.value as Invoice : entry),
-      auditLogs: dueDateChanged && current.settings.enableAuditLog ? [{
-        id: generateId(), entityType: 'invoice', entityId: id, action: 'recalculated',
-        message: 'invoice due date changed and status recalculated', createdAt: now,
-        meta: { dueDate: patch.dueDate || '', authorizedUserId: user?.uid || 'unknown-admin' },
-      } as AuditLog, ...current.auditLogs].slice(0, 200) : current.auditLogs,
-    }), 'update', existing.type === 'estimate' ? 'quotation' : 'invoice', id);
-  };
-  const deleteInvoice = async (id: string) => commitState((current) => ({ ...current, invoices: current.invoices.map((entry) => entry.id === id ? { ...entry, deletedAt: new Date().toISOString() } : entry) }), 'delete', 'invoice', id);
+  const {
+    addAuditLog,
+    addCustomer,
+    updateCustomer,
+    deleteCustomer,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    addInvoice,
+    updateInvoice,
+    deleteInvoice,
+    addExpense,
+    deleteExpense,
+    updateProfile,
+    updateSettings,
+    addDeliveryNote,
+    updateDeliveryNote,
+    deleteDeliveryNote,
+  } = createEntityRepositories({
+    getState: () => stateRef.current,
+    commitState,
+    userId: user?.uid || 'unknown-admin',
+  });
 
   const addPayment = async (payment: { invoiceId: string; amount: number; paidAt?: string; date?: string; method: PaymentMethod; reference?: string; notes: string; operationId?: string }) => {
     if (!isAdmin) return { ok: false, errors: [{ field: 'authorization', message: 'Administrator access is required.', code: 'auth.admin.required' }] };
@@ -727,40 +405,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       auditLogs: current.settings.enableAuditLog ? [{ id: generateId(), entityType: 'invoice', entityId: invoiceId, action: 'cancelled', message: 'invoice cancelled', createdAt: now, meta: { reason: cleanReason, authorizedUserId: user?.uid || 'unknown-admin' } } as AuditLog, ...current.auditLogs].slice(0, 200) : current.auditLogs,
     }), 'update', 'invoice', invoiceId);
   };
-  const addExpense = async (expense: Omit<Expense, 'id' | 'createdAt'>) => {
-    const id = generateId();
-    return commitState((current) => ({ ...current, expenses: [...current.expenses, { ...expense, id, createdAt: new Date().toISOString() }] }), 'create', 'expense', id);
-  };
-  const deleteExpense = async (id: string) => commitState((current) => ({ ...current, expenses: current.expenses.filter((entry) => entry.id !== id) }), 'delete', 'expense', id);
-  const updateProfile = async (profile: BusinessProfile) => commitState((current) => ({ ...current, profile, settings: { ...current.settings, businessStateCode: profile.stateCode || current.settings.businessStateCode } }), 'update', 'profile', 'business');
-  const updateSettings = async (settings: Partial<AppSettings>) => commitState((current) => ({
-    ...current,
-    settings: {
-      ...current.settings, ...settings,
-      template: { ...current.settings.template, ...(settings.template || {}), visibility: { ...current.settings.template.visibility, ...(settings.template?.visibility || {}) } },
-    },
-  }), 'update', 'settings', 'app');
-
-  const addDeliveryNote = async (note: Omit<DeliveryNote, 'createdAt'>) => {
-    const id = note.id || generateId();
-    const selected = stateRef.current.customers.find((entry) => entry.id === note.customerId);
-    const candidate = normalizeDeliveryNote({ ...note, id, customerSnapshot: note.customerSnapshot || (selected ? customerSnapshot(selected) : undefined), createdAt: new Date().toISOString() } as Partial<DeliveryNote> & Record<string, unknown>);
-    const validation = validateDeliveryNote(candidate);
-    if (validation.errors.length) return { ok: false, id, errors: validation.errors };
-    return commitState((current) => ({ ...current, deliveryNotes: [...current.deliveryNotes, candidate] }), 'create', 'deliveryNote', id);
-  };
-  const updateDeliveryNote = async (id: string, note: Partial<DeliveryNote>) => {
-    const existing = stateRef.current.deliveryNotes.find((entry) => entry.id === id);
-    if (!existing) return { ok: false, errors: [{ field: 'id', message: 'Delivery note could not be found.', code: 'deliveryNote.notFound' }] };
-    const selected = stateRef.current.customers.find((entry) => entry.id === (note.customerId || existing.customerId));
-    const candidate = normalizeDeliveryNote({ ...existing, ...note, id, customerSnapshot: note.customerSnapshot || existing.customerSnapshot || (selected ? customerSnapshot(selected) : undefined), updatedAt: new Date().toISOString() } as Partial<DeliveryNote> & Record<string, unknown>);
-    const validation = validateDeliveryNote(candidate);
-    if (validation.errors.length) return { ok: false, id, errors: validation.errors };
-    invalidateDocumentPdf('delivery-note', id);
-    return commitState((current) => ({ ...current, deliveryNotes: current.deliveryNotes.map((entry) => entry.id === id ? candidate : entry) }), 'update', 'deliveryNote', id);
-  };
-  const deleteDeliveryNote = async (id: string) => commitState((current) => ({ ...current, deliveryNotes: current.deliveryNotes.map((entry) => entry.id === id ? { ...entry, deletedAt: new Date().toISOString() } : entry) }), 'delete', 'deliveryNote', id);
-
   if (!isLoaded) return <LoadingSpinner fullScreen text="Loading saved data..." />;
 
   return (

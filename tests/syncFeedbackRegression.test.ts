@@ -29,12 +29,13 @@ test('retries use bounded exponential backoff', () => {
 
 test('DataContext clears real pending state after the matching snapshot without deleting local data', () => {
   const source = readFileSync(new URL('../src/context/DataContext.tsx', import.meta.url), 'utf8');
+  const hydrationSource = readFileSync(new URL('../src/persistence/useDataHydration.ts', import.meta.url), 'utf8');
   assert.match(source, /pendingAcknowledgement\.current = null/);
   assert.match(source, /pendingChanges: 0/);
   assert.match(source, /persistLocal\(stateRef\.current, false\)/);
   assert.doesNotMatch(source, /clear.*queue/i);
   assert.match(source, /shouldQueueCloud = firebaseStatus\.configured/);
   assert.match(source, /pendingChanges: shouldQueueCloud \? \(normalizedMode \? normalizedOutbox\.current\.length : 1\) : 0/);
-  assert.match(source, /effectiveDirty = local\.dirty && firebaseStatus\.configured/);
-  assert.match(source, /local\.dirty && !effectiveDirty/);
+  assert.match(hydrationSource, /effectiveDirty = local\.dirty && firebaseConfigured/);
+  assert.match(hydrationSource, /local\.dirty && !effectiveDirty/);
 });

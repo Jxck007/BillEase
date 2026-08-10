@@ -7,7 +7,11 @@ src/main.tsx
   -> AppErrorBoundary
   -> AuthProvider (Firebase Auth + admins/{uid})
   -> LanguageProvider (localStorage + html lang)
-  -> DataProvider (application state, local persistence, cloud sync)
+  -> DataProvider (application-state orchestration)
+       -> persistence/useDataHydration (IndexedDB + cloud bootstrap/recovery)
+       -> repositories/entityRepositories (non-financial entity commands)
+       -> sync/useFirestoreListeners (aggregate + normalized subscriptions)
+       -> sync/useNormalizedOutboxSync (normalized outbox flush/retry)
   -> HelpProvider / ToastProvider
   -> BrowserRouter / lazy routes / AppLayout
 
@@ -25,7 +29,7 @@ DataContext mutation
   -> React state + IndexedDB clean checkpoint
 ```
 
-The application is a Vite/React 19 single-page app. Routes are lazy-loaded in `src/App.tsx`. `DataContext` is the sole application-state provider and currently contains mutation commands, hydration, validation, local persistence, remote listening, conflict handling, and sync presentation state. Errors are isolated globally and around critical editor/preview routes.
+The application is a Vite/React 19 single-page app. Routes are lazy-loaded in `src/App.tsx`. `DataContext` remains the sole public application-state provider, but now orchestrates explicit persistence, repository, and synchronization modules. The public context shape and mutation behavior are unchanged. Financial payment/reversal commands stay in the provider so their existing calculation and recovery ordering is not disturbed. Errors are isolated globally and around critical editor/preview routes.
 
 ## Persistence inventory
 
@@ -67,4 +71,5 @@ Vercel functions authenticate Firebase ID tokens, then verify `admins/{uid}` usi
 - The current deployment is single-company. `VITE_BILLEASE_COMPANY_ID` defaults to `kimera-vel-tech`; rules also permit legacy admin documents without `companyId` only for that company.
 - Firestore rules and emulator configuration are versioned in this repository. Deploy rules separately from data backfill and only after emulator tests pass.
 - Data mode is gated by `VITE_FIRESTORE_DATA_MODE`; default `aggregate` prevents an accidental cutover.
-- `DataContext` is a 600+ line orchestration component and is the main maintainability hotspot. Extraction should follow entity normalization, not precede it without integration tests.
+- `DataContext` owns React state, the durable commit boundary, aggregate compatibility writes, financial commands, and public context composition. Hydration, non-financial entity commands, Firestore listeners, and normalized outbox flushing have dedicated tested owners.
+- Repository commands remain grouped because they share one commit contract; splitting each CRUD operation into a separate file would add indirection without changing ownership.
