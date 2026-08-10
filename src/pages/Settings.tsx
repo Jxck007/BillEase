@@ -535,7 +535,7 @@ export default function Settings() {
   return (
     <div className="mx-auto max-w-6xl space-y-5 pb-12">
       <div>
-        <Link to="/" className="inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} />{text('Back to Dashboard', 'முகப்புக்குத் திரும்பு')}</Link>
+        <Link to="/" className="inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} />{t('backToDashboard')}</Link>
         <h1 className="mt-2 text-2xl font-black text-stone-900">{t('settings')}</h1>
         <p className="mt-1 text-sm text-stone-500">{text('Manage company, payment, branding and connected services.', 'நிறுவனம், கட்டணம், அடையாளம் மற்றும் இணைக்கப்பட்ட சேவைகளை நிர்வகிக்கவும்.')}</p>
       </div>

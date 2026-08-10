@@ -54,3 +54,30 @@ test('normal login errors do not expose Firebase implementation details', () => 
   assert.match(login, /role="alert"/);
   assert.match(login, /Sign-in is temporarily unavailable/);
 });
+
+test('dashboard return navigation and recovery actions use the shared Tamil translations', () => {
+  const translations = source('src/lib/translations.ts');
+  const localizedRoutes = [
+    'src/pages/Customers.tsx',
+    'src/pages/DeliveryNotes.tsx',
+    'src/pages/Estimates.tsx',
+    'src/pages/Invoices.tsx',
+    'src/pages/Products.tsx',
+    'src/pages/Reports.tsx',
+    'src/pages/Settings.tsx',
+    'src/components/errors/AppErrorBoundary.tsx',
+  ];
+
+  assert.match(translations, /backToDashboard: \{ en: 'Back to Dashboard', ta: 'முகப்புக்குத் திரும்பு' \}/);
+  for (const path of localizedRoutes) {
+    const route = source(path);
+    assert.match(route, /t\('backToDashboard'\)/, `${path} should use the shared dashboard return label`);
+    assert.doesNotMatch(route, />\s*(?:Back to Dashboard|Return to dashboard)\s*</, `${path} contains a visible English-only dashboard return label`);
+  }
+});
+
+test('the Tamil navigation bar localizes the accessible language-switch action', () => {
+  const navbar = source('src/components/layout/Navbar.tsx');
+  assert.match(navbar, /t\(language === 'en' \? 'changeLanguageToTamil' : 'changeLanguageToEnglish'\)/);
+  assert.doesNotMatch(navbar, /aria-label=.*Change language to English/);
+});

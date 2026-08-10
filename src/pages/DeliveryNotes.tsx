@@ -49,7 +49,7 @@ export default function DeliveryNotes() {
     <div className="mx-auto max-w-7xl space-y-6 pb-12">
       <div className="flex flex-col gap-4 border-b border-stone-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> Back to Dashboard</Link>
+          <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> {t('backToDashboard')}</Link>
           <h1 className="text-2xl font-black text-stone-800">{language === 'en' ? 'Delivery Notes' : 'டெலிவரி நோட்ஸ்'}</h1>
           <p className="mt-1 text-sm text-stone-500">{language === 'en' ? 'Manage your delivery documents' : 'உங்கள் டெலிவரி ஆவணங்களை நிர்வகிக்கவும்'}</p>
         </div>

@@ -77,7 +77,7 @@ export default function Products() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t('products')} description={text('Products and services available for documents.', 'ஆவணங்களுக்கான பொருட்கள் மற்றும் சேவைகளை நிர்வகிக்கவும்.')} addLabel={text('Add product', 'பொருள் சேர்')} backLabel={text('Back to Dashboard', 'முகப்புக்குத் திரும்பு')} onAdd={() => handleOpenModal()} />
+      <PageHeader title={t('products')} description={text('Products and services available for documents.', 'ஆவணங்களுக்கான பொருட்கள் மற்றும் சேவைகளை நிர்வகிக்கவும்.')} addLabel={text('Add product', 'பொருள் சேர்')} backLabel={t('backToDashboard')} onAdd={() => handleOpenModal()} />
       <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
         <div className="border-b p-4">
           <div className="relative max-w-md">

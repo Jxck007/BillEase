@@ -156,7 +156,7 @@ export default function Reports() {
   return (
     <div className="space-y-6">
       <div>
-        <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> {text('Back to Dashboard', 'முகப்புக்குத் திரும்பு')}</Link>
+        <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> {t('backToDashboard')}</Link>
         <h1 className="text-2xl font-bold text-stone-800">{t('reports')}</h1>
         <p className="mt-1 text-stone-500">{text('Overview of your business performance.', 'உங்கள் வியாபாரத்தின் அறிக்கை.')}</p>
       </div>

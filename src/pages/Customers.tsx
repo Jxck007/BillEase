@@ -113,7 +113,7 @@ export default function Customers() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> {text('Back to Dashboard', 'முகப்புக்குத் திரும்பு')}</Link>
+          <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> {t('backToDashboard')}</Link>
           <h1 className="text-2xl font-bold">{t('customers')}</h1>
           <p className="mt-1 text-stone-500">{text('Contact, billing and document history from loaded records.', 'தொடர்பு, பில்லிங் மற்றும் ஆவண வரலாறு.')}</p>
         </div>

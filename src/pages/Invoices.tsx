@@ -96,7 +96,7 @@ export default function Invoices() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700" aria-label={text('Back to dashboard', 'முகப்புக்குப் பின்செல்')}><ArrowLeft size={18} /> {text('Dashboard', 'முகப்பு')}</Link>
+          <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700" aria-label={t('backToDashboard')}><ArrowLeft size={18} /> {t('dashboard')}</Link>
           <h1 className="text-2xl font-bold text-stone-800">{t('invoices')}</h1>
           <p className="text-stone-500 mt-1">
             {language === 'en' ? 'Manage your structured bills.' : 'உங்கள் விலைப்பட்டியல்களை நிர்வகிக்கவும்.'}

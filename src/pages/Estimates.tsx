@@ -50,7 +50,7 @@ export default function Estimates() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> Back to Dashboard</Link>
+          <Link to="/" className="mb-2 inline-flex min-h-12 items-center gap-2 text-sm font-semibold text-emerald-700"><ArrowLeft size={18} /> {t('backToDashboard')}</Link>
           <h1 className="text-2xl font-bold text-stone-800">{navLabel}</h1>
           <p className="text-stone-500 mt-1">
             {language === 'en' ? `Manage your ${documentName.toLowerCase()}s before billing.` : 'பில் போடுவதற்கு முன் கொடுக்கும் தோராய மதிப்பீடுகள்.'}

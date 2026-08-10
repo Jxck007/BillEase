@@ -15,7 +15,7 @@ export default function Navbar() {
           type="button"
           onClick={() => setLanguage(language === 'en' ? 'ta' : 'en')}
           className="flex min-h-12 min-w-12 items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold text-stone-700 hover:border-emerald-300 hover:text-emerald-700"
-          aria-label={language === 'en' ? 'தமிழுக்கு மாற்று' : 'Change language to English'}
+          aria-label={t(language === 'en' ? 'changeLanguageToTamil' : 'changeLanguageToEnglish')}
         >
           <Languages size={19} />
           <span>{language === 'en' ? 'தமிழ்' : 'English'}</span>
