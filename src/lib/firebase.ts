@@ -2,7 +2,7 @@
 /// <reference types="vite/client" />
 import { useEffect, useState } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { assertSafeAggregateSize, contentHash, sanitizeForFirestore } from '../services/firestoreSerialization';
 import { boundedSyncBackoff, classifySyncError } from '../services/syncPolicy';
@@ -56,14 +56,6 @@ export function getFirebaseStatus(): FirebaseStatus {
     localMode: !configured || !appConnected,
     missingVariables,
   };
-}
-
-export function getFirebaseStatusMessage() {
-  const status = getFirebaseStatus();
-  if (!status.enabled) return 'Firebase disabled. Running in local mode.';
-  if (!status.configured) return 'Firebase not connected. Running in local mode.';
-  if (!status.appConnected) return 'Firebase initialization failed. Running in local mode.';
-  return 'Firebase connected.';
 }
 
 const startupStatus = getFirebaseStatus();
@@ -193,18 +185,6 @@ export type AppDataEnvelope = {
   sourceDeviceId: string;
 };
 
-async function saveRecoverySnapshot(current: unknown) {
-  if (!db) return;
-  const day = new Date().toISOString().slice(0, 10);
-  const recovery = collection(db as any, 'billease', 'appData', 'recovery');
-  const snapshotRef = doc(recovery, day);
-  const existing = await getDoc(snapshotRef);
-  if (!existing.exists()) await setDoc(snapshotRef, { data: sanitizeForFirestore(current), createdAt: new Date().toISOString() });
-  const snapshots = await getDocs(recovery);
-  const old = snapshots.docs.sort((a, b) => String(a.id).localeCompare(String(b.id))).slice(0, Math.max(0, snapshots.size - 7));
-  if (old.length) { const batch = writeBatch(db as any); old.forEach((entry) => batch.delete(entry.ref)); await batch.commit(); }
-}
-
 export async function setAppDataBackup(data: unknown, options?: {
   operation?: WriteOperation;
   baseRevision?: number;
@@ -278,20 +258,6 @@ export async function getAppDataEnvelope(): Promise<AppDataEnvelope | null> {
   } catch (err: any) {
     throw err;
   }
-}
-
-export async function getAppDataBackup(): Promise<any | null> {
-  return (await getAppDataEnvelope())?.data ?? null;
-}
-export async function deleteAppDataBackup() {
-  if (!firebaseEnabled()) throw new Error('Firebase not enabled');
-  const d = doc(db as any, 'billease', 'appData');
-  await deleteDoc(d);
-}
-
-export async function getCloudBackupRecordCounts(): Promise<RecordCounts> {
-  const data = await getAppDataBackup();
-  return getRecordCounts(data);
 }
 
 /**

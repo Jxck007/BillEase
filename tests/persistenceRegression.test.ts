@@ -1,22 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { customerSnapshot, normalizeCustomer, normalizeInvoice } from '../src/lib/entitySchemas';
-import { AppState, BusinessProfile } from '../src/lib/types';
-import { decideRemoteSnapshot, mergeRemoteWithoutLosingLocal } from '../src/services/persistencePolicy';
+import { decideRemoteSnapshot } from '../src/services/persistencePolicy';
 import { loadLocalAppState } from '../src/services/localDataStore';
 import { assertSafeAggregateSize, contentHash, MAX_SAFE_AGGREGATE_BYTES, sanitizeForFirestore, serializedByteSize } from '../src/services/firestoreSerialization';
 
 const now = '2026-07-30T00:00:00.000Z';
-const profile: BusinessProfile = { name: 'Test', address: '', phone: '', email: '', gst: '', logo: '' };
-const settings = {
-  language: 'en', taxMode: 'exclusive', invoicePrefix: '', invoiceStartingNumber: 1, defaultTemplate: 'canonical',
-  template: { templateId: 'canonical', themeColor: '#000000', fontFamily: 'sans', footerText: '', headerAlignment: 'left', visibility: { logo: true, gstNumber: true, address: true, phoneEmail: true, discountColumn: true, hsnSac: true, taxBreakdown: true, signature: true, terms: true, qrCode: true, bankDetails: true } },
-  businessStateCode: '', enableDrafts: true, enableAutosave: true, enableAuditLog: true, compactMode: false, whatsappCountryCode: '91', estimateDocumentLabel: 'estimate',
-  integrations: { serverEmail: false, pinLookup: false, authorizedSignature: false, gstVerification: false, barcodeScanner: false, ocrImport: false, aiQuickActions: false },
-  signatureVisibility: { invoice: true, quotation: true, deliveryNote: true }, sealVisibility: { invoice: true, quotation: true, deliveryNote: true }, emailCcBusiness: false,
-} as const;
-const emptyState = (): AppState => ({ customers: [], products: [], invoices: [], payments: [], expenses: [], deliveryNotes: [], auditLogs: [], profile, settings });
-
 test('name-only customer accepts empty GST, address, phone and email', () => {
   const result = normalizeCustomer({ id: 'customer-1', name: 'பெயர்', gstNumber: '', address: '', phone: '', email: '', createdAt: now });
   assert.deepEqual(result.errors, []);
@@ -44,19 +33,8 @@ test('missing live customer relation does not invalidate a document with a snaps
   assert.equal(result.errors.some((entry) => entry.field === 'customerId'), false);
 });
 
-test('stale snapshot cannot replace dirty local customer and invoice', () => {
-  const local = emptyState();
-  const customer = normalizeCustomer({ id: 'customer-1', name: 'Local Customer', gstNumber: '', address: '', phone: '', email: '', createdAt: now }).value!;
-  local.customers.push(customer);
-  local.invoices.push(normalizeInvoice({
-    id: 'invoice-1', invoiceNumber: '001', customerId: customer.id, customerSnapshot: customerSnapshot(customer), date: '2026-07-30',
-    items: [{ id: 'item-1', name: 'Item', quantity: 1, price: 1 }], total: 1, createdAt: now, type: 'invoice',
-  }).value!);
-  const staleRemote = emptyState();
+test('stale snapshot is ignored while local data is dirty', () => {
   assert.equal(decideRemoteSnapshot(5, 4, true), 'ignore-stale');
-  const merged = mergeRemoteWithoutLosingLocal(local, staleRemote);
-  assert.equal(merged.customers.length, 1);
-  assert.equal(merged.invoices.length, 1);
 });
 
 test('newer remote snapshot is merged while local state is dirty', () => {

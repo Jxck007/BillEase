@@ -23,7 +23,6 @@ export const TRANSLATIONS: Record<string, Record<Language, string>> = {
   delete: { en: 'Delete', ta: 'நீக்கு' },
   edit: { en: 'Edit', ta: 'திருத்து' },
   add: { en: 'Add New', ta: 'புதிதாக சேர்' },
-  addNew: { en: 'Add New', ta: 'புதிதாக சேர்' },
   search: { en: 'Search...', ta: 'தேடு...' },
   view: { en: 'View', ta: 'பார்' },
   print: { en: 'Print', ta: 'அச்சிடு' },
@@ -46,11 +45,7 @@ export const TRANSLATIONS: Record<string, Record<Language, string>> = {
   savedDataNeedsAttention: { en: 'Your work is saved, but one item needs attention.', ta: 'உங்கள் பணி சேமிக்கப்பட்டது; ஒரு விஷயம் கவனிக்கப்பட வேண்டும்.' },
 
   // Dashboard
-  todaySales: { en: "Today's Sales", ta: 'இன்றைய விற்பனை' },
   unpaidInvoices: { en: 'Unpaid Invoices', ta: 'பணம் வராத பில்கள்' },
-  totalCustomers: { en: 'Total Customers', ta: 'மொத்த வாடிக்கையாளர்கள்' },
-  recentActivity: { en: 'Recent Activity', ta: 'சமீபத்திய நடவடிக்கைகள்' },
-  quickActions: { en: 'Quick Actions', ta: 'உடனடி செயல்கள்' },
   createInvoice: { en: 'Create Invoice', ta: 'புதிய பில் போடு' },
   addCustomer: { en: 'Add Customer', ta: 'புதிய வாடிக்கையாளர்' },
 
@@ -61,23 +56,17 @@ export const TRANSLATIONS: Record<string, Record<Language, string>> = {
   address: { en: 'Address', ta: 'முகவரி' },
   gstin: { en: 'GSTIN / Tax ID', ta: 'GST எண்' },
   notes: { en: 'Notes', ta: 'குறிப்புகள்' },
-  noCustomers: { en: 'No customers yet', ta: 'வாடிக்கையாளர்கள் இல்லை' },
-  addCustomerToStart: { en: 'Add your first customer to get started.', ta: 'தொடங்க முதல் வாடிக்கையாளரை உள்ளிடவும்.' },
   saveCustomer: { en: 'Save Customer', ta: 'வாடிக்கையாளரை சேமி' },
 
   // Products
-  itemName: { en: 'Item Name', ta: 'பொருள் பெயர்' },
   price: { en: 'Price', ta: 'விலை' },
   unit: { en: 'Unit (e.g. kg, pcs)', ta: 'அலகு (kg, pcs)' },
   taxRate: { en: 'Tax Rate (%)', ta: 'வரி (%)' },
-  noProducts: { en: 'No items yet', ta: 'பொருட்கள் இல்லை' },
-  addItemToStart: { en: 'Add items or services you sell.', ta: 'நீங்கள் விற்கும் பொருட்களை உள்ளிடவும்.' },
 
   // Invoices
   invoiceNumber: { en: 'Invoice Number', ta: 'பில் எண்' },
   date: { en: 'Date', ta: 'தேதி' },
   dueDate: { en: 'Due Date', ta: 'கடைசி தேதி' },
-  selectCustomer: { en: 'Select Customer', ta: 'வாடிக்கையாளரை தேர்வு செய்' },
   addItem: { en: 'Add Item', ta: 'பொருள் சேர்' },
   quantity: { en: 'Quantity', ta: 'அளவு (Qty)' },
   total: { en: 'Total', ta: 'மொத்தம்' },
@@ -104,19 +93,6 @@ export const TRANSLATIONS: Record<string, Record<Language, string>> = {
   adjustment: { en: 'Adjustment', ta: 'சரி செய்த தொகை' },
   taxableAmount: { en: 'Taxable Amount', ta: 'வரி விதிக்கப்படும் தொகை' },
   grandTotal: { en: 'Grand Total', ta: 'மொத்தத் தொகை' },
-  invoiceSaved: { en: 'Invoice saved', ta: 'பில் சேமிக்கப்பட்டது' },
-  draftSaved: { en: 'Draft saved automatically', ta: 'வரைவு தானாக சேமிக்கப்பட்டது' },
-  noData: { en: 'No data yet', ta: 'தரவுகள் இல்லை' },
-
-  // Help Panel
-  helpTitle: { en: 'How can I help you?', ta: 'நான் எப்படி உதவலாம்?' },
-  helpSearchPlaceholder: { en: 'Ask a question...', ta: 'கேள்வி கேளுங்கள்...' },
-  faq: { en: 'Frequently Asked Questions', ta: 'பொதுவான கேள்விகள்' },
-  whatIsGst: { en: 'What is GST?', ta: 'GST என்றால் என்ன?' },
-  createInvoiceHelp: { en: 'How to create an invoice', ta: 'பில் உருவாக்குவது எப்படி?' },
-  exportPdfHelp: { en: 'How to export PDF', ta: 'PDF ஆக எடுப்பது எப்படி?' },
-  whatsappHelp: { en: 'How to send via WhatsApp', ta: 'WhatsApp மூலம் அனுப்புவது எப்படி?' },
-  paymentTrackingHelp: { en: 'How to track payments', ta: 'பண வரவை கண்காணிப்பது எப்படி?' },
 
   // Navigation and delivery
   create: { en: 'Create', ta: 'உருவாக்கு' },

@@ -164,10 +164,8 @@
   .report-date-input { display: flex; min-height: 46px; align-items: center; gap: 0.5rem; border: 1px solid var(--color-stone-200); border-radius: 0.75rem; padding: 0 0.7rem; color: var(--color-stone-500); }
   .report-date-input input { min-width: 0; flex: 1; color: var(--color-stone-800); outline: none; }
   .report-date-input button { display: inline-flex; min-height: 44px; min-width: 44px; align-items: center; justify-content: center; }
-  .report-primary-action, .report-secondary-action { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; border-radius: 0.75rem; padding: 0.55rem 1rem; font-size: 0.875rem; font-weight: 700; white-space: nowrap; }
-  .report-primary-action { background: var(--color-emerald-700); color: white; }
+  .report-primary-action { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; border-radius: 0.75rem; background: var(--color-emerald-700); padding: 0.55rem 1rem; color: white; font-size: 0.875rem; font-weight: 700; white-space: nowrap; }
   .report-primary-action:hover { background: var(--color-emerald-800); }
-  .report-secondary-action { border: 1px solid var(--color-stone-200); background: white; color: var(--color-stone-700); }
   .report-filter-chip { display: inline-flex; min-height: 44px; align-items: center; gap: 0.4rem; border-radius: 999px; background: var(--color-emerald-50); padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 700; color: var(--color-emerald-800); }
   .form-section {
     border: 1px solid var(--color-stone-200);
@@ -222,17 +220,6 @@
   /* Screen mode - show regular content */
   .screen-only { display: block; }
 
-  /* Screen document preview scaling - fits A4 documents inside viewport */
-  .screen-preview-wrapper {
-    width: 100%;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-  }
-  .screen-preview-wrapper > * {
-    transform-origin: top center;
-  }
-
   .canonical-preview-viewport {
     width: 100%;
     position: relative;
@@ -274,7 +261,6 @@
   .canonical-a4-document > * { flex: 1 0 auto; }
   .invoice-print-page .tv-container,
   .quotation-export-page > div,
-  .dn-print-page > div,
   .dn-export-page > div { min-height: 277mm; display: flex; flex-direction: column; }
   .canonical-a4-document img {
     object-fit: contain;
@@ -311,23 +297,10 @@
   .canonical-a4-document.preview-fit-content { min-height: 0; }
   .preview-fit-content .invoice-print-page .tv-container,
   .preview-fit-content .quotation-export-page > div,
-  .preview-fit-content .dn-print-page > div,
   .preview-fit-content .dn-export-page > div,
   .preview-fit-content .receipt-print-page { min-height: 0; }
   .preview-fit-content .document-flex-spacer { display: none; }
   .preview-fit-content .document-final-footer { margin-top: 4mm !important; }
-
-  /* Responsive document preview container */
-  .doc-preview-container {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    display: flex;
-    justify-content: center;
-  }
-  .doc-preview-container > .doc-preview-inner {
-    flex-shrink: 0;
-  }
 
   /* Print mode - show print templates */
   @media print {
@@ -357,7 +330,6 @@
     .canonical-preview-canvas { width: 210mm !important; height: auto !important; overflow: visible !important; display: block !important; margin: 0 !important; }
     .canonical-preview-transform { position: static !important; width: 210mm !important; transform: none !important; }
     .canonical-a4-document { width: 210mm !important; min-width: 210mm !important; min-height: 297mm; margin: 0; padding: 10mm; box-sizing: border-box; }
-    .dn-print-page { display: block !important; }
     .delivery-note-preview { padding: 0 !important; margin: 0 !important; }
     .delivery-note-preview .dn-export-root { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; }
     .estimate-preview-root { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; }
@@ -374,7 +346,6 @@
   .invoice-print-page .tv-copy { font-size:11px; text-align:right; }
   .invoice-print-page .tv-seller { display:flex; justify-content:space-between; margin-top:6px; margin-bottom:6px; }
   .invoice-print-page .tv-invoice-details table { border-collapse: separate; border-spacing: 0 2px; }
-  .invoice-print-page .tv-details-gap td { height: 8px; border: 0 !important; padding: 0 !important; }
   .invoice-print-page .seller-brand { display:flex; align-items:center; gap:8px; }
   .invoice-print-page .seller-logo { width:34px; height:34px; object-fit:contain; border:1px solid #d1d5db; border-radius:4px; background:#fff; }
   .invoice-print-page .seller-name { font-weight:700; font-size:14px; }
@@ -388,7 +359,6 @@
   .invoice-print-page .tv-right { margin-left: auto; width: 45%; text-align: right; }
   .invoice-print-page .tv-bank { width: 50%; }
   .invoice-print-page .bank-pre { white-space:pre-wrap; font-size:12px; }
-  .invoice-print-page .tv-qr-wrap { margin-top: 12px; }
   .invoice-print-page .tv-qr { width: 88px; height: 88px; object-fit: contain; border: 1px solid #d1d5db; padding: 4px; border-radius: 6px; background: #fff; }
   .invoice-print-page .tv-upi { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:11px; }
   .invoice-print-page .payment-summary { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 18px; margin-top: 10px; border: 1px solid #111; padding: 8px; font-size: 11px; }
@@ -399,7 +369,6 @@
   .invoice-print-page .amount-words-label { margin-top: 12px; font-weight: 600; }
   .invoice-print-page .amount-words { margin-top: 8px; line-height: 1.5; }
   .invoice-print-page .signature { margin-top:12px; text-align:right; }
-  .invoice-print-page .authorization-for { font-weight: 600; }
   .invoice-print-page .authorization-assets {
     display: grid;
     grid-template-columns: 30mm 46mm;
@@ -544,12 +513,6 @@
     font-weight: 600;
     text-align: center;
   }
-  .invoice-print-page .tv-footer-note { margin-top: 28px; font-size: 11px; text-align: left; }
-
-  /* Delivery Note print styles */
-  .dn-print-page { display:block; }  /* Show on screen for preview */
-  @media print { .dn-print-page { display:block; width: 100%; min-height: auto; margin: 0; padding: 0; box-shadow: none; background: white; box-sizing: border-box; } }
-
   @media (max-width: 1023px) {
     * { scroll-behavior: auto; }
     .shadow-2xl, .shadow-xl { box-shadow: 0 2px 8px rgba(28, 25, 23, 0.12); }
@@ -558,38 +521,9 @@
     .backdrop-blur-md,
     .backdrop-blur-lg { backdrop-filter: none !important; }
   }
-  .dn-container { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; width: 100%; max-width: 190mm; margin: 0 auto; padding: 0 1mm; box-sizing: border-box; }
-  .dn-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:2px solid #111; padding-bottom:6px; }
-  .dn-title { font-weight:700; text-align:center; flex:1; font-size:16px; }
-  .dn-copy { font-size:10px; text-align:right; font-weight:600; }
-  .dn-seller-section { display:flex; justify-content:space-between; margin-bottom:10px; }
-  .dn-seller-left { flex:1; font-size:11px; line-height:1.4; }
   .seller-name { font-weight:700; font-size:13px; margin-bottom:4px; }
   .seller-contact { margin:2px 0; }
-  .dn-details-box { flex:0 0 40%; }
-  .dn-details-box table { font-size:10px; }
-  .dn-details-box td { padding:2px 4px; }
-  .dn-party-section { margin-bottom:10px; border:1px solid #111; padding:6px; }
-  .dn-sub-title { font-weight:700; font-size:11px; margin-bottom:3px; }
-  .dn-party-details { font-size:10px; line-height:1.3; }
-  .dn-table-wrap { margin:10px 0; }
-  table.dn-table { width:100%; border-collapse:collapse; font-size:11px; table-layout: fixed; }
-  table.dn-table th, table.dn-table td { border:1px solid #111; padding:4px 6px; text-align:left; word-break: break-word; }
-  table.dn-table tr > *:last-child { border-right: 1px solid #111 !important; }
   table.tv-table tr > *:last-child { border-right: 1px solid #111 !important; }
-  table.dn-table thead th { font-weight:700; background:#f5f5f5; }
-  table.dn-table tfoot tr { font-weight:600; }
-  .dn-td-right { text-align:right; }
-  .dn-td-center { text-align:center; }
-  .dn-bold { font-weight:700; }
-  .dn-total { border-top:2px solid #111; background:#f9f9f9; }
-  .dn-footer-section { display:flex; justify-content:space-between; margin-top:14px; font-size:10px; }
-  .dn-left { flex:1; }
-  .dn-right { flex:0 0 35%; }
-  .dn-words { margin-top:4px; line-height:1.4; font-style:italic; }
-  .dn-signature { text-align:right; margin-top:20px; }
-  .dn-sig-line { margin:12px 0; line-height:1.4; font-size:10px; }
-  .dn-page-footer { text-align:center; margin-top:16px; font-size:9px; color:#666; }
 }
 
 /* Reduce motion for low-performance / accessibility */
@@ -621,9 +555,7 @@
 @media (max-width: 1023px) {
   .mobile-bottom-nav button,
   .mobile-action-sheet button,
-  .mobile-action-sheet a,
-  .mobile-navigation-drawer button,
-  .mobile-navigation-drawer a {
+  .mobile-action-sheet a {
     min-height: 48px;
   }
   .mobile-bottom-nav button > span {
@@ -634,8 +566,6 @@
   }
 }
 
-/* Shimmer animation for loading states in ExportPanel */
-
 .delivery-input {
   margin-top: 0.25rem;
   min-height: 3rem;
@@ -645,23 +575,6 @@
   padding: 0 0.75rem;
   font-weight: 400;
 }
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-.export-generating-bg {
-  background: linear-gradient(
-    90deg,
-    #eff6ff 0%,
-    #dbeafe 25%,
-    #bfdbfe 50%,
-    #dbeafe 75%,
-    #eff6ff 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
-}
-
 @media (max-width: 1024px) {
   /* Disable heavy backdrop-blur on mobile/tablet for performance */
   .backdrop-blur-sm,

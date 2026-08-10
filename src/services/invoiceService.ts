@@ -1,7 +1,7 @@
 import { AuditLog, AppSettings, BusinessProfile, Customer, Invoice, InvoiceItem } from '../lib/types';
 import { buildQrPlaceholder, calculateTaxBreakdown, getStateNameFromCode, resolvePlaceOfSupplyStateCode, resolveSupplierStateCode } from '../gst/gstService';
 import { CANONICAL_TEMPLATE_PRESET } from '../templates/invoiceTemplates';
-import { digitsOnly, generateId, roundMoney, safeParseJson } from '../lib/utils';
+import { generateId, roundMoney, safeParseJson } from '../lib/utils';
 
 const DRAFT_STORAGE_KEY = 'billease.invoiceDraft';
 
@@ -135,8 +135,4 @@ export function loadDraft() {
 
 export function clearDraft() {
   localStorage.removeItem(DRAFT_STORAGE_KEY);
-}
-
-export function sanitizePhone(phone: string) {
-  return digitsOnly(phone);
 }
