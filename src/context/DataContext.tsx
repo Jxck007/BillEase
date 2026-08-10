@@ -9,11 +9,11 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import { invalidateDocumentPdf } from '../services/documentPdfCache';
 import { customerSnapshot, normalizeCustomer, normalizeInvoice, validateDeliveryNote, ValidationIssue } from '../lib/entitySchemas';
-import { loadLocalAppState, LocalAppRecord, saveLocalAppState, saveRecoverySnapshot } from '../services/localDataStore';
+import { DurableSyncOutbox, DurableWriteQueue, loadLocalAppState, LocalAppRecord, PendingEntityRef, saveLocalAppState, saveRecoverySnapshot } from '../services/localDataStore';
 import { errorReference, recordDiagnostic } from '../services/diagnostics';
-import { decideRemoteSnapshot, mergeRemoteWithoutLosingLocal } from '../services/persistencePolicy';
+import { decideRemoteSnapshot, entityContentHash, mergeRemoteWithPendingEntities } from '../services/persistencePolicy';
 import { normalizePayment, recalculateInvoicePayments, validateNewPayment } from '../services/paymentService';
-import { isMatchingServerAcknowledgement } from '../services/syncPolicy';
+import { classifySyncError, isCommittedWriteAcknowledgement, isMatchingServerAcknowledgement, shouldRestartPendingSync } from '../services/syncPolicy';
 
 export type SyncStatus = 'loading' | 'unsaved' | 'saving' | 'local' | 'online' | 'offline' | 'failed' | 'action-required';
 export type MutationResult = { ok: boolean; id?: string; errors?: ValidationIssue[]; errorReference?: string };
@@ -144,18 +144,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const remoteRevision = useRef(0);
   const latestOperationId = useRef('');
   const deviceId = useRef('');
-  const pendingOperation = useRef<'create' | 'update' | 'delete'>('update');
+  const pendingSync = useRef<DurableSyncOutbox | null>(null);
   const pendingAcknowledgement = useRef<{ operationId: string; hash: string; revision?: number } | null>(null);
-  const durableWriteQueue = useRef(Promise.resolve());
+  const durableWriteQueue = useRef(new DurableWriteQueue());
+  const [retryTrigger, setRetryTrigger] = useState(0);
+  const lastOnline = useRef(typeof navigator === 'undefined' ? true : navigator.onLine);
 
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => setSyncDetails((current) => ({ ...current, signedIn: Boolean(user), cloudAvailable: Boolean(db) })), [user]);
   useEffect(() => {
-    const updateOnline = () => setSyncDetails((current) => ({ ...current, internet: navigator.onLine }));
+    const updateOnline = () => {
+      const online = navigator.onLine;
+      setSyncDetails((current) => ({ ...current, internet: online }));
+      if (shouldRestartPendingSync({ wasOnline: lastOnline.current, online, dirty: dirtyRef.current, signedIn: Boolean(user), cloudAvailable: Boolean(db) })) {
+        setRetryTrigger((current) => current + 1);
+      }
+      lastOnline.current = online;
+    };
     window.addEventListener('online', updateOnline);
     window.addEventListener('offline', updateOnline);
     return () => { window.removeEventListener('online', updateOnline); window.removeEventListener('offline', updateOnline); };
-  }, []);
+  }, [user]);
   useEffect(() => {
     try {
       const key = 'billease.deviceId';
@@ -175,18 +184,40 @@ export function DataProvider({ children }: { children: ReactNode }) {
       remoteRevision: remoteRevision.current,
       updatedAt: new Date().toISOString(),
       dirty,
+      pendingSync: dirty ? pendingSync.current || undefined : undefined,
     };
-    durableWriteQueue.current = durableWriteQueue.current.then(() => saveLocalAppState(record));
-    await durableWriteQueue.current;
+    await durableWriteQueue.current.enqueue(() => saveLocalAppState(record));
     setLastSavedAt(record.updatedAt);
     setSyncStatus(dirty ? (navigator.onLine ? 'local' : 'offline') : 'online');
   }, []);
+
+  const acknowledgeCommittedState = useCallback(async (operationId: string, revision: number, resultCategory: string) => {
+    pendingAcknowledgement.current = null;
+    pendingSync.current = null;
+    remoteRevision.current = Math.max(remoteRevision.current, revision);
+    setHasDirtyChanges(false);
+    dirtyRef.current = false;
+    setSyncBlocked(false);
+    setSyncStatus('online');
+    setSyncNotice(null);
+    setSyncDetails((current) => ({ ...current, pendingChanges: 0, pendingSince: null, errorReference: null }));
+    try {
+      await persistLocal(stateRef.current, false);
+      recordDiagnostic({ operationId, operation: 'acknowledge', entityType: 'app', localRevision: localRevision.current, remoteRevision: revision, acknowledgedAt: new Date().toISOString(), status: 'synced', resultCategory, signedIn: Boolean(user) });
+    } catch {
+      const reference = errorReference('LOCAL');
+      setSyncStatus('action-required');
+      setSyncNotice(`Cloud sync succeeded, but the local recovery copy could not be updated. Error reference: ${reference}`);
+      recordDiagnostic({ operationId, operation: 'acknowledge', entityType: 'app', localRevision: localRevision.current, remoteRevision: revision, status: 'failed', resultCategory: 'local-ack-persist-failed', errorCategory: 'local-storage', errorReference: reference, signedIn: Boolean(user) });
+    }
+  }, [persistLocal, user]);
 
   const commitState = useCallback(async (
     mutate: (current: AppState) => AppState,
     operation: 'create' | 'update' | 'delete' = 'update',
     entityType = 'app',
     entityId?: string,
+    relatedEntities: PendingEntityRef[] = [],
   ): Promise<MutationResult> => {
     if (operation === 'delete' || entityType === 'payment') {
       try {
@@ -205,20 +236,37 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return { ok: false, id: entityId, errorReference: reference };
       }
     }
-    const next = mutate(stateRef.current);
+    const currentBeforeMutation = stateRef.current;
+    const next = mutate(currentBeforeMutation);
     const shouldQueueCloud = firebaseStatus.configured;
     stateRef.current = next;
     setState(next);
     localRevision.current += 1;
-    pendingOperation.current = operation;
-    latestOperationId.current = generateId();
+    const operationId = generateId();
+    latestOperationId.current = operationId;
+    const existingEntities = pendingSync.current?.entities || [];
+    const newEntities: PendingEntityRef[] = [{ entityType: entityType as PendingEntityRef['entityType'], entityId: entityId || 'aggregate' }, ...relatedEntities]
+      .map((entry) => ({ ...entry, baseHash: entityContentHash(currentBeforeMutation, entry) }));
+    const entityMap = new Map(existingEntities.map((entry) => [`${entry.entityType}:${entry.entityId}`, entry]));
+    newEntities.forEach((entry) => {
+      const key = `${entry.entityType}:${entry.entityId}`;
+      if (!entityMap.has(key)) entityMap.set(key, entry);
+    });
+    pendingSync.current = {
+      operationId,
+      operationType: pendingSync.current?.operationType === 'delete' || operation === 'delete' ? 'delete' : operation,
+      entities: [...entityMap.values()],
+      queuedAt: pendingSync.current?.queuedAt || new Date().toISOString(),
+      retryCount: pendingSync.current?.retryCount || 0,
+    };
+    if (!shouldQueueCloud) pendingSync.current = null;
     setHasDirtyChanges(shouldQueueCloud);
     dirtyRef.current = shouldQueueCloud;
     setSyncStatus('unsaved');
     setSyncDetails((current) => ({ ...current, pendingChanges: shouldQueueCloud ? 1 : 0, pendingSince: shouldQueueCloud ? (current.pendingSince || new Date().toISOString()) : null, errorReference: null }));
     try {
       await persistLocal(next, shouldQueueCloud);
-      recordDiagnostic({ operation, entityType, entityId, revision: localRevision.current, status: 'saved-locally' });
+      recordDiagnostic({ operationId, operation, entityType, entityId, localRevision: localRevision.current, remoteRevision: remoteRevision.current, queuedAt: pendingSync.current?.queuedAt, status: 'saved-locally', resultCategory: 'local-save-complete', signedIn: Boolean(user) });
       return { ok: true, id: entityId };
     } catch {
       const reference = errorReference('LOCAL');
@@ -227,7 +275,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       recordDiagnostic({ operation, entityType, entityId, revision: localRevision.current, status: 'failed', errorCategory: 'local-storage', errorReference: reference });
       return { ok: false, id: entityId, errorReference: reference };
     }
-  }, [firebaseStatus.configured, persistLocal]);
+  }, [firebaseStatus.configured, persistLocal, user]);
 
   useEffect(() => {
     let active = true;
@@ -244,12 +292,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
           setState(hydrated.value);
           localRevision.current = local.localRevision;
           remoteRevision.current = local.remoteRevision;
+          pendingSync.current = effectiveDirty
+            ? local.pendingSync || {
+              operationId: generateId(), operationType: 'update', entities: [{ entityType: 'app', entityId: 'aggregate' }],
+              queuedAt: local.updatedAt, retryCount: 0,
+            }
+            : null;
+          latestOperationId.current = pendingSync.current?.operationId || '';
           setHasDirtyChanges(effectiveDirty);
           dirtyRef.current = effectiveDirty;
           setSyncDetails((current) => ({ ...current, pendingChanges: effectiveDirty ? 1 : 0, pendingSince: effectiveDirty ? local.updatedAt : null }));
           setSyncStatus(effectiveDirty ? 'local' : 'online');
           setLastSavedAt(local.updatedAt);
-          if (local.dirty && !effectiveDirty) await persistLocal(hydrated.value, false, local.localRevision);
+          if (local.dirty && !effectiveDirty) {
+            pendingSync.current = null;
+            await persistLocal(hydrated.value, false, local.localRevision);
+          } else if (effectiveDirty && !local.pendingSync) {
+            await persistLocal(hydrated.value, true, local.localRevision);
+          }
           if (hydrated.errors.length) {
             localValid = false;
             setSyncBlocked(true);
@@ -279,10 +339,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
               setSyncBlocked(false);
               await persistLocal(hydrated.value, false, localRevision.current);
             } else {
-              const merged = mergeRemoteWithoutLosingLocal(stateRef.current, hydrated.value);
-              stateRef.current = merged;
-              setState(merged);
-              await persistLocal(merged, true, localRevision.current);
+              const merged = mergeRemoteWithPendingEntities(stateRef.current, hydrated.value, pendingSync.current?.entities || []);
+              stateRef.current = merged.value;
+              setState(merged.value);
+              if (merged.conflicts.length) {
+                setSyncBlocked(true);
+                setSyncStatus('action-required');
+                setSyncNotice('Another device changed the same record. Cloud overwrite is blocked; both versions were preserved in recovery storage.');
+                await saveRecoverySnapshot({ ...local, data: hydrated.value, dirty: false, pendingSync: undefined }, 'incoming-cloud-conflict');
+              }
+              await persistLocal(merged.value, true, localRevision.current);
             }
           }
           setCloudSyncEnabled(true);
@@ -304,21 +370,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!cloudSyncEnabled || !user || !db) return;
-    return onSnapshot(doc(db as any, 'billease', 'appData'), async (snapshot) => {
+    return onSnapshot(doc(db as any, 'billease', 'appData'), { includeMetadataChanges: true }, async (snapshot) => {
       if (snapshot.metadata.hasPendingWrites || snapshot.metadata.fromCache || !snapshot.exists()) return;
       const payload = snapshot.data() as AppDataEnvelope;
       const incomingRevision = Number(payload.revision || 0);
       const pending = pendingAcknowledgement.current;
       if (isMatchingServerAcknowledgement({ fromCache: snapshot.metadata.fromCache, hasPendingWrites: snapshot.metadata.hasPendingWrites, operationId: payload.clientOperationId, hash: contentHash(payload.data) }, pending)) {
-        pendingAcknowledgement.current = null;
-        remoteRevision.current = incomingRevision;
-        setHasDirtyChanges(false);
-        dirtyRef.current = false;
-        setSyncStatus('online');
-        setSyncNotice(null);
-        setSyncDetails((current) => ({ ...current, pendingChanges: 0, pendingSince: null, errorReference: null }));
-        await persistLocal(stateRef.current, false);
-        recordDiagnostic({ operation: 'acknowledge', entityType: 'app', revision: incomingRevision, status: 'synced' });
+        await acknowledgeCommittedState(payload.clientOperationId, incomingRevision, 'server-snapshot');
         return;
       }
       if (pending && payload.sourceDeviceId === deviceId.current) {
@@ -341,13 +399,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
           remoteRevision: remoteRevision.current, updatedAt: new Date().toISOString(), dirty: true,
         };
         await saveRecoverySnapshot(currentRecord, 'concurrent-cloud-version');
-        const merged = mergeRemoteWithoutLosingLocal(stateRef.current, hydrated.value);
+        const merged = mergeRemoteWithPendingEntities(stateRef.current, hydrated.value, pendingSync.current?.entities || []);
         remoteRevision.current = incomingRevision;
-        stateRef.current = merged;
-        setState(merged);
-        await persistLocal(merged, true);
-        setSyncStatus('action-required');
-        setSyncNotice('Changes from another device were merged. Your local version was preserved in recovery storage; review before continuing.');
+        stateRef.current = merged.value;
+        setState(merged.value);
+        if (merged.conflicts.length) {
+          setSyncBlocked(true);
+          await saveRecoverySnapshot({ ...currentRecord, data: hydrated.value, remoteRevision: incomingRevision, dirty: false, pendingSync: undefined }, 'incoming-cloud-conflict');
+          await persistLocal(merged.value, true);
+          setSyncStatus('action-required');
+          setSyncNotice('Another device changed the same record. Cloud overwrite is blocked; both versions were preserved in recovery storage.');
+          recordDiagnostic({ operationId: pendingSync.current?.operationId, operation: 'merge', entityType: 'app', localRevision: localRevision.current, remoteRevision: incomingRevision, status: 'blocked', resultCategory: 'same-entity-conflict', signedIn: Boolean(user) });
+          return;
+        }
+        await persistLocal(merged.value, true);
+        setSyncNotice('Changes from another device were merged with your pending work.');
+        recordDiagnostic({ operationId: pendingSync.current?.operationId, operation: 'merge', entityType: 'app', localRevision: localRevision.current, remoteRevision: incomingRevision, status: 'merged', resultCategory: 'different-entity-merge', signedIn: Boolean(user) });
         return;
       }
       remoteRevision.current = incomingRevision;
@@ -361,41 +428,64 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setSyncDetails((current) => ({ ...current, errorReference: reference }));
       recordDiagnostic({ operation: 'listen', entityType: 'app', status: 'failed', errorCategory: 'network-or-auth', errorReference: reference });
     });
-  }, [cloudSyncEnabled, user, persistLocal]);
+  }, [acknowledgeCommittedState, cloudSyncEnabled, user, persistLocal]);
 
   useFirestoreSync(state, cloudSyncEnabled && hasDirtyChanges && !syncBlocked, undefined, {
     onSuccess: () => undefined,
     onError: (error) => {
-      const reference = errorReference(error.name === 'RemoteRevisionConflictError' ? 'CONFLICT' : 'SYNC');
-      setSyncStatus(error.name === 'RemoteRevisionConflictError' ? 'action-required' : (navigator.onLine ? 'failed' : 'offline'));
-      setSyncNotice(error.name === 'RemoteRevisionConflictError'
+      const category = classifySyncError(error);
+      const reference = errorReference(category === 'conflict' ? 'CONFLICT' : 'SYNC');
+      setSyncStatus(category === 'conflict' || category === 'permission-denied' || category === 'auth-required' || category === 'data-too-large' ? 'action-required' : (navigator.onLine ? 'failed' : 'offline'));
+      setSyncNotice(category === 'conflict'
         ? `Another device saved a newer version. Both versions remain protected. Retry after reviewing the latest data. Error reference: ${reference}`
+        : category === 'permission-denied'
+          ? `Cloud access was denied. Your work remains saved on this device; an administrator must review Firestore permissions. Error reference: ${reference}`
+          : category === 'auth-required'
+            ? `Sign in again to sync. Your work remains saved on this device. Error reference: ${reference}`
+            : category === 'data-too-large'
+              ? `Cloud backup is too large for the current Firestore document. Export a local backup and reduce embedded logo or QR image size. Error reference: ${reference}`
         : `Your document could not be synced yet. It has been saved safely on this device. Error reference: ${reference}`);
       setSyncDetails((current) => ({ ...current, errorReference: reference }));
-      recordDiagnostic({ operation: 'write', entityType: 'app', revision: localRevision.current, status: 'failed', errorCategory: error.name, errorReference: reference });
+      recordDiagnostic({ operationId: pendingSync.current?.operationId, operation: 'write', entityType: 'app', localRevision: localRevision.current, remoteRevision: remoteRevision.current, retryCount: pendingSync.current?.retryCount, status: 'failed', resultCategory: category, errorCategory: error.name, errorReference: reference, signedIn: Boolean(user) });
     },
-    getOperation: () => { const value = pendingOperation.current; pendingOperation.current = 'update'; return value; },
+    getOperation: () => pendingSync.current?.operationType || 'update',
     getBaseRevision: () => remoteRevision.current,
-    getClientOperationId: () => latestOperationId.current,
+    getClientOperationId: () => pendingSync.current?.operationId || latestOperationId.current,
     getSourceDeviceId: () => deviceId.current,
     onWriteStarted: (operationId, hash) => {
       pendingAcknowledgement.current = { operationId, hash };
       setSyncStatus('saving');
       setSyncDetails((current) => ({ ...current, pendingChanges: 1, pendingSince: current.pendingSince || new Date().toISOString(), lastAttemptAt: new Date().toISOString(), errorReference: null }));
     },
+    onAttempt: () => {
+      if (!pendingSync.current) return;
+      pendingSync.current = { ...pendingSync.current, retryCount: pendingSync.current.retryCount + 1 };
+      const outbox = pendingSync.current;
+      void durableWriteQueue.current.enqueue(() => saveLocalAppState({
+        version: 1, data: stateRef.current, localRevision: localRevision.current, remoteRevision: remoteRevision.current,
+        updatedAt: new Date().toISOString(), dirty: true, pendingSync: outbox,
+      })).catch(() => {
+        const reference = errorReference('LOCAL');
+        setSyncStatus('action-required');
+        setSyncNotice(`The sync retry metadata could not be saved locally. Keep this tab open. Error reference: ${reference}`);
+        recordDiagnostic({ operationId: outbox.operationId, operation: 'write-outbox', entityType: 'app', localRevision: localRevision.current, remoteRevision: remoteRevision.current, retryCount: outbox.retryCount, status: 'failed', resultCategory: 'outbox-persist-failed', errorCategory: 'local-storage', errorReference: reference, signedIn: Boolean(user) });
+      });
+      recordDiagnostic({ operationId: outbox.operationId, operation: outbox.operationType, entityType: 'app', localRevision: localRevision.current, remoteRevision: remoteRevision.current, queuedAt: outbox.queuedAt, attemptedAt: new Date().toISOString(), retryCount: outbox.retryCount, status: 'attempting', resultCategory: 'cloud-write-pending', signedIn: Boolean(user) });
+    },
     onRetryScheduled: () => setSyncNotice('Retry scheduled. Your work remains safe on this device.'),
     onPersisted: (envelope, hash) => {
       if (hash !== contentHash(stateRef.current)) return;
-      if (pendingAcknowledgement.current?.operationId === envelope.clientOperationId) pendingAcknowledgement.current.revision = envelope.revision;
-      setSyncStatus('saving');
-      recordDiagnostic({ operation: 'write', entityType: 'app', revision: envelope.revision, status: 'awaiting-server-snapshot' });
+      const pending = pendingAcknowledgement.current;
+      if (!isCommittedWriteAcknowledgement({ operationId: envelope.clientOperationId, hash, currentHash: contentHash(stateRef.current) }, pending)) return;
+      void acknowledgeCommittedState(envelope.clientOperationId, envelope.revision, 'transaction-commit');
     },
+    retryTrigger,
   });
 
   const retrySync = () => {
     if (!hasDirtyChanges) return;
     setSyncStatus('saving');
-    setState({ ...stateRef.current });
+    setRetryTrigger((current) => current + 1);
   };
 
   const addAuditLog = async (log: Omit<AuditLog, 'id' | 'createdAt'>) => {
@@ -490,7 +580,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           meta: { invoiceId: payment.invoiceId, reference: entry.reference, authorizedUserId: entry.createdBy },
         } as AuditLog, ...current.auditLogs].slice(0, 200) : current.auditLogs,
       };
-    }, 'create', 'payment', id);
+    }, 'create', 'payment', id, [{ entityType: 'invoice', entityId: payment.invoiceId }]);
   };
   const reversePayment = async (invoiceId: string, paymentId: string, reason: string, suppliedOperationId?: string) => {
     if (!isAdmin) return { ok: false, errors: [{ field: 'authorization', message: 'Administrator access is required.', code: 'auth.admin.required' }] };
@@ -512,7 +602,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         invoices: current.invoices.map((entry) => entry.id === invoiceId ? recalculateInvoicePayments(entry, payments) : entry),
         auditLogs: current.settings.enableAuditLog ? [{ id: generateId(), entityType: 'payment', entityId: id, action: 'reversed', message: 'payment reversed', createdAt: now, meta: { invoiceId, originalPaymentId: paymentId, reason: cleanReason, authorizedUserId: reversal.createdBy } } as AuditLog, ...current.auditLogs].slice(0, 200) : current.auditLogs,
       };
-    }, 'create', 'payment', id);
+    }, 'create', 'payment', id, [{ entityType: 'invoice', entityId: invoiceId }]);
   };
   const correctPayment = async (invoiceId: string, paymentId: string, replacement: { amount: number; paidAt: string; method: PaymentMethod; reference?: string; notes: string }, reason: string, suppliedOperationId?: string) => {
     if (!isAdmin) return { ok: false, errors: [{ field: 'authorization', message: 'Administrator access is required.', code: 'auth.admin.required' }] };

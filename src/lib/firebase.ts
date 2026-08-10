@@ -2,10 +2,10 @@
 /// <reference types="vite/client" />
 import { useEffect, useState } from 'react';
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import { contentHash, sanitizeForFirestore } from '../services/firestoreSerialization';
-import { boundedSyncBackoff } from '../services/syncPolicy';
+import { assertSafeAggregateSize, contentHash, sanitizeForFirestore } from '../services/firestoreSerialization';
+import { boundedSyncBackoff, classifySyncError } from '../services/syncPolicy';
 export { contentHash, sanitizeForFirestore } from '../services/firestoreSerialization';
 
 
@@ -97,7 +97,7 @@ if (enabled && startupStatus.missingVariables.length === 0) {
       db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
     } catch (cacheError) {
       developerLog('[Firebase] Persistent cache unavailable; using memory cache.', cacheError);
-      db = initializeFirestore(app, {});
+      db = getFirestore(app);
     }
     auth = getAuth(app);
     developerLog('[Firebase] Initialized.');
@@ -218,6 +218,7 @@ export async function setAppDataBackup(data: unknown, options?: {
     const outboundTotal = getRecordTotal(outboundCounts);
     const isIntentionalDelete = options?.operation === 'delete';
     const safeData = sanitizeForFirestore(data);
+    assertSafeAggregateSize(safeData);
     const clientOperationId = options?.clientOperationId || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `op_${Date.now()}_${Math.random().toString(36).slice(2)}`);
     const sourceDeviceId = options?.sourceDeviceId || 'unknown-device';
     const envelope = await runTransaction(db as any, async (transaction) => {
@@ -313,7 +314,9 @@ export function useFirestoreSync(
     getSourceDeviceId?: () => string;
     onPersisted?: (envelope: AppDataEnvelope, hash: string) => void;
     onWriteStarted?: (operationId: string, hash: string) => void;
+    onAttempt?: (attempt: number) => void;
     onRetryScheduled?: (attempt: number, delayMs: number) => void;
+    retryTrigger?: number;
   },
 ) {
   const lastPersistedHash = useState(() => ({ current: '' }))[0];
@@ -338,6 +341,7 @@ export function useFirestoreSync(
           let envelope: AppDataEnvelope | undefined;
           for (let attempt = 0; attempt < 3; attempt += 1) {
             try {
+              callbacks?.onAttempt?.(attempt + 1);
               envelope = await setAppDataBackup(state, {
                 operation,
                 baseRevision: callbacks?.getBaseRevision?.(),
@@ -346,8 +350,7 @@ export function useFirestoreSync(
               });
               break;
             } catch (error) {
-              const code = String((error as { code?: string }).code || '');
-              const retryable = /unavailable|deadline-exceeded|aborted|resource-exhausted/.test(code);
+              const retryable = classifySyncError(error) === 'retryable';
               if (!retryable || attempt === 2) throw error;
               const backoff = boundedSyncBackoff(attempt);
               callbacks?.onRetryScheduled?.(attempt + 1, backoff);
@@ -365,5 +368,5 @@ export function useFirestoreSync(
     }, 1000);
 
     return () => clearTimeout(timeout);
-  }, [state, enabled, recordCounts?.customers, recordCounts?.products, recordCounts?.invoices, recordCounts?.deliveryNotes]);
+  }, [state, enabled, callbacks?.retryTrigger, recordCounts?.customers, recordCounts?.products, recordCounts?.invoices, recordCounts?.deliveryNotes]);
 }

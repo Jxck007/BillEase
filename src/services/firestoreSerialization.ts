@@ -28,3 +28,19 @@ export function contentHash(value: unknown) {
   for (let index = 0; index < serialized.length; index += 1) hash = Math.imul(hash ^ serialized.charCodeAt(index), 16777619);
   return (hash >>> 0).toString(16);
 }
+
+export const MAX_SAFE_AGGREGATE_BYTES = 900_000;
+
+export function serializedByteSize(value: unknown) {
+  return new TextEncoder().encode(JSON.stringify(sanitizeForFirestore(value))).byteLength;
+}
+
+export function assertSafeAggregateSize(value: unknown) {
+  const bytes = serializedByteSize(value);
+  if (bytes > MAX_SAFE_AGGREGATE_BYTES) {
+    const error = new Error('APP_DATA_TOO_LARGE');
+    error.name = 'AppDataTooLargeError';
+    throw error;
+  }
+  return bytes;
+}

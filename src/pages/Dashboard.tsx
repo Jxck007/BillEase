@@ -81,7 +81,7 @@ export default function Dashboard() {
               <Icon size={25} className="shrink-0" />
               <span className="min-w-0 flex-1">
                 <span className="block text-base font-bold">{label}</span>
-                <span className="block text-xs opacity-75">{hint}</span>
+                <span className="block text-xs opacity-90">{hint}</span>
               </span>
               <ArrowRight size={19} className="shrink-0 opacity-60" />
             </Link>

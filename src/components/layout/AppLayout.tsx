@@ -49,14 +49,15 @@ function SyncStatusArea({ status, lastSavedAt, notice, localMode, details, onRet
   };
   const showRetry = details.pendingChanges > 0 && !localMode && details.internet && details.signedIn;
   const pendingLong = Boolean(details.pendingSince && Date.now() - new Date(details.pendingSince).getTime() > 15_000);
+  const visualStatus = localMode && status === 'online' ? 'local' : status;
   return (
-    <div className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b px-4 py-2 text-center font-sans text-sm font-medium ${colors[status] || colors.offline}`}>
+    <div role="region" aria-label={language === 'ta' ? 'சேமிப்பு மற்றும் மேக ஒத்திசைவு நிலை' : 'Save and cloud sync status'} className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b px-4 py-2 text-center font-sans text-sm font-medium ${colors[visualStatus] || colors.offline}`}>
       <span role="status" aria-live="polite" aria-atomic="true">{pendingLong ? (language === 'ta' ? 'உங்கள் பணி இந்தச் சாதனத்தில் பாதுகாப்பாக உள்ளது, ஆனால் மேக ஒத்திசைவு இன்னும் முடியவில்லை.' : 'Your work is safe on this device, but cloud sync has not completed.') : presentationLabel[presentation]}</span>
       {lastSavedAt && <span className="text-xs font-semibold">{t('lastSaved')}: {new Date(lastSavedAt).toLocaleString(language === 'ta' ? 'ta-IN' : 'en-IN')}</span>}
       {notice && ['action-required', 'failed'].includes(status) && <span className="w-full text-xs">{notice}</span>}
       {showRetry && <button type="button" onClick={onRetry} className="min-h-11 rounded-lg border border-current bg-white/80 px-3 font-bold">{t('retry')}</button>}
       {details.pendingChanges > 0 && <button type="button" onClick={() => setDetailsOpen(true)} className="min-h-11 rounded-lg px-2 font-bold underline underline-offset-2">{language === 'ta' ? 'விவரங்களைக் காண்க' : 'View details'}</button>}
-      <button type="button" onClick={() => openHelp('sync')} className="min-h-11 rounded-lg px-2 font-semibold underline underline-offset-2">{language === 'ta' ? 'ஒத்திசைவு ஏன் நிலுவையில் உள்ளது?' : 'Why is sync pending?'}</button>
+      <button type="button" onClick={() => openHelp('sync')} className="min-h-11 rounded-lg px-2 font-semibold underline underline-offset-2">{details.pendingChanges > 0 ? (language === 'ta' ? 'ஒத்திசைவு ஏன் நிலுவையில் உள்ளது?' : 'Why is sync pending?') : (language === 'ta' ? 'மேக ஒத்திசைவு பற்றி' : 'About cloud sync')}</button>
       <Modal isOpen={detailsOpen} onClose={() => setDetailsOpen(false)} title={language === 'ta' ? 'மேக ஒத்திசைவு விவரங்கள்' : 'Cloud sync details'}>
         <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 text-sm">
           <dt>{language === 'ta' ? 'இணையம்' : 'Internet'}</dt><dd className="font-semibold">{details.internet ? (language === 'ta' ? 'இணைக்கப்பட்டது' : 'Connected') : (language === 'ta' ? 'கிடைக்கவில்லை' : 'Unavailable')}</dd>

@@ -15,7 +15,32 @@ export type LocalAppRecord = {
   remoteRevision: number;
   updatedAt: string;
   dirty: boolean;
+  pendingSync?: DurableSyncOutbox;
 };
+
+export type PendingEntityRef = {
+  entityType: 'customer' | 'product' | 'invoice' | 'quotation' | 'deliveryNote' | 'payment' | 'expense' | 'profile' | 'settings' | 'audit' | 'app';
+  entityId: string;
+  baseHash?: string | null;
+};
+
+export type DurableSyncOutbox = {
+  operationId: string;
+  operationType: 'create' | 'update' | 'delete';
+  entities: PendingEntityRef[];
+  queuedAt: string;
+  retryCount: number;
+};
+
+export class DurableWriteQueue {
+  private tail: Promise<void> = Promise.resolve();
+
+  enqueue(write: () => Promise<void>) {
+    const result = this.tail.then(write, write);
+    this.tail = result.then(() => undefined, () => undefined);
+    return result;
+  }
+}
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -36,11 +61,33 @@ async function transact<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore
   const database = await openDatabase();
   return new Promise<T>((resolve, reject) => {
     const transaction = database.transaction(STORE_NAME, mode);
-    const finish = (value: T) => { database.close(); resolve(value); };
-    const fail = () => { database.close(); reject(new Error('LOCAL_DATABASE_WRITE_FAILED')); };
-    transaction.onabort = fail;
-    transaction.onerror = fail;
-    run(transaction.objectStore(STORE_NAME), finish, reject);
+    let result: T;
+    let failure: Error | null = null;
+    let settled = false;
+    const closeAndReject = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      database.close();
+      reject(error);
+    };
+    transaction.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      database.close();
+      resolve(result);
+    };
+    transaction.onabort = () => closeAndReject(failure || new Error('LOCAL_DATABASE_WRITE_FAILED'));
+    transaction.onerror = () => {
+      failure ||= new Error('LOCAL_DATABASE_WRITE_FAILED');
+    };
+    run(
+      transaction.objectStore(STORE_NAME),
+      (value) => { result = value; },
+      (error) => {
+        failure = error;
+        try { transaction.abort(); } catch { closeAndReject(error); }
+      },
+    );
   });
 }
 
@@ -61,7 +108,8 @@ export async function saveLocalAppState(record: LocalAppRecord): Promise<void> {
 }
 
 export async function saveRecoverySnapshot(record: LocalAppRecord, reason: string): Promise<void> {
-  const key = `${RECOVERY_PREFIX}${Date.now()}`;
+  const suffix = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+  const key = `${RECOVERY_PREFIX}${Date.now()}:${suffix}`;
   await transact<void>('readwrite', (store, resolve, reject) => {
     store.put({ ...record, reason }, key);
     const keysRequest = store.getAllKeys();

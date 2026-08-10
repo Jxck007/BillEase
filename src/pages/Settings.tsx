@@ -275,20 +275,11 @@ export default function Settings() {
     setBankStatus('saved');
   };
 
-  const loadSimpleImage = (file: File | null, kind: 'logo' | 'qr') => {
+  const loadSimpleImage = async (file: File | null, kind: 'logo' | 'qr') => {
     if (!file) return;
     const setError = kind === 'logo' ? setLogoError : setQrError;
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      setError('Use a PNG, JPEG, or WebP image.');
-      return;
-    }
-    if (file.size > 500 * 1024) {
-      setError('Image must be smaller than 500 KB.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = String(reader.result || '');
+    try {
+      const dataUrl = await prepareDocumentAsset(file, kind);
       setError('');
       if (kind === 'logo') {
         setLogoPreview(dataUrl);
@@ -297,9 +288,9 @@ export default function Settings() {
         setQrPreview(dataUrl);
         updateProfileField('qrCodeImage', dataUrl);
       }
-    };
-    reader.onerror = () => setError('Unable to read this image.');
-    reader.readAsDataURL(file);
+    } catch (error) {
+      setError((error as Error).message || 'Unable to process this image.');
+    }
   };
 
   const companyContent = (

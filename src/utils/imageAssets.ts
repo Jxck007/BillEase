@@ -1,6 +1,7 @@
-export async function prepareDocumentAsset(file: File, kind: 'signature' | 'seal') {
+export async function prepareDocumentAsset(file: File, kind: 'signature' | 'seal' | 'logo' | 'qr') {
+  const label = { signature: 'Signature', seal: 'Seal', logo: 'Logo', qr: 'QR' }[kind];
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('Use a PNG, JPEG, or WebP image.');
-  if (file.size > 2 * 1024 * 1024) throw new Error(`${kind === 'signature' ? 'Signature' : 'Seal'} image must be smaller than 2 MB.`);
+  if (file.size > 2 * 1024 * 1024) throw new Error(`${label} image must be smaller than 2 MB.`);
   const bitmap = await createImageBitmap(file);
   const scan = document.createElement('canvas');
   scan.width = bitmap.width; scan.height = bitmap.height;
@@ -15,13 +16,15 @@ export async function prepareDocumentAsset(file: File, kind: 'signature' | 'seal
   if (right <= left || bottom <= top) throw new Error(`The ${kind} image appears empty.`);
   const width = right - left + 1;
   const height = bottom - top + 1;
-  const bounds = kind === 'signature' ? { width: 520, height: 220 } : { width: 420, height: 420 };
+  const bounds = kind === 'signature' || kind === 'logo' ? { width: 520, height: 220 } : { width: 420, height: 420 };
   const scale = Math.min(1, bounds.width / width, bounds.height / height);
   const output = document.createElement('canvas');
   output.width = Math.max(1, Math.round(width * scale)); output.height = Math.max(1, Math.round(height * scale));
   output.getContext('2d')?.drawImage(scan, left, top, width, height, 0, 0, output.width, output.height);
-  const dataUrl = output.toDataURL('image/webp', 0.82);
-  if (dataUrl.length > 220_000) throw new Error(`Compressed ${kind} image is still too large.`);
+  const dataUrl = kind === 'qr' ? output.toDataURL('image/png') : output.toDataURL('image/webp', 0.82);
+  const maximumLength = kind === 'logo' || kind === 'qr' ? 180_000 : 220_000;
+  if (dataUrl.length > maximumLength) throw new Error(`Compressed ${label.toLowerCase()} image is still too large.`);
+  bitmap.close();
   return dataUrl;
 }
 
