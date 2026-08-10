@@ -155,6 +155,7 @@ test('hydration, manual retry, reconnect, and foreground resume restart a durabl
   assert.match(source, /document\.addEventListener\('visibilitychange', visibility\)/);
   assert.match(source, /shouldRestartPendingSync/);
   assert.match(hydration, /if \(dirtyRef\.current\) onDurableOutboxReady\(\)/);
+  assert.match(hydration, /setCloudSyncEnabled\(true\);/);
 });
 
 test('a real worker attempt records an attempt immediately before its transaction and recovers its guard', () => {

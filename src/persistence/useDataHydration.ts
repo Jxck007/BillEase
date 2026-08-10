@@ -128,6 +128,10 @@ export function useDataHydration({
           setCloudSyncEnabled(true);
         } catch {
           const reference = errorReference('CLOUD');
+          // An initial read failure is not proof that Firestore cannot accept a
+          // durable write. Keep the worker enabled so it can perform and classify
+          // a real transaction (and recover on a later retry/resume).
+          setCloudSyncEnabled(true);
           setSyncStatus(local ? (local.dirty ? 'offline' : 'local') : 'offline');
           setSyncNotice(`Cloud sync is unavailable. Your work remains saved on this device. Error reference: ${reference}`);
           recordDiagnostic({ operation: 'read', entityType: 'app', status: 'failed', errorCategory: 'network-or-auth', errorReference: reference });
