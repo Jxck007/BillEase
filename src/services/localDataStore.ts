@@ -1,6 +1,6 @@
 import { AppState } from '../lib/types';
 
-export const LOCAL_DATA_VERSION = 1;
+export const LOCAL_DATA_VERSION = 2;
 const DB_NAME = 'billease-local';
 const STORE_NAME = 'records';
 const APP_STATE_KEY = 'app-state';
@@ -16,12 +16,16 @@ export type LocalAppRecord = {
   updatedAt: string;
   dirty: boolean;
   pendingSync?: DurableSyncOutbox;
+  pendingOperations?: DurableSyncOutbox[];
 };
 
 export type PendingEntityRef = {
   entityType: 'customer' | 'product' | 'invoice' | 'quotation' | 'deliveryNote' | 'payment' | 'expense' | 'profile' | 'settings' | 'audit' | 'app';
   entityId: string;
   baseHash?: string | null;
+  data?: unknown;
+  position?: number;
+  operationType?: 'create' | 'update' | 'delete';
 };
 
 export type DurableSyncOutbox = {

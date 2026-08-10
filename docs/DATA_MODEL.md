@@ -1,6 +1,6 @@
 # Data Model
 
-## Current Firestore envelope
+## Legacy aggregate (retained)
 
 ```text
 billease/appData
@@ -19,6 +19,29 @@ billeaseDeliveryRateLimits/{uid_channel_window}
 
 `AppState` contains customers, products, invoices/quotations, payments, expenses, delivery notes, audit logs, profile, and settings. Quotations share the invoice array and are distinguished by `type`. Payments are stored in the top-level ledger and embedded on the invoice for compatibility; hydration de-duplicates by ID.
 
+## Normalized schema version 2
+
+```text
+companies/kimera-vel-tech
+  data.profile
+  schemaVersion: 2
+  migrationState: prepared
+  sourceChecksum
+
+companies/kimera-vel-tech/settings/company
+companies/kimera-vel-tech/customers/{customerId}
+companies/kimera-vel-tech/products/{productId}
+companies/kimera-vel-tech/invoices/{invoiceId}
+companies/kimera-vel-tech/quotations/{quotationId}
+companies/kimera-vel-tech/deliveryNotes/{deliveryNoteId}
+companies/kimera-vel-tech/payments/{paymentId}
+companies/kimera-vel-tech/expenses/{expenseId}
+companies/kimera-vel-tech/auditLogs/{eventId}
+companies/kimera-vel-tech/migrations/aggregate-v1
+```
+
+Every entity wrapper contains exact entity `data`, original `position`, `revision`, `contentHash`, `baseHash`, stable `clientOperationId`, `sourceDeviceId`, and server `updatedAt` for runtime writes. Deletes are tombstones. Payment documents are immutable; a reversal is a new stable payment document.
+
 ## Integrity rules
 
 - IDs remain stable across edits.
@@ -35,39 +58,7 @@ The local fictional acceptance fixture (one customer, invoice, and payment) seri
 
 Every mutation writes the whole aggregate, hashes/serializes it, and contends on one transaction target. Different-device changes therefore conflict at the document level even when business entities differ. Reads are cheap in document-count terms, but each listener transfers and hydrates the full data set. Growth, embedded images, audit history, and frequent settings/autosave changes increase latency and failure risk.
 
-## Recommendation: normalize Firestore
-
-Target model:
-
-```text
-companies/{companyId}
-  settings/company
-  customers/{customerId}
-  invoices/{invoiceId}
-  quotations/{quotationId}
-  deliveryNotes/{deliveryNoteId}
-  payments/{paymentId}
-  expenses/{expenseId}
-  products/{productId}
-  auditLogs/{auditLogId}
-  assets/{assetId}
-```
-
-Payment documents should be immutable/idempotent and reference the invoice. Invoice summary fields may be updated atomically with a payment, while the payment ledger remains the audit authority. Security rules must enforce `companyId` membership/admin authorization and immutable financial identity fields.
-
-## Migration plan (plan only)
-
-1. Export and verify the aggregate plus assets; retain a checksum and revision.
-2. Introduce schema version metadata and write an emulator-tested, idempotent migration script.
-3. Dry-run into isolated collections and compare counts, IDs, totals, payments, reversals, customer snapshots, and report aggregates.
-4. Deploy rules and indexes before client writes.
-5. Add a temporary dual-read adapter: normalized first, aggregate fallback. Do not dual-write payments without an idempotency ledger.
-6. Backfill production in bounded batches and validate again.
-7. Cut over writes by feature flag, monitor acknowledgement/error metrics, and retain the aggregate read-only.
-8. Roll back by disabling normalized writes and restoring aggregate reads; never synthesize a rollback from partial normalized data.
-9. After a defined observation period, archive rather than delete the aggregate.
-
-No migration was executed in this audit.
+The migration implementation and rollback runbook are in `FIRESTORE_MIGRATION.md`. `billeaseAssets` remains separate in this migration to avoid changing signature/seal behavior.
 
 ## Provider decision
 

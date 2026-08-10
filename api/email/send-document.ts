@@ -99,8 +99,9 @@ export default async function handler(request: any, response: any) {
     phase = 'authentication';
     let db;
     let uid;
+    let companyId;
     try {
-      ({ db, uid } = await verifyAdminRequest(request, {
+      ({ db, uid, companyId } = await verifyAdminRequest(request, {
         tokenVerified: () => console.info('[email/send-document] Firebase token verified', { verified: true }),
         adminLookupStarted: () => console.info('[email/send-document] admin lookup', { status: 'started' }),
         adminLookupCompleted: (allowed) => console.info('[email/send-document] admin lookup', { status: 'completed', allowed }),
@@ -151,7 +152,7 @@ export default async function handler(request: any, response: any) {
         documentType: fields.documentType,
         documentNumber: fields.documentNumber,
         customerId: fields.customerId,
-      });
+      }, companyId);
       const customerEmail = String(customer.email || '').trim().toLowerCase();
       if (email.recipientEmail !== customerEmail) {
         throw new HttpError(400, 'RECIPIENT_MISMATCH', 'Recipient must match the selected customer');

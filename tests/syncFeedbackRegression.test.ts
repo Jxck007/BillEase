@@ -34,7 +34,7 @@ test('DataContext clears real pending state after the matching snapshot without 
   assert.match(source, /persistLocal\(stateRef\.current, false\)/);
   assert.doesNotMatch(source, /clear.*queue/i);
   assert.match(source, /shouldQueueCloud = firebaseStatus\.configured/);
-  assert.match(source, /pendingChanges: shouldQueueCloud \? 1 : 0/);
+  assert.match(source, /pendingChanges: shouldQueueCloud \? \(normalizedMode \? normalizedOutbox\.current\.length : 1\) : 0/);
   assert.match(source, /effectiveDirty = local\.dirty && firebaseStatus\.configured/);
   assert.match(source, /local\.dirty && !effectiveDirty/);
 });

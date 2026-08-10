@@ -6,7 +6,7 @@ BillEase retains one synchronization state machine:
 
 ```text
 LOCAL_SAVE_COMPLETE     IndexedDB transaction completed
-CLOUD_WRITE_PENDING     durable pendingSync exists
+CLOUD_WRITE_PENDING     one or more durable pendingOperations exist
 CLOUD_WRITE_ACKNOWLEDGED matching Firestore transaction committed or authoritative snapshot observed
 OFFLINE                 browser offline while pending
 AUTH_REQUIRED           authentication expired while pending
@@ -22,49 +22,21 @@ UI labels are derived from pending count, browser network state, authentication,
 UI mutation
   -> DataContext computes next AppState and stable operation ID
   -> React state updates immediately
-  -> IndexedDB transaction commits app-state + pendingSync
-  -> debounce
-  -> Firestore transaction reads billease/appData revision
-  -> conflict/count/size guards run
-  -> backend commits revision + operation ID + device ID + server timestamp
-  -> transaction promise and/or authoritative snapshot acknowledges exact operation/hash
-  -> pendingSync is removed in memory and IndexedDB
-  -> listener delivers the new revision to other devices
+  -> diff creates one immutable outbox operation with entity snapshots/base hashes
+  -> IndexedDB transaction commits app-state + pendingOperations
+  -> Firestore batch writes only those entity wrappers
+  -> rules require each baseHash to match the remote contentHash
+  -> payment creation and affected invoice update share one atomic batch
+  -> backend commit acknowledges the stable operation ID
+  -> only that operation leaves IndexedDB
+  -> collection listeners deliver authoritative entity state to other devices
 ```
 
-Firestore transactions fail offline, so native persistent cache cannot replay this transaction. The durable IndexedDB outbox is therefore required while the aggregate/revision transaction remains. A browser `offline -> online` transition or manual Retry increments an explicit retry trigger. Authentication restoration also re-enables the same durable outbox.
+Ordinary batched writes are accepted by the Firestore client while offline and commit after reconnect. BillEase still retains its IndexedDB outbox so operation identity, entity snapshots, retry metadata, and recovery survive reloads independently of the SDK cache.
 
-## Before and after
+## Aggregate compatibility
 
-Before:
-
-```text
-failed offline transaction
-  -> dirty IndexedDB record survives
-  -> online event changes display only
-  -> state/effect dependency does not change
-  -> no new transaction
-  -> “Cloud sync pending” remains
-
-server snapshot callback
-  -> clears pending
-  -> transaction promise resolves afterward
-  -> onPersisted sets status back to saving
-  -> stale saving presentation
-```
-
-After:
-
-```text
-offline -> online
-  -> retry trigger changes
-  -> same durable operation ID retries
-
-transaction commit OR matching authoritative snapshot
-  -> exact operation ID + content hash checked
-  -> dirty/outbox cleared once
-  -> later callback becomes a no-op
-```
+`aggregate` keeps the stabilized prior transaction path. `dual-read` reads normalized data first and falls back to the aggregate, while writes use the normalized outbox. `normalized` requires normalized roots and never falls back. An aggregate-wide legacy outbox lacking entity base hashes is preserved and blocked for review rather than guessed.
 
 ## Entity lifecycle sequences
 
@@ -73,7 +45,7 @@ Invoice and quotation:
 ```text
 InvoiceForm local form -> IndexedDB editor draft
 Save -> normalize/validate -> DataContext invoice mutation
--> IndexedDB app-state/outbox -> Firestore aggregate transaction
+-> IndexedDB app-state/entity outbox -> invoices/{invoiceId} batch write
 -> server acknowledgement -> second-device listener
 -> hydrate/validate -> React state -> IndexedDB checkpoint
 ```
@@ -87,7 +59,7 @@ Admin confirmation -> validate stable payment operation ID
 -> append payment/reversal to ledger and related invoice
 -> recalculate amountPaid/balance/status using paise arithmetic
 -> recovery snapshot -> IndexedDB app-state/outbox (payment + invoice refs)
--> Firestore aggregate transaction -> acknowledgement
+-> Firestore payment + invoice atomic batch -> acknowledgement
 -> second device hydrates ledger and recalculated invoice -> reports derive from invoices
 ```
 
@@ -97,7 +69,7 @@ Admin confirmation -> validate stable payment operation ID
 - Same entity changed remotely since the recorded base hash: block the cloud overwrite and preserve local and incoming remote recovery snapshots.
 - Same-field and different-field edits on one financial entity use the same conservative block. No field-level merge is attempted.
 - Payments and reversals use stable record and operation IDs. Conflicting content for the same ID is blocked.
-- Stale/equal remote revisions are ignored.
+- A normalized update is allowed only when its stored `baseHash` equals the remote wrapper's `contentHash`.
 - Legacy dirty records without entity base hashes are treated as aggregate conflicts instead of guessing.
 
 ## Error policy
@@ -110,4 +82,4 @@ The listener uses `includeMetadataChanges`, rejects `fromCache` snapshots as ack
 
 ## Remaining limitation
 
-Two tabs share the application IndexedDB record but keep separate React state and per-tab device IDs. Online Firestore distribution is deterministic under the entity-intent policy. Two tabs making unrelated offline changes before either reconnects can still replace the shared local checkpoint; do not support that workflow as lossless until entity documents or a per-operation multi-tab outbox is implemented.
+Two tabs still share one IndexedDB app-state record. Firestore makes replay idempotent and rejects stale same-entity writes, but two tabs independently rewriting the local checkpoint while both are offline is not a fully transactional multi-tab local database. Avoid concurrent offline editing in two tabs until the local record is split into an operation object store.

@@ -1,0 +1,92 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function adminRecord() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isActiveAdmin() {
+      return request.auth != null
+        && adminRecord().data.active == true
+        && adminRecord().data.role == 'admin';
+    }
+
+    function canAccessCompany(companyId) {
+      return isActiveAdmin()
+        && ((!('companyId' in adminRecord().data) && companyId == 'kimera-vel-tech')
+          || adminRecord().data.companyId == companyId);
+    }
+
+    function validEntityCreate() {
+      return request.resource.data.baseHash == null
+        && request.resource.data.contentHash is string
+        && request.resource.data.clientOperationId is string;
+    }
+
+    function validEntityUpdate() {
+      return request.resource.data.baseHash == resource.data.contentHash
+        && request.resource.data.contentHash is string
+        && request.resource.data.clientOperationId is string;
+    }
+
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /billease/appData {
+      allow read, write: if isActiveAdmin();
+      match /recovery/{snapshotId} {
+        allow read, write: if isActiveAdmin();
+      }
+    }
+
+    match /billeaseAssets/{assetId} {
+      allow read, write: if isActiveAdmin();
+    }
+
+    match /companies/{companyId} {
+      allow read: if canAccessCompany(companyId);
+      allow create: if canAccessCompany(companyId) && validEntityCreate();
+      allow update: if canAccessCompany(companyId) && validEntityUpdate();
+      allow delete: if false;
+
+      match /settings/company {
+        allow read: if canAccessCompany(companyId);
+        allow create: if canAccessCompany(companyId) && validEntityCreate();
+        allow update: if canAccessCompany(companyId) && validEntityUpdate();
+        allow delete: if false;
+      }
+
+      match /migrations/{migrationId} {
+        allow read: if canAccessCompany(companyId);
+        allow write: if false;
+      }
+
+      match /payments/{paymentId} {
+        allow read: if canAccessCompany(companyId);
+        allow create: if canAccessCompany(companyId)
+          && validEntityCreate()
+          && getAfter(/databases/$(database)/documents/companies/$(companyId)/invoices/$(request.resource.data.data.invoiceId)).data.clientOperationId == request.resource.data.clientOperationId;
+        allow update, delete: if false;
+      }
+
+      match /{collectionId}/{entityId} {
+        allow read: if canAccessCompany(companyId)
+          && collectionId in ['customers', 'products', 'invoices', 'quotations', 'deliveryNotes', 'expenses', 'auditLogs'];
+        allow create: if canAccessCompany(companyId)
+          && collectionId in ['customers', 'products', 'invoices', 'quotations', 'deliveryNotes', 'expenses', 'auditLogs']
+          && validEntityCreate();
+        allow update: if canAccessCompany(companyId)
+          && collectionId in ['customers', 'products', 'invoices', 'quotations', 'deliveryNotes', 'expenses', 'auditLogs']
+          && validEntityUpdate();
+        allow delete: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "test": "npm run test:persistence && npm run test:email && npm run test:api && npm run test:export && npm run test:sharing && npm run test:payments && npm run test:bulk && npm run test:footer && npm run test:receipt && npm run test:customer && npm run test:documents && npm run test:sync && npm run test:gst && npm run test:help && npm run test:accessibility",
+    "test": "npm run test:persistence && npm run test:email && npm run test:api && npm run test:export && npm run test:sharing && npm run test:payments && npm run test:bulk && npm run test:footer && npm run test:receipt && npm run test:customer && npm run test:documents && npm run test:sync && npm run test:migration:unit && npm run test:gst && npm run test:help && npm run test:accessibility",
     "test:persistence": "tsx --test tests/persistenceRegression.test.ts",
     "test:email": "tsx --test tests/gmailSmtpProvider.test.ts",
     "test:api": "tsx --test tests/emailApiRoute.test.ts",
@@ -22,9 +22,17 @@
     "test:customer": "tsx --test tests/customerExperienceRegression.test.ts",
     "test:documents": "tsx --test tests/documentPolishRegression.test.ts",
     "test:sync": "tsx --test tests/syncFeedbackRegression.test.ts tests/syncLifecycleRegression.test.ts",
+    "test:migration:unit": "tsx --test tests/firestoreMigration.test.ts tests/normalizedOutbox.test.ts tests/trustedApplicationDataMigration.test.ts",
+    "test:migration:emulator": "tsx --test tests/firestoreMigrationEmulator.test.ts",
     "test:gst": "tsx --test tests/gstPlaceOfSupply.test.ts",
     "test:help": "tsx --test tests/helpContentRegression.test.ts",
-    "test:accessibility": "tsx --test tests/uiAccessibilityRegression.test.ts"
+    "test:accessibility": "tsx --test tests/uiAccessibilityRegression.test.ts",
+    "emulators:migration": "firebase emulators:exec --only firestore --project billease-migration-test \"npm run test:migration:unit && npm run test:migration:emulator\"",
+    "migration:backup": "tsx scripts/firestoreMigration.ts backup",
+    "migration:dry-run": "tsx scripts/firestoreMigration.ts migrate",
+    "migration:verify": "tsx scripts/firestoreMigration.ts verify",
+    "migration:restore": "tsx scripts/firestoreMigration.ts restore",
+    "migration:rollback": "tsx scripts/firestoreMigration.ts rollback"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -50,12 +58,14 @@
     "vite": "^6.2.3"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@types/formidable": "^3.5.1",
     "@types/node": "^22.14.0",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.21",
+    "firebase-tools": "^15.26.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",

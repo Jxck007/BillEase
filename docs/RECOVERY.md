@@ -23,6 +23,8 @@ Hydration reports validation errors and does not silently replace records with e
 
 The Settings export is a JSON application-data backup, not a full Firebase project export. Production recovery should also use scheduled Firestore exports when billing/operations permit. Restore scripts must support dry run, schema validation, count/total comparison, stable IDs, and rollback. Test restores against the Firebase Emulator or an isolated project.
 
+Migration backups are stored outside version control under `.vercel/migration-backups` with mode `0600` and a SHA-256 checksum. `scripts/firestoreMigration.ts restore` restores an exact verified aggregate backup; `rollback` reconstructs the aggregate from verified normalized documents and first saves the current aggregate. Both are dry-run by default and production use requires an exact project confirmation. Neither command deletes normalized data or drafts.
+
 ## Evidence to collect
 
 Safe diagnostics include operation ID, hashed entity ID, local/remote revisions, operation type, queue/attempt/ack times, retry count, online/auth state, and result category. They exclude names, addresses, phones, emails, invoice content, tokens, credentials, and PDFs.

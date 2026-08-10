@@ -10,6 +10,7 @@ export async function resolveTrustedDocumentAndCustomer(
     documentNumber: string;
     customerId: string;
   },
+  companyId = 'kimera-vel-tech',
 ) {
   if (!/^[a-zA-Z0-9_-]{1,160}$/.test(input.documentId)
     || !/^[a-zA-Z0-9_-]{1,160}$/.test(input.customerId)
@@ -19,11 +20,38 @@ export async function resolveTrustedDocumentAndCustomer(
     throw new HttpError(400, 'VALIDATION_FAILED', 'Invalid document selection');
   }
 
+  const type = input.documentType as DocumentType;
+  const normalizedCollection = type === 'delivery-note' ? 'deliveryNotes'
+    : type === 'payment-receipt' ? 'payments'
+      : type === 'quotation' ? 'quotations' : 'invoices';
+  const normalizedRoot = await db.doc(`companies/${companyId}`).get();
+  if (normalizedRoot.exists && normalizedRoot.data()?.migrationState === 'prepared') {
+    const documentSnapshot = await db.doc(`companies/${companyId}/${normalizedCollection}/${input.documentId}`).get();
+    const document = documentSnapshot.data()?.data;
+    if (!documentSnapshot.exists || !document || documentSnapshot.data()?.deleted === true) {
+      throw new HttpError(400, 'DOCUMENT_NOT_FOUND', 'Document was not found');
+    }
+    const receiptInvoiceSnapshot = type === 'payment-receipt'
+      ? await db.doc(`companies/${companyId}/invoices/${document.invoiceId}`).get()
+      : null;
+    const receiptInvoice = receiptInvoiceSnapshot?.data()?.data;
+    const expectedNumber = type === 'delivery-note' ? document.deliveryNoteNumber : type === 'payment-receipt' ? `R-${document.id}` : document.invoiceNumber;
+    const expectedCustomerId = type === 'payment-receipt' ? receiptInvoice?.customerId : document.customerId;
+    if (String(expectedNumber) !== input.documentNumber || String(expectedCustomerId) !== input.customerId) {
+      throw new HttpError(400, 'DOCUMENT_MISMATCH', 'Document details do not match');
+    }
+    const customerSnapshot = await db.doc(`companies/${companyId}/customers/${input.customerId}`).get();
+    const customer = customerSnapshot.data()?.data;
+    if (!customerSnapshot.exists || !customer || customerSnapshot.data()?.deleted === true) {
+      throw new HttpError(400, 'CUSTOMER_NOT_FOUND', 'Customer was not found');
+    }
+    return { document, customer };
+  }
+
   const snapshot = await db.doc('billease/appData').get();
   const state = snapshot.data()?.data;
   if (!snapshot.exists || !state) throw new HttpError(400, 'DOCUMENT_NOT_FOUND', 'Document was not found');
 
-  const type = input.documentType as DocumentType;
   const documents = type === 'delivery-note' ? state.deliveryNotes : type === 'payment-receipt' ? state.payments : state.invoices;
   const document = Array.isArray(documents)
     ? documents.find((entry: any) => String(entry?.id) === input.documentId)

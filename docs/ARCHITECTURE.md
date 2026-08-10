@@ -19,9 +19,9 @@ Editor routes
 
 DataContext mutation
   -> React state (immediate visibility)
-  -> IndexedDB app-state + durable pendingSync outbox
-  -> Firestore transaction on billease/appData
-  -> backend commit acknowledgement and snapshot listener
+  -> IndexedDB app-state + durable per-operation outbox
+  -> Firestore atomic batch for only changed entity documents
+  -> backend commit acknowledgement + entity listeners
   -> React state + IndexedDB clean checkpoint
 ```
 
@@ -32,11 +32,12 @@ The application is a Vite/React 19 single-page app. Routes are lazy-loaded in `s
 | Store | Contents | Current role |
 | --- | --- | --- |
 | React `DataContext` | Hydrated `AppState` | Current working view |
-| IndexedDB `billease-local/records/app-state` | Whole app state, revisions, dirty flag, durable outbox | Durable local source while a write is unacknowledged |
+| IndexedDB `billease-local/records/app-state` | Whole app state, revisions, dirty flag, `pendingOperations` outbox | Durable local source while one or more entity writes are unacknowledged |
 | IndexedDB draft keys | Invoice, quotation, and delivery-note editor drafts | Editor crash/reload recovery; never authoritative business records |
 | IndexedDB recovery keys | Bounded pre-delete/payment/conflict snapshots | Local recovery evidence |
-| Firestore client cache | Cached `billease/appData` reads and SDK state | Read cache and multi-tab SDK cache; not the transaction outbox |
-| Firestore `billease/appData` | Aggregate remote application envelope | Acknowledged remote checkpoint and cross-device distribution |
+| Firestore client cache | Cached normalized reads and queued SDK batches | Native cache; IndexedDB remains the application outbox |
+| Firestore `companies/kimera-vel-tech/**` | Normalized remote entity documents | Remote checkpoint and cross-device distribution after cutover |
+| Firestore `billease/appData` | Legacy aggregate retained during observation | Compatibility/rollback source; never deleted by migration tooling |
 | Firestore `billeaseAssets/{signature|seal}` | Signature/seal data URLs and removal/default flags | Separate visual-asset records |
 | `localStorage` | Language, postal lookup cache, legacy invoice draft | Preferences/optional cache/legacy compatibility |
 | `sessionStorage` | Per-tab device ID, report filter draft, chunk reload guard | Ephemeral tab state |
@@ -52,18 +53,18 @@ The application is a Vite/React 19 single-page app. Routes are lazy-loaded in `s
 | Payment/reversal | Append-only stable-ID entries locally and inside the related invoice; acknowledged aggregate is remote checkpoint |
 | Company settings/profile | Local durable app state until acknowledgement; then Firestore checkpoint |
 | Editor draft | IndexedDB draft record only; it is not cloud data or a completed business record |
-| Pending synchronization operation | IndexedDB `pendingSync`; Firestore cache does not own transaction retry state |
+| Pending synchronization operation | IndexedDB `pendingOperations`; legacy `pendingSync` is converted conservatively |
 | Signature/seal | `billeaseAssets` Firestore documents, with supplied public defaults as fallback |
 
 React state, IndexedDB, Firestore cache, and Firestore backend previously appeared to own the same status. The corrected contract is: React is the working view; IndexedDB is durable local truth while dirty; the backend transaction is the acknowledgement authority; snapshots distribute remote revisions.
 
 ## Server architecture
 
-Vercel functions authenticate Firebase ID tokens, then verify `admins/{uid}` using Firebase Admin. The email endpoint validates the selected document against `billease/appData`, validates recipient and attachment metadata, applies per-admin rate limiting and idempotency, and sends through server-only Gmail SMTP. Postal lookup and sanitized error reporting are also admin-authenticated. PDF/PNG/ZIP generation and native sharing run in the browser; WhatsApp is an explicit `wa.me` handoff and never claims file delivery.
+Vercel functions authenticate Firebase ID tokens, then verify `admins/{uid}` using Firebase Admin. The email endpoint validates normalized entity documents first and falls back to `billease/appData` during compatibility. The remaining delivery, PDF, sharing, and Gmail behavior is unchanged.
 
 ## Known architectural boundaries
 
-- This is a single-company aggregate model; there is no `companyId` tenancy boundary in the client data path.
-- Firestore rules are not versioned in this repository. Deployment cannot be independently reproduced or security-reviewed until rules are added.
-- The server email trust lookup depends on the aggregate path and must be updated during any future normalization.
+- The current deployment is single-company. `VITE_BILLEASE_COMPANY_ID` defaults to `kimera-vel-tech`; rules also permit legacy admin documents without `companyId` only for that company.
+- Firestore rules and emulator configuration are versioned in this repository. Deploy rules separately from data backfill and only after emulator tests pass.
+- Data mode is gated by `VITE_FIRESTORE_DATA_MODE`; default `aggregate` prevents an accidental cutover.
 - `DataContext` is a 600+ line orchestration component and is the main maintainability hotspot. Extraction should follow entity normalization, not precede it without integration tests.

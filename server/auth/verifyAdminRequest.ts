@@ -39,5 +39,5 @@ export async function verifyAdminRequest(request: any, events: VerificationEvent
     throw new HttpError(403, 'ADMIN_REQUIRED', 'Admin access required');
   }
 
-  return { db, uid: decoded.uid };
+  return { db, uid: decoded.uid, companyId: String(adminData.companyId || 'kimera-vel-tech') };
 }

@@ -1,14 +1,22 @@
 export function sanitizeForFirestore(value: unknown, seen = new WeakSet<object>()): unknown {
   if (value === undefined || value === null) return null;
   if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) return value.map((entry) => sanitizeForFirestore(entry, seen));
   if (typeof value === 'object') {
     if (seen.has(value as object)) return null;
     seen.add(value as object);
+    if (Array.isArray(value)) {
+      const output = value.map((entry) => sanitizeForFirestore(entry, seen));
+      seen.delete(value);
+      return output;
+    }
     const output: Record<string, unknown> = {};
     for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
       if (entry !== undefined) output[key] = sanitizeForFirestore(entry, seen);
     }
+    // `seen` tracks the current recursion path, not every previously visited
+    // object. Shared payment objects must serialize in both the invoice and the
+    // top-level ledger; only true cycles become null.
+    seen.delete(value as object);
     return output;
   }
   return value;
