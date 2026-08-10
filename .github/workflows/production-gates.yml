@@ -1,0 +1,62 @@
+name: Production gates
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-gates:
+    name: Financial, persistence and security gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: true
+      VITE_FIREBASE_ENABLED: false
+      VITE_LOCAL_TEST_MODE: true
+      FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java for Firebase Emulator
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: TypeScript and lint gate
+        run: npm run lint
+
+      - name: Financial and persistence regression gate
+        run: npm test
+
+      - name: Firestore authorization and migration emulator gate
+        run: npm run test:firebase
+
+      - name: Production build gate
+        run: npm run build
+
+      - name: Working-tree whitespace gate
+        run: git diff --check
+
+      - name: Credential and secret gate
+        run: npm run security:secrets
