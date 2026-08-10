@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import type { AppState, BusinessProfile, Invoice, Payment } from '../src/lib/types';
 import { contentHash } from '../src/services/firestoreSerialization';
 import { DurableWriteQueue, type DurableSyncOutbox } from '../src/services/localDataStore';
@@ -134,4 +135,33 @@ test('an older async commit cannot acknowledge a newer local state', () => {
   const oldHash = contentHash({ revision: 'old' });
   const newHash = contentHash({ revision: 'new' });
   assert.equal(isCommittedWriteAcknowledgement({ operationId: 'old-op', hash: oldHash, currentHash: newHash }, { operationId: 'old-op', hash: oldHash }), false);
+});
+
+test('invoice commits trigger the worker only after the durable outbox commit', () => {
+  const source = readFileSync(new URL('../src/context/DataContext.tsx', import.meta.url), 'utf8');
+  const commitStart = source.indexOf('const commitState');
+  const commit = source.slice(commitStart, source.indexOf('useDataHydration({', commitStart));
+  assert.match(commit, /await persistLocal\(next, shouldQueueCloud\)/);
+  assert.match(commit, /if \(shouldQueueCloud\) emitSyncTrigger\(\)/);
+  assert.ok(commit.indexOf('await persistLocal(next, shouldQueueCloud)') < commit.indexOf('if (shouldQueueCloud) emitSyncTrigger()'));
+  assert.match(source, /getDurablePendingOperations: getPendingSyncOperations/);
+});
+
+test('hydration, manual retry, reconnect, and foreground resume restart a durable pending outbox', () => {
+  const source = readFileSync(new URL('../src/context/DataContext.tsx', import.meta.url), 'utf8');
+  const hydration = readFileSync(new URL('../src/persistence/useDataHydration.ts', import.meta.url), 'utf8');
+  assert.match(source, /const operations = await getPendingSyncOperations\(\)/);
+  assert.match(source, /window\.addEventListener\('focus', restartIfPending\)/);
+  assert.match(source, /document\.addEventListener\('visibilitychange', visibility\)/);
+  assert.match(source, /shouldRestartPendingSync/);
+  assert.match(hydration, /if \(dirtyRef\.current\) onDurableOutboxReady\(\)/);
+});
+
+test('a real worker attempt records an attempt immediately before its transaction and recovers its guard', () => {
+  const firebase = readFileSync(new URL('../src/lib/firebase.ts', import.meta.url), 'utf8');
+  const data = readFileSync(new URL('../src/context/DataContext.tsx', import.meta.url), 'utf8');
+  assert.match(firebase, /callbacks\?\.onAttempt\?\.\(attempt \+ 1\)/);
+  assert.match(firebase, /finally \{\s*workerRunning\.current = false;/);
+  assert.match(data, /const attemptedAt = new Date\(\)\.toISOString\(\)/);
+  assert.match(data, /lastAttemptAt: attemptedAt/);
 });

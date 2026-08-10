@@ -3,7 +3,7 @@ import type { AppState } from '../lib/types';
 import { db } from '../lib/firebase';
 import { writeNormalizedOperation } from '../lib/normalizedFirebase';
 import { errorReference, recordDiagnostic } from '../services/diagnostics';
-import type { DurableSyncOutbox } from '../services/localDataStore';
+import { getPendingSyncOperations, type DurableSyncOutbox } from '../services/localDataStore';
 import { classifySyncError } from '../services/syncPolicy';
 import type { SyncDetails, SyncStatus } from '../context/dataContextTypes';
 
@@ -34,11 +34,22 @@ export function useNormalizedOutboxSync({
   setSyncDetails, persistLocal,
 }: NormalizedOutboxDependencies) {
   useEffect(() => {
-    if (!enabled || !hasDirtyChanges || syncBlocked || !signedIn || !db) return;
+    if (!enabled || !hasDirtyChanges || syncBlocked || !signedIn || !db) {
+      const reason = !enabled ? 'CLOUD_NOT_READY' : !hasDirtyChanges ? 'NO_PENDING_OPERATIONS' : syncBlocked ? 'ACTION_REQUIRED' : !signedIn ? 'AUTH_NOT_READY' : 'CLOUD_NOT_READY';
+      recordDiagnostic({ operation: 'sync-worker', entityType: 'app', status: 'skipped', resultCategory: `SYNC_SKIPPED:${reason}` });
+      return;
+    }
     let cancelled = false;
     const flush = async () => {
-      while (!cancelled && normalizedOutbox.current.length) {
-        const operation = normalizedOutbox.current[0];
+      while (!cancelled) {
+        const durableOperations = await getPendingSyncOperations();
+        if (cancelled) return;
+        normalizedOutbox.current = durableOperations;
+        const operation = durableOperations[0];
+        if (!operation) {
+          recordDiagnostic({ operation: 'sync-worker', entityType: 'app', status: 'skipped', resultCategory: 'SYNC_SKIPPED:NO_PENDING_OPERATIONS' });
+          return;
+        }
         operation.retryCount += 1;
         pendingSync.current = operation;
         setSyncStatus('saving');

@@ -17,6 +17,11 @@ export type LocalAppRecord = {
   dirty: boolean;
   pendingSync?: DurableSyncOutbox;
   pendingOperations?: DurableSyncOutbox[];
+  syncMetadata?: {
+    lastSyncAttemptAt?: string;
+    lastSyncResult?: 'success' | 'retry-scheduled' | 'action-required' | 'failed';
+    lastSyncErrorCategory?: string;
+  };
 };
 
 export type PendingEntityRef = {
@@ -101,6 +106,14 @@ export async function loadLocalAppState(): Promise<LocalAppRecord | null> {
     request.onsuccess = () => resolve(request.result || null);
     request.onerror = () => reject(new Error('LOCAL_DATABASE_READ_FAILED'));
   });
+}
+
+/** The single durable source used by sync workers and the sync-status UI. */
+export async function getPendingSyncOperations(): Promise<DurableSyncOutbox[]> {
+  const record = await loadLocalAppState();
+  if (!record?.dirty) return [];
+  if (record.pendingOperations?.length) return record.pendingOperations;
+  return record.pendingSync ? [record.pendingSync] : [];
 }
 
 export async function saveLocalAppState(record: LocalAppRecord): Promise<void> {

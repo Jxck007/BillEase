@@ -22,6 +22,7 @@ type DataHydrationDependencies = {
   latestOperationId: MutableRefObject<string>;
   pendingSync: MutableRefObject<DurableSyncOutbox | null>;
   normalizedOutbox: MutableRefObject<DurableSyncOutbox[]>;
+  syncMetadata: MutableRefObject<NonNullable<LocalAppRecord['syncMetadata']>>;
   setState: Dispatch<SetStateAction<AppState>>;
   setIsLoaded: Dispatch<SetStateAction<boolean>>;
   setCloudSyncEnabled: Dispatch<SetStateAction<boolean>>;
@@ -32,13 +33,14 @@ type DataHydrationDependencies = {
   setSyncDetails: Dispatch<SetStateAction<SyncDetails>>;
   setLastSavedAt: Dispatch<SetStateAction<string | null>>;
   persistLocal: (next: AppState, dirty: boolean, revision?: number) => Promise<void>;
+  onDurableOutboxReady: () => void;
 };
 
 export function useDataHydration({
   firebaseConfigured, firestoreDataMode, normalizedMode, signedIn, stateRef, dirtyRef,
-  localRevision, remoteRevision, latestOperationId, pendingSync, normalizedOutbox,
+  localRevision, remoteRevision, latestOperationId, pendingSync, normalizedOutbox, syncMetadata,
   setState, setIsLoaded, setCloudSyncEnabled, setHasDirtyChanges, setSyncBlocked,
-  setSyncStatus, setSyncNotice, setSyncDetails, setLastSavedAt, persistLocal,
+  setSyncStatus, setSyncNotice, setSyncDetails, setLastSavedAt, persistLocal, onDurableOutboxReady,
 }: DataHydrationDependencies) {
   useEffect(() => {
     let active = true;
@@ -66,10 +68,11 @@ export function useDataHydration({
               ? local.pendingOperations
               : pendingSync.current ? [restoreLegacyOutbox(pendingSync.current, hydrated.value)] : [])
             : [];
+          syncMetadata.current = local.syncMetadata || {};
           latestOperationId.current = pendingSync.current?.operationId || '';
           setHasDirtyChanges(effectiveDirty);
           dirtyRef.current = effectiveDirty;
-          setSyncDetails((current) => ({ ...current, pendingChanges: effectiveDirty ? 1 : 0, pendingSince: effectiveDirty ? local!.updatedAt : null }));
+          setSyncDetails((current) => ({ ...current, pendingChanges: effectiveDirty ? 1 : 0, pendingSince: effectiveDirty ? local!.updatedAt : null, lastAttemptAt: local!.syncMetadata?.lastSyncAttemptAt || null, lastSyncResult: local!.syncMetadata?.lastSyncResult || null, lastSyncErrorCategory: local!.syncMetadata?.lastSyncErrorCategory || null }));
           setSyncStatus(effectiveDirty ? 'local' : 'online');
           setLastSavedAt(local.updatedAt);
           if (local.dirty && !effectiveDirty) {
@@ -133,9 +136,12 @@ export function useDataHydration({
         setCloudSyncEnabled(false);
         setSyncStatus(local ? (local.dirty ? 'offline' : 'local') : 'offline');
       }
-      if (active) setIsLoaded(true);
+      if (active) {
+        setIsLoaded(true);
+        if (dirtyRef.current) onDurableOutboxReady();
+      }
     };
     void initialize();
     return () => { active = false; };
-  }, [firebaseConfigured, firestoreDataMode, normalizedMode, persistLocal, signedIn]);
+  }, [firebaseConfigured, firestoreDataMode, normalizedMode, onDurableOutboxReady, persistLocal, signedIn]);
 }

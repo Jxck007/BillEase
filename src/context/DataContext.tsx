@@ -4,7 +4,7 @@ import { generateId } from '../lib/utils';
 import { contentHash, db, getFirebaseStatus, FirebaseStatus, useFirestoreSync } from '../lib/firebase';
 import { useAuth } from './AuthContext';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { DurableSyncOutbox, DurableWriteQueue, LOCAL_DATA_VERSION, LocalAppRecord, PendingEntityRef, saveLocalAppState, saveRecoverySnapshot } from '../services/localDataStore';
+import { DurableSyncOutbox, DurableWriteQueue, getPendingSyncOperations, LOCAL_DATA_VERSION, LocalAppRecord, PendingEntityRef, saveLocalAppState, saveRecoverySnapshot } from '../services/localDataStore';
 import { errorReference, recordDiagnostic } from '../services/diagnostics';
 import { entityContentHash } from '../services/persistencePolicy';
 import { recalculateInvoicePayments, validateNewPayment } from '../services/paymentService';
@@ -37,7 +37,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [hasDirtyChanges, setHasDirtyChanges] = useState(false);
   const [syncBlocked, setSyncBlocked] = useState(false);
-  const [syncDetails, setSyncDetails] = useState<SyncDetails>({ internet: typeof navigator === 'undefined' ? true : navigator.onLine, signedIn: Boolean(user), cloudAvailable: Boolean(db), pendingChanges: 0, pendingSince: null, lastAttemptAt: null, errorReference: null });
+  const [syncDetails, setSyncDetails] = useState<SyncDetails>({ internet: typeof navigator === 'undefined' ? true : navigator.onLine, signedIn: Boolean(user), cloudAvailable: Boolean(db), pendingChanges: 0, pendingSince: null, lastAttemptAt: null, lastSyncResult: null, lastSyncErrorCategory: null, errorReference: null });
   const dirtyRef = useRef(false);
   const localRevision = useRef(0);
   const remoteRevision = useRef(0);
@@ -46,9 +46,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const pendingSync = useRef<DurableSyncOutbox | null>(null);
   const normalizedOutbox = useRef<DurableSyncOutbox[]>([]);
   const pendingAcknowledgement = useRef<{ operationId: string; hash: string; revision?: number } | null>(null);
+  const syncMetadata = useRef<NonNullable<LocalAppRecord['syncMetadata']>>({});
   const durableWriteQueue = useRef(new DurableWriteQueue());
   const [retryTrigger, setRetryTrigger] = useState(0);
   const lastOnline = useRef(typeof navigator === 'undefined' ? true : navigator.onLine);
+  const emitSyncTrigger = useCallback(() => setRetryTrigger((current) => current + 1), []);
 
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => setSyncDetails((current) => ({ ...current, signedIn: Boolean(user), cloudAvailable: Boolean(db) })), [user]);
@@ -64,6 +66,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
     window.addEventListener('online', updateOnline);
     window.addEventListener('offline', updateOnline);
     return () => { window.removeEventListener('online', updateOnline); window.removeEventListener('offline', updateOnline); };
+  }, [user]);
+  useEffect(() => {
+    const restartIfPending = () => {
+      if (!dirtyRef.current) return;
+      if (!navigator.onLine) {
+        recordDiagnostic({ operation: 'sync-worker', entityType: 'app', status: 'skipped', resultCategory: 'SYNC_SKIPPED:OFFLINE' });
+        return;
+      }
+      if (!user) {
+        recordDiagnostic({ operation: 'sync-worker', entityType: 'app', status: 'skipped', resultCategory: 'SYNC_SKIPPED:AUTH_NOT_READY' });
+        return;
+      }
+      if (!db) {
+        recordDiagnostic({ operation: 'sync-worker', entityType: 'app', status: 'skipped', resultCategory: 'SYNC_SKIPPED:CLOUD_NOT_READY' });
+        return;
+      }
+      setRetryTrigger((current) => current + 1);
+    };
+    const visibility = () => { if (document.visibilityState === 'visible') restartIfPending(); };
+    window.addEventListener('focus', restartIfPending);
+    document.addEventListener('visibilitychange', visibility);
+    return () => { window.removeEventListener('focus', restartIfPending); document.removeEventListener('visibilitychange', visibility); };
   }, [user]);
   useEffect(() => {
     try {
@@ -86,6 +110,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       dirty,
       pendingSync: dirty && !normalizedMode ? pendingSync.current || undefined : undefined,
       pendingOperations: dirty && normalizedMode ? normalizedOutbox.current : undefined,
+      syncMetadata: syncMetadata.current,
     };
     await durableWriteQueue.current.enqueue(() => saveLocalAppState(record));
     setLastSavedAt(record.updatedAt);
@@ -102,6 +127,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSyncStatus('online');
     setSyncNotice(null);
     setSyncDetails((current) => ({ ...current, pendingChanges: 0, pendingSince: null, errorReference: null }));
+    syncMetadata.current = { ...syncMetadata.current, lastSyncResult: 'success', lastSyncErrorCategory: undefined };
     try {
       await persistLocal(stateRef.current, false);
       recordDiagnostic({ operationId, operation: 'acknowledge', entityType: 'app', localRevision: localRevision.current, remoteRevision: revision, acknowledgedAt: new Date().toISOString(), status: 'synced', resultCategory, signedIn: Boolean(user) });
@@ -171,10 +197,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setHasDirtyChanges(shouldQueueCloud);
     dirtyRef.current = shouldQueueCloud;
     setSyncStatus('unsaved');
-    setSyncDetails((current) => ({ ...current, pendingChanges: shouldQueueCloud ? (normalizedMode ? normalizedOutbox.current.length : 1) : 0, pendingSince: shouldQueueCloud ? (current.pendingSince || new Date().toISOString()) : null, errorReference: null }));
+    setSyncDetails((current) => ({ ...current, pendingChanges: shouldQueueCloud ? (normalizedMode ? normalizedOutbox.current.length : 1) : 0, pendingSince: shouldQueueCloud ? (current.pendingSince || new Date().toISOString()) : null, lastSyncResult: null, lastSyncErrorCategory: null, errorReference: null }));
     try {
       await persistLocal(next, shouldQueueCloud);
       recordDiagnostic({ operationId, operation, entityType, entityId, localRevision: localRevision.current, remoteRevision: remoteRevision.current, queuedAt: pendingSync.current?.queuedAt, status: 'saved-locally', resultCategory: 'local-save-complete', signedIn: Boolean(user) });
+      if (shouldQueueCloud) emitSyncTrigger();
       return { ok: true, id: entityId };
     } catch {
       const reference = errorReference('LOCAL');
@@ -183,7 +210,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       recordDiagnostic({ operation, entityType, entityId, revision: localRevision.current, status: 'failed', errorCategory: 'local-storage', errorReference: reference });
       return { ok: false, id: entityId, errorReference: reference };
     }
-  }, [firebaseStatus.configured, normalizedMode, persistLocal, user]);
+  }, [emitSyncTrigger, firebaseStatus.configured, normalizedMode, persistLocal, user]);
 
   useDataHydration({
     firebaseConfigured: firebaseStatus.configured,
@@ -197,6 +224,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     latestOperationId,
     pendingSync,
     normalizedOutbox,
+    syncMetadata,
     setState,
     setIsLoaded,
     setCloudSyncEnabled,
@@ -207,6 +235,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSyncDetails,
     setLastSavedAt,
     persistLocal,
+    onDurableOutboxReady: emitSyncTrigger,
   });
 
   useFirestoreListeners({
@@ -246,25 +275,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
             : category === 'data-too-large'
               ? `Cloud backup is too large for the current Firestore document. Export a local backup and reduce embedded logo or QR image size. Error reference: ${reference}`
         : `Your document could not be synced yet. It has been saved safely on this device. Error reference: ${reference}`);
-      setSyncDetails((current) => ({ ...current, errorReference: reference }));
+      const result = category === 'conflict' || category === 'permission-denied' || category === 'auth-required' || category === 'data-too-large' ? 'action-required' : 'failed';
+      syncMetadata.current = { ...syncMetadata.current, lastSyncResult: result, lastSyncErrorCategory: category };
+      setSyncDetails((current) => ({ ...current, lastSyncResult: result, lastSyncErrorCategory: category, errorReference: reference }));
       recordDiagnostic({ operationId: pendingSync.current?.operationId, operation: 'write', entityType: 'app', localRevision: localRevision.current, remoteRevision: remoteRevision.current, retryCount: pendingSync.current?.retryCount, status: 'failed', resultCategory: category, errorCategory: error.name, errorReference: reference, signedIn: Boolean(user) });
     },
     getOperation: () => pendingSync.current?.operationType || 'update',
     getBaseRevision: () => remoteRevision.current,
     getClientOperationId: () => pendingSync.current?.operationId || latestOperationId.current,
     getSourceDeviceId: () => deviceId.current,
+    getDurablePendingOperations: getPendingSyncOperations,
     onWriteStarted: (operationId, hash) => {
       pendingAcknowledgement.current = { operationId, hash };
       setSyncStatus('saving');
-      setSyncDetails((current) => ({ ...current, pendingChanges: 1, pendingSince: current.pendingSince || new Date().toISOString(), lastAttemptAt: new Date().toISOString(), errorReference: null }));
+      setSyncDetails((current) => ({ ...current, pendingChanges: 1, pendingSince: current.pendingSince || new Date().toISOString(), errorReference: null }));
     },
     onAttempt: () => {
       if (!pendingSync.current) return;
       pendingSync.current = { ...pendingSync.current, retryCount: pendingSync.current.retryCount + 1 };
       const outbox = pendingSync.current;
+      const attemptedAt = new Date().toISOString();
+      syncMetadata.current = { ...syncMetadata.current, lastSyncAttemptAt: attemptedAt, lastSyncResult: undefined, lastSyncErrorCategory: undefined };
+      setSyncDetails((current) => ({ ...current, lastAttemptAt: attemptedAt, lastSyncResult: null, lastSyncErrorCategory: null, errorReference: null }));
       void durableWriteQueue.current.enqueue(() => saveLocalAppState({
         version: LOCAL_DATA_VERSION, data: stateRef.current, localRevision: localRevision.current, remoteRevision: remoteRevision.current,
-        updatedAt: new Date().toISOString(), dirty: true, pendingSync: outbox,
+        updatedAt: new Date().toISOString(), dirty: true, pendingSync: outbox, syncMetadata: syncMetadata.current,
       })).catch(() => {
         const reference = errorReference('LOCAL');
         setSyncStatus('action-required');
@@ -273,7 +308,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       });
       recordDiagnostic({ operationId: outbox.operationId, operation: outbox.operationType, entityType: 'app', localRevision: localRevision.current, remoteRevision: remoteRevision.current, queuedAt: outbox.queuedAt, attemptedAt: new Date().toISOString(), retryCount: outbox.retryCount, status: 'attempting', resultCategory: 'cloud-write-pending', signedIn: Boolean(user) });
     },
-    onRetryScheduled: () => setSyncNotice('Retry scheduled. Your work remains safe on this device.'),
+    onRetryScheduled: () => {
+      syncMetadata.current = { ...syncMetadata.current, lastSyncResult: 'retry-scheduled' };
+      setSyncNotice('Retry scheduled. Your work remains safe on this device.');
+      setSyncDetails((current) => ({ ...current, lastSyncResult: 'retry-scheduled' }));
+    },
     onPersisted: (envelope, hash) => {
       if (hash !== contentHash(stateRef.current)) return;
       const pending = pendingAcknowledgement.current;
@@ -303,9 +342,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     persistLocal,
   });
 
-  const retrySync = () => {
-    if (!hasDirtyChanges) return;
-    setSyncStatus('saving');
+  const retrySync = async () => {
+    const operations = await getPendingSyncOperations();
+    if (!operations.length) {
+      recordDiagnostic({ operation: 'sync-worker', entityType: 'app', status: 'skipped', resultCategory: 'SYNC_SKIPPED:NO_PENDING_OPERATIONS' });
+      return;
+    }
+    pendingSync.current = operations[0];
+    normalizedOutbox.current = normalizedMode ? operations : normalizedOutbox.current;
+    dirtyRef.current = true;
+    setHasDirtyChanges(true);
+    setSyncBlocked(false);
+    setSyncStatus('local');
     setRetryTrigger((current) => current + 1);
   };
 

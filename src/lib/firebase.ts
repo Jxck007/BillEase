@@ -1,6 +1,6 @@
 // Minimal Firebase helpers for optional cloud backup (Firestore + Storage)
 /// <reference types="vite/client" />
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
@@ -282,15 +282,29 @@ export function useFirestoreSync(
     onWriteStarted?: (operationId: string, hash: string) => void;
     onAttempt?: (attempt: number) => void;
     onRetryScheduled?: (attempt: number, delayMs: number) => void;
+    getDurablePendingOperations?: () => Promise<{ operationId: string }[]>;
     retryTrigger?: number;
   },
 ) {
   const lastPersistedHash = useState(() => ({ current: '' }))[0];
   const writeQueue = useState(() => ({ current: Promise.resolve() as Promise<void> }))[0];
+  const workerRunning = useRef(false);
   useEffect(() => {
-    if (!enabled || !firebaseEnabled()) return;
+    if (!enabled || !firebaseEnabled()) {
+      developerLog('[Sync] SYNC_SKIPPED:', !enabled ? 'WORKER_NOT_ENABLED' : 'CLOUD_NOT_READY');
+      return;
+    }
 
-    const timeout = setTimeout(() => {
+    const timeout = setTimeout(async () => {
+      if (workerRunning.current) {
+        developerLog('[Sync] SYNC_SKIPPED: WORKER_ALREADY_RUNNING');
+        return;
+      }
+      const durableOperations = await callbacks?.getDurablePendingOperations?.();
+      if (durableOperations && !durableOperations.length) {
+        developerLog('[Sync] SYNC_SKIPPED: NO_PENDING_OPERATIONS');
+        return;
+      }
       const hash = contentHash(state);
       if (hash === lastPersistedHash.current) {
         callbacks?.onSuccess?.();
@@ -302,6 +316,7 @@ export function useFirestoreSync(
       const operation = callbacks?.getOperation?.() || 'update';
       const clientOperationId = callbacks?.getClientOperationId?.() || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `op_${Date.now()}_${Math.random().toString(36).slice(2)}`);
       callbacks?.onWriteStarted?.(clientOperationId, hash);
+      workerRunning.current = true;
       writeQueue.current = writeQueue.current.then(async () => {
         try {
           let envelope: AppDataEnvelope | undefined;
@@ -329,6 +344,8 @@ export function useFirestoreSync(
           callbacks?.onSuccess?.();
         } catch (error) {
           callbacks?.onError?.(error as Error);
+        } finally {
+          workerRunning.current = false;
         }
       });
     }, 1000);

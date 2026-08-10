@@ -4,7 +4,7 @@ import type { ValidationIssue } from '../lib/entitySchemas';
 
 export type SyncStatus = 'loading' | 'unsaved' | 'saving' | 'local' | 'online' | 'offline' | 'failed' | 'action-required';
 export type MutationResult = { ok: boolean; id?: string; errors?: ValidationIssue[]; errorReference?: string };
-export type SyncDetails = { internet: boolean; signedIn: boolean; cloudAvailable: boolean; pendingChanges: number; pendingSince: string | null; lastAttemptAt: string | null; errorReference: string | null };
+export type SyncDetails = { internet: boolean; signedIn: boolean; cloudAvailable: boolean; pendingChanges: number; pendingSince: string | null; lastAttemptAt: string | null; lastSyncResult: 'success' | 'retry-scheduled' | 'action-required' | 'failed' | null; lastSyncErrorCategory: string | null; errorReference: string | null };
 
 export interface DataContextType {
   state: AppState;

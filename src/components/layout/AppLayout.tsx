@@ -64,7 +64,9 @@ function SyncStatusArea({ status, lastSavedAt, notice, localMode, details, onRet
           <dt>{language === 'ta' ? 'உள்நுழைந்துள்ளீர்கள்' : 'Signed in'}</dt><dd className="font-semibold">{details.signedIn ? (language === 'ta' ? 'ஆம்' : 'Yes') : (language === 'ta' ? 'இல்லை' : 'No')}</dd>
           <dt>{language === 'ta' ? 'மேகச் சேவை' : 'Cloud service'}</dt><dd className="font-semibold">{details.cloudAvailable ? (language === 'ta' ? 'கிடைக்கிறது' : 'Available') : (language === 'ta' ? 'கிடைக்கவில்லை' : 'Unavailable')}</dd>
           <dt>{language === 'ta' ? 'நிலுவை மாற்றங்கள்' : 'Pending changes'}</dt><dd className="font-semibold">{details.pendingChanges}</dd>
-          <dt>{language === 'ta' ? 'கடைசி முயற்சி' : 'Last sync attempt'}</dt><dd className="text-right font-semibold">{details.lastAttemptAt ? new Date(details.lastAttemptAt).toLocaleString(language === 'ta' ? 'ta-IN' : 'en-IN') : '—'}</dd>
+          <dt>{language === 'ta' ? 'நிலை' : 'Status'}</dt><dd className="text-right font-semibold">{status === 'saving' ? 'Syncing…' : status === 'action-required' ? 'Action required' : details.lastSyncResult === 'retry-scheduled' ? 'Retry scheduled' : 'Waiting to sync…'}</dd>
+          <dt>{language === 'ta' ? 'கடைசி முயற்சி' : 'Last sync attempt'}</dt><dd className="text-right font-semibold">{details.lastAttemptAt ? new Date(details.lastAttemptAt).toLocaleString(language === 'ta' ? 'ta-IN' : 'en-IN') : 'Never'}</dd>
+          {details.lastSyncErrorCategory ? <><dt>{language === 'ta' ? 'காரணம்' : 'Reason'}</dt><dd className="text-right font-semibold">{details.lastSyncErrorCategory === 'auth-required' ? 'Sign-in required' : details.lastSyncErrorCategory === 'retryable' ? 'Temporary cloud connection problem' : 'Cloud sync needs attention'}</dd></> : null}
           {details.errorReference ? <><dt>{language === 'ta' ? 'பிழைக் குறிப்பு' : 'Error reference'}</dt><dd className="font-mono text-xs">{details.errorReference}</dd></> : null}
         </dl>
       </Modal>
