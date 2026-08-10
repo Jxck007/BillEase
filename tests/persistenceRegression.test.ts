@@ -4,7 +4,7 @@ import { customerSnapshot, normalizeCustomer, normalizeInvoice } from '../src/li
 import { AppState, BusinessProfile } from '../src/lib/types';
 import { decideRemoteSnapshot, mergeRemoteWithoutLosingLocal } from '../src/services/persistencePolicy';
 import { loadLocalAppState } from '../src/services/localDataStore';
-import { contentHash, sanitizeForFirestore } from '../src/services/firestoreSerialization';
+import { assertSafeAggregateSize, contentHash, MAX_SAFE_AGGREGATE_BYTES, sanitizeForFirestore, serializedByteSize } from '../src/services/firestoreSerialization';
 
 const now = '2026-07-30T00:00:00.000Z';
 const profile: BusinessProfile = { name: 'Test', address: '', phone: '', email: '', gst: '', logo: '' };
@@ -80,4 +80,11 @@ test('identical application data has one stable content hash regardless of objec
 
 test('Firestore serialization preserves empty optional strings and numeric zero', () => {
   assert.deepEqual(sanitizeForFirestore({ gstNumber: '', address: '', total: 0 }), { gstNumber: '', address: '', total: 0 });
+});
+
+test('aggregate backup fails explicitly before Firestore rejects an oversized document', () => {
+  const safe = { logo: 'x'.repeat(1_000) };
+  assert.ok(serializedByteSize(safe) < MAX_SAFE_AGGREGATE_BYTES);
+  assert.doesNotThrow(() => assertSafeAggregateSize(safe));
+  assert.throws(() => assertSafeAggregateSize({ logo: 'x'.repeat(MAX_SAFE_AGGREGATE_BYTES + 1) }), { name: 'AppDataTooLargeError' });
 });
